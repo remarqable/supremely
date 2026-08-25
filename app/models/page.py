@@ -5,6 +5,7 @@ import re
 from app.extensions import db
 from app.platform.errors import ValidationError
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
+from .types import TZDateTime
 
 
 class Page(OrgScoped, AuditMixin, BaseModel):
@@ -16,7 +17,7 @@ class Page(OrgScoped, AuditMixin, BaseModel):
     status = db.Column(db.String(10), nullable=False, default='draft')
     # public | members
     visibility = db.Column(db.String(10), nullable=False, default='public')
-    published_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    published_at = db.Column(TZDateTime, nullable=True)
     template = db.Column(db.String(50), nullable=False, default='page')
     seo_title = db.Column(db.String(200), nullable=True)
     seo_description = db.Column(db.String(300), nullable=True)
@@ -30,7 +31,8 @@ class Page(OrgScoped, AuditMixin, BaseModel):
     RESERVED_SLUGS = {
         'manage', 'dashboard', 'admin', 'auth', 'setup', 'static', 'files',
         'themes', 'launcher', 'health', 'posts', 'discussions', 'members',
-        'newsletter', 'feed', 'sitemap',
+        'newsletter', 'feed', 'sitemap', 'profile', 'invite', 'avatars',
+        'subscribe', 'unsubscribe',
     }
 
     STATUSES = ('draft', 'published')

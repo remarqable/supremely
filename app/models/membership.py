@@ -20,6 +20,7 @@ class Membership(BaseModel):
     org_id = db.Column(BigIntFK, db.ForeignKey('organization.id', ondelete='CASCADE'),
                        nullable=False, index=True)
     role = db.Column(db.String(20), nullable=False, default='member')
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
 
     user = db.relationship('User', back_populates='memberships')
     organization = db.relationship('Organization', back_populates='memberships')
@@ -60,3 +61,25 @@ class Membership(BaseModel):
         if self.role == 'owner':
             self.organization_must_keep_an_owner()
         self.delete()
+
+    def suspend(self):
+        if self.role == 'owner':
+            self.organization_must_keep_an_owner()
+        self.is_active = False
+        return self.save()
+
+    def unsuspend(self):
+        self.is_active = True
+        return self.save()
+
+    def transfer_ownership_to(self, new_owner_membership: 'Membership'):
+        """Owner hands the org to another member; the old owner becomes admin."""
+        if self.role != 'owner':
+            raise ValidationError('Only an owner can transfer ownership')
+        if new_owner_membership.org_id != self.org_id:
+            raise ValidationError('Membership belongs to a different organization')
+        new_owner_membership.role = 'owner'
+        new_owner_membership.is_active = True
+        self.role = 'admin'
+        db.session.commit()
+        return self

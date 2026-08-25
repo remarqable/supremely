@@ -1,0 +1,44 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{{ _('members.profile_title') }} — {{ installation_name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md">
+  <div class="card">
+    <h1 class="mb-6 text-xl font-semibold">{{ _('members.profile_title') }}</h1>
+
+    <div class="mb-6 flex items-center gap-4">
+      {% if current_user.avatar_url %}
+      <img src="{{ current_user.avatar_url }}" alt="" class="h-16 w-16 rounded-full object-cover">
+      {% else %}
+      <div class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-2xl text-white" aria-hidden="true">
+        {{ current_user.get_initials() }}
+      </div>
+      {% endif %}
+      <div>
+        <div class="font-semibold">{{ current_user.name }}</div>
+        <div class="text-sm text-slate-600">{{ current_user.email }}</div>
+      </div>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div>
+        <label for="name" class="label">{{ _('members.display_name') }}</label>
+        <input type="text" id="name" name="name" class="input mt-1" required
+               maxlength="100" value="{{ current_user.name }}">
+      </div>
+      <div>
+        <label for="bio" class="label">{{ _('members.bio') }}</label>
+        <textarea id="bio" name="bio" class="textarea mt-1" maxlength="2000">{{ current_user.bio or '' }}</textarea>
+      </div>
+      <div>
+        <label for="avatar" class="label">{{ _('members.avatar') }}</label>
+        <input type="file" id="avatar" name="avatar" class="input mt-1"
+               accept="image/png,image/jpeg,image/webp">
+      </div>
+      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

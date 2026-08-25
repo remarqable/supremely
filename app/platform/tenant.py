@@ -55,7 +55,11 @@ def init_tenant(app):
 
         if current_user.is_authenticated:
             from app.models import Membership
-            g.membership = Membership.get(current_user.id, org.id)
+            membership = Membership.get(current_user.id, org.id)
+            # A suspended membership grants nothing: the user sees the org
+            # exactly as an anonymous/outside visitor would.
+            if membership is not None and membership.is_active:
+                g.membership = membership
 
         if not app.config.get('PUBLIC_TENANTS') and g.membership is None:
             abort(404)                  # not 403: 403 confirms the org exists

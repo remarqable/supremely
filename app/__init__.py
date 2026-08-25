@@ -32,6 +32,15 @@ def create_app(config_class=Config):
         with app.app_context():
             upgrade()
 
+    @app.before_request
+    def _reset_request_state():
+        # Registered first on purpose. When an app context outlives a request
+        # (tests, scripts driving test_client), Flask reuses it and
+        # Flask-Login's per-request user cache on `g` would leak across
+        # requests. Clearing it forces re-authentication from the session.
+        from flask import g as _g
+        _g.pop('_login_user', None)
+
     from .middleware.csrf import init_csrf
     init_csrf(app)
 
@@ -51,8 +60,9 @@ def create_app(config_class=Config):
     from .platform.post_types import register_core_types
     register_core_types()
 
-    from .controllers import main, auth, setup, admin, orgs, cli, manage, site, posts
-    for module in (main, auth, setup, admin, orgs, manage, posts, site):
+    from .controllers import (main, auth, setup, admin, orgs, cli, manage,
+                              site, posts, members)
+    for module in (main, auth, setup, admin, orgs, manage, posts, members, site):
         app.register_blueprint(module.bp)
     for cli_bp in cli.CLI_BLUEPRINTS:
         app.register_blueprint(cli_bp)

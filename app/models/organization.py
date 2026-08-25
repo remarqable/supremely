@@ -5,7 +5,7 @@ import re
 from app.extensions import db
 from app.platform.errors import ValidationError
 from .base import BaseModel, transaction
-from .types import JSONColumn
+from .types import JSONColumn, TZDateTime
 
 
 class Organization(BaseModel):
@@ -17,7 +17,7 @@ class Organization(BaseModel):
     theme = db.Column(db.String(50), nullable=False, default='default')
     brand_primary = db.Column(db.String(7), nullable=True)      # #RRGGBB
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    archived_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    archived_at = db.Column(TZDateTime, nullable=True)
     settings = db.Column(JSONColumn, nullable=False, default=dict)
 
     memberships = db.relationship('Membership', back_populates='organization',

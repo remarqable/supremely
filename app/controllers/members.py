@@ -1,0 +1,174 @@
+"""Member-facing routes: invitation acceptance (email-free), member
+directory, profile, avatars."""
+
+import io
+import secrets
+
+from flask import (Blueprint, abort, flash, g, redirect, render_template,
+                   request, send_file, session, url_for)
+from flask_login import current_user, login_required, login_user
+
+from app.extensions import db
+from app.middleware.ratelimit import rate_limit
+from app.models import Membership, User
+from app.models.invitation import Invitation
+from app.models.upload import sniff
+from app.platform.authz import is_org_member, org_required
+from app.platform.errors import ValidationError
+from app.platform.i18n import t
+from app.platform.logger import get_logger
+from app.platform.theming import render_site
+
+bp = Blueprint('members', __name__)
+log = get_logger()
+
+
+# --- Invitations ----------------------------------------------------------------
+
+@bp.route('/invite/<token>')
+@org_required
+def invite(token):
+    invitation = Invitation.find_valid(token)
+    if invitation is None:
+        abort(404)
+    already_member = (current_user.is_authenticated and
+                      Membership.get(current_user.id, g.org.id) is not None)
+    return render_template('members/invite.html', invitation=invitation,
+                           token=token, already_member=already_member)
+
+
+@bp.route('/invite/<token>/accept', methods=['POST'])
+@org_required
+@login_required
+def accept_invite(token):
+    invitation = Invitation.find_valid(token)
+    if invitation is None:
+        abort(404)
+    invitation.accept(current_user)
+    log.info('invitation_accepted', org_id=g.org.id, user_id=current_user.id)
+    flash(t('members.welcome', org=g.org.name), 'success')
+    return redirect('/')
+
+
+@bp.route('/invite/<token>/signup', methods=['POST'])
+@org_required
+@rate_limit(limit=10, window=300)
+def signup_via_invite(token):
+    """Account creation carried by the invitation token, so acceptance is
+    atomic with signup. No email delivery involved anywhere."""
+    invitation = Invitation.find_valid(token)
+    if invitation is None:
+        abort(404)
+    if current_user.is_authenticated:
+        return redirect(url_for('members.invite', token=token))
+
+    email = request.form.get('email', '').strip().lower()
+    name = request.form.get('name', '').strip()
+    password = request.form.get('password', '')
+
+    if User.get_by_email(email) is not None:
+        flash(t('members.account_exists'), 'error')
+        return redirect(url_for('members.invite', token=token))
+    try:
+        user = User.create(email=email, name=name or email.split('@')[0],
+                           password=password)
+    except ValidationError as e:
+        flash(e.message, 'error')
+        return redirect(url_for('members.invite', token=token))
+
+    invitation.accept(user)
+    session.clear()
+    login_user(user, remember=True)
+    log.info('invitation_signup', org_id=g.org.id, user_id=user.id)
+    flash(t('members.welcome', org=g.org.name), 'success')
+    return redirect('/')
+
+
+# --- Member directory -------------------------------------------------------------
+
+@bp.route('/members')
+@org_required
+def directory():
+    if not g.org.setting('member_directory'):
+        abort(404)
+    if not (is_org_member() or (current_user.is_authenticated
+                                and current_user.is_platform_admin)):
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login', next=request.path))
+        abort(404)
+    member_list = (Membership.query
+                   .filter_by(org_id=g.org.id, is_active=True)
+                   .join(Membership.user)
+                   .filter(User.is_active.is_(True))
+                   .order_by(Membership.created_at).all())
+    return render_site(['site/members.html'], members=member_list)
+
+
+# --- Profile ------------------------------------------------------------------------
+
+@bp.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    if request.method == 'POST':
+        current_user.name = request.form.get('name', current_user.name)
+        current_user.bio = request.form.get('bio', '').strip()[:2000] or None
+
+        file = request.files.get('avatar')
+        if file is not None and file.filename:
+            try:
+                _set_avatar(current_user, file)
+            except ValidationError as e:
+                db.session.rollback()
+                flash(e.message, 'error')
+                return render_template('members/profile.html')
+        try:
+            current_user.save()
+            flash(t('common.saved'), 'success')
+            return redirect(url_for('members.profile'))
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+    return render_template('members/profile.html')
+
+
+def _set_avatar(user, file) -> None:
+    from PIL import Image, ImageOps
+    from app.platform.storage import storage
+
+    head = file.stream.read(5 * 1024 * 1024 + 1)
+    if len(head) > 5 * 1024 * 1024:
+        raise ValidationError('Avatar too large (max 5 MB)')
+    sniffed = sniff(head)
+    if sniffed is None or sniffed[0] not in ('image/png', 'image/jpeg',
+                                             'image/webp'):
+        raise ValidationError('Avatar must be a PNG, JPEG, or WebP image')
+
+    Image.MAX_IMAGE_PIXELS = 30_000_000
+    img = Image.open(io.BytesIO(head))
+    img = ImageOps.exif_transpose(img)
+    if img.mode == 'P':
+        img = img.convert('RGBA')
+    img.thumbnail((400, 400))
+    out = io.BytesIO()
+    img.save(out, 'WEBP', quality=85)
+    out.seek(0)
+
+    old_key = user.avatar_key
+    user.avatar_key = f'avatars/{user.id}/{secrets.token_hex(8)}.webp'
+    storage().save(user.avatar_key, out)
+    if old_key:
+        storage().delete(old_key)
+
+
+@bp.route('/avatars/<int:user_id>')
+def avatar(user_id):
+    user = db.session.get(User, user_id)
+    if user is None or not user.avatar_key:
+        abort(404)
+    from app.platform.storage import storage
+    if not storage().exists(user.avatar_key):
+        abort(404)
+    response = send_file(storage().open(user.avatar_key),
+                         mimetype='image/webp', max_age=86400)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response

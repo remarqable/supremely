@@ -10,9 +10,11 @@ from .page import Page
 from .navigation import NavigationItem
 from .upload import Upload
 from .post import Post, Category
+from .invitation import Invitation
 
 __all__ = [
     'BaseModel', 'OrgScoped', 'AuditMixin', 'utcnow', 'transaction',
     'User', 'Organization', 'Membership', 'ROLES', 'InstallationSetting',
     'Job', 'Page', 'NavigationItem', 'Upload', 'Post', 'Category',
+    'Invitation',
 ]

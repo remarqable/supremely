@@ -1,0 +1,159 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+{% with invite_messages = get_flashed_messages(category_filter=['invite']) %}
+{% for message in invite_messages %}
+<div class="mb-6 rounded-md bg-brand-50 p-4 ring-1 ring-brand-100" x-data>
+  <p class="text-sm font-medium text-brand-700">{{ _('members.invite_link_label') }}</p>
+  <div class="mt-2 flex items-center gap-2">
+    <input type="text" readonly value="{{ message.split(': ', 1)[1] if ': ' in message else message }}"
+           class="input flex-1 font-mono text-xs" id="invite-url-{{ loop.index }}"
+           @focus="$el.select()">
+    <button type="button" class="btn-secondary"
+            @click="navigator.clipboard.writeText(document.getElementById('invite-url-{{ loop.index }}').value)">
+      {{ _('members.copy') }}</button>
+  </div>
+  <p class="mt-1 text-xs text-brand-700">{{ _('members.invite_link_once') }}</p>
+</div>
+{% endfor %}
+{% endwith %}
+
+<div class="card mb-6">
+  <h3 class="mb-4 text-lg font-semibold">{{ _('members.invite_title') }}</h3>
+  <p class="mb-4 text-sm text-slate-600">
+    {{ _('members.invite_hint_email') if email_configured else _('members.invite_hint_no_email') }}
+  </p>
+  <form method="POST" action="{{ url_for('manage.create_invitation') }}"
+        class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex-1">
+      <label for="invite_email" class="label">{{ _('common.email') }} ({{ _('members.optional') }})</label>
+      <input type="email" id="invite_email" name="email" class="input mt-1">
+    </div>
+    <div>
+      <label for="invite_role" class="label">{{ _('common.role') }}</label>
+      <select id="invite_role" name="role" class="select mt-1">
+        {% for role in ('member', 'admin') %}
+        <option value="{{ role }}">{{ _('roles.' + role) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('members.generate_invite') }}</button>
+  </form>
+
+  {% if invitations %}
+  <table class="table-plain mt-6">
+    <thead><tr><th>{{ _('common.email') }}</th><th>{{ _('common.role') }}</th><th>{{ _('common.status') }}</th><th>{{ _('members.expires') }}</th><th></th></tr></thead>
+    <tbody>
+      {% for invitation in invitations %}
+      <tr>
+        <td>{{ invitation.email or '—' }}</td>
+        <td>{{ _('roles.' + invitation.role) }}</td>
+        <td>
+          {% if invitation.accepted_at %}<span class="badge-green">{{ _('members.accepted') }}</span>
+          {% elif invitation.is_open %}<span class="badge-brand">{{ _('members.open') }}</span>
+          {% else %}<span class="badge-slate">{{ _('members.expired') }}</span>{% endif %}
+        </td>
+        <td>{{ invitation.expires_at|localdate }}</td>
+        <td>
+          {% if invitation.is_open %}
+          <form method="POST" action="{{ url_for('manage.revoke_invitation', invitation_id=invitation.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('members.revoke') }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+<div class="card mb-6">
+  <div class="mb-4 flex items-center justify-between">
+    <h3 class="text-lg font-semibold">{{ _('orgs.members') }}</h3>
+    <form method="POST" action="{{ url_for('manage.toggle_directory') }}" class="flex items-center gap-2 text-sm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="flex items-center gap-2">
+        <input type="checkbox" name="enabled" {{ 'checked' if g.org.setting('member_directory') }}>
+        {{ _('members.directory_toggle') }}
+      </label>
+      <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+    </form>
+  </div>
+
+  <table class="table-plain">
+    <thead><tr><th>{{ _('common.name') }}</th><th>{{ _('common.email') }}</th><th>{{ _('members.joined') }}</th><th>{{ _('common.role') }}</th><th>{{ _('common.actions') }}</th></tr></thead>
+    <tbody>
+      {% for membership in members %}
+      <tr class="{{ 'opacity-50' if not membership.is_active }}">
+        <td class="flex items-center gap-2">
+          {% if membership.user.avatar_url %}
+          <img src="{{ membership.user.avatar_url }}" alt="" class="h-6 w-6 rounded-full object-cover">
+          {% endif %}
+          {{ membership.user.name }}
+          {% if not membership.is_active %}<span class="badge-red">{{ _('common.suspended') }}</span>{% endif %}
+        </td>
+        <td>{{ membership.user.email }}</td>
+        <td>{{ membership.created_at|localdate }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('manage.member_role', membership_id=membership.id) }}" class="flex items-center gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="role" class="select w-32" aria-label="{{ _('common.role') }}">
+              {% for role in ('owner', 'admin', 'member') %}
+              <option value="{{ role }}" {{ 'selected' if membership.role == role }}>{{ _('roles.' + role) }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+          </form>
+        </td>
+        <td>
+          <div class="flex gap-2">
+            {% if membership.is_active %}
+            <form method="POST" action="{{ url_for('manage.member_suspend', membership_id=membership.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="text-sm text-amber-600 hover:underline">{{ _('admin.suspend') }}</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('manage.member_unsuspend', membership_id=membership.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="text-sm text-green-700 hover:underline">{{ _('admin.reactivate') }}</button>
+            </form>
+            {% endif %}
+            <form method="POST" action="{{ url_for('manage.member_remove', membership_id=membership.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('common.remove') }}</button>
+            </form>
+            {% if can('ownership.transfer') and membership.user_id != current_user.id %}
+            <form method="POST" action="{{ url_for('manage.member_transfer', membership_id=membership.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="text-sm text-slate-600 hover:underline">{{ _('members.make_owner') }}</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="POST" action="{{ url_for('manage.add_member') }}"
+        class="mt-6 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex-1">
+      <label for="email" class="label">{{ _('members.add_existing') }}</label>
+      <input type="email" id="email" name="email" class="input mt-1" required>
+    </div>
+    <div>
+      <label for="role" class="label">{{ _('common.role') }}</label>
+      <select id="role" name="role" class="select mt-1">
+        {% for role in ('member', 'admin', 'owner') %}
+        <option value="{{ role }}">{{ _('roles.' + role) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('admin.add_member') }}</button>
+  </form>
+</div>
+{% endblock %}

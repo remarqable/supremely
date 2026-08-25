@@ -337,6 +337,165 @@ def delete_navigation(item_id):
     return redirect(url_for('manage.navigation'))
 
 
+# --- Members & invitations -------------------------------------------------------
+
+@bp.route('/members')
+@org_required
+@require('members.manage')
+def members():
+    from app.models import Membership, User
+    from app.models.invitation import Invitation
+    member_list = (Membership.query.filter_by(org_id=g.org.id)
+                   .join(Membership.user).order_by(User.name).all())
+    invitations = (Invitation.query
+                   .order_by(Invitation.created_at.desc()).limit(20).all())
+    from app.platform.mailer import is_email_configured
+    return render_template('manage/members.html', members=member_list,
+                           invitations=invitations,
+                           email_configured=is_email_configured())
+
+
+@bp.route('/members/add', methods=['POST'])
+@org_required
+@require('members.manage')
+def add_member():
+    from app.models import Membership, User
+    email = request.form.get('email', '').strip().lower()
+    role = request.form.get('role', 'member')
+    user = User.get_by_email(email)
+    if user is None:
+        flash(t('members.user_not_found', email=email), 'error')
+    else:
+        try:
+            Membership.add(user.id, g.org.id, role=role)
+            flash(t('admin.member_added', email=email), 'success')
+        except ValidationError as e:
+            flash(e.message, 'error')
+    return redirect(url_for('manage.members'))
+
+
+def _own_membership(membership_id):
+    from app.models import Membership
+    membership = db.session.get(Membership, membership_id)
+    if membership is None or membership.org_id != g.org.id:
+        abort(404)
+    return membership
+
+
+@bp.route('/members/<int:membership_id>/role', methods=['POST'])
+@org_required
+@require('members.manage')
+def member_role(membership_id):
+    membership = _own_membership(membership_id)
+    try:
+        membership.change_role(request.form.get('role', 'member'))
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.members'))
+
+
+@bp.route('/members/<int:membership_id>/suspend', methods=['POST'])
+@org_required
+@require('members.manage')
+def member_suspend(membership_id):
+    membership = _own_membership(membership_id)
+    try:
+        membership.suspend()
+        flash(t('members.suspended'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.members'))
+
+
+@bp.route('/members/<int:membership_id>/unsuspend', methods=['POST'])
+@org_required
+@require('members.manage')
+def member_unsuspend(membership_id):
+    _own_membership(membership_id).unsuspend()
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.members'))
+
+
+@bp.route('/members/<int:membership_id>/remove', methods=['POST'])
+@org_required
+@require('members.manage')
+def member_remove(membership_id):
+    membership = _own_membership(membership_id)
+    try:
+        membership.remove()
+        flash(t('admin.member_removed'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.members'))
+
+
+@bp.route('/members/<int:membership_id>/transfer', methods=['POST'])
+@org_required
+@require('ownership.transfer')
+def member_transfer(membership_id):
+    target = _own_membership(membership_id)
+    try:
+        g.membership.transfer_ownership_to(target)
+        log.info('ownership_transferred', org_id=g.org.id,
+                 to_user_id=target.user_id)
+        flash(t('members.ownership_transferred', name=target.user.name), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.members'))
+
+
+@bp.route('/invitations', methods=['POST'])
+@org_required
+@require('members.manage')
+def create_invitation():
+    from app.models.invitation import Invitation
+    from app.platform.mailer import try_send_email
+    role = request.form.get('role', 'member')
+    email = request.form.get('email', '').strip().lower() or None
+    try:
+        invitation, token = Invitation.create(g.org.id, role=role, email=email)
+    except ValidationError as e:
+        flash(e.message, 'error')
+        return redirect(url_for('manage.members'))
+
+    invite_url = invitation.url(token)
+    if email and try_send_email(
+            email, t('members.invite_email_subject', org=g.org.name),
+            t('members.invite_email_body', org=g.org.name, url=invite_url)):
+        flash(t('members.invite_sent', email=email), 'success')
+    # The URL is shown once: only its hash is stored.
+    flash(t('members.invite_link', url=invite_url), 'invite')
+    return redirect(url_for('manage.members'))
+
+
+@bp.route('/invitations/<int:invitation_id>/revoke', methods=['POST'])
+@org_required
+@require('members.manage')
+def revoke_invitation(invitation_id):
+    from app.models.invitation import Invitation
+    invitation = db.session.get(Invitation, invitation_id)
+    if invitation is None:
+        abort(404)
+    invitation.delete()
+    flash(t('members.invite_revoked'), 'success')
+    return redirect(url_for('manage.members'))
+
+
+@bp.route('/directory', methods=['POST'])
+@org_required
+@require('org.settings')
+def toggle_directory():
+    enabled = request.form.get('enabled') == 'on'
+    g.org.update_settings(member_directory=enabled)
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.members'))
+
+
 # --- Media ---------------------------------------------------------------------
 
 @bp.route('/media', methods=['GET', 'POST'])

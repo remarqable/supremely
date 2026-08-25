@@ -19,6 +19,8 @@ class User(BaseModel, UserMixin):
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    bio = db.Column(db.Text, nullable=True)
+    avatar_key = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     is_platform_admin = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -62,13 +64,18 @@ class User(BaseModel, UserMixin):
         return (self.name or self.email)[0].upper()
 
     def org_memberships(self):
-        """Memberships in active organizations, launcher-ordered."""
+        """Active memberships in active organizations, launcher-ordered."""
         from .membership import Membership
         from .organization import Organization
         return (Membership.query.join(Organization)
                 .filter(Membership.user_id == self.id,
+                        Membership.is_active.is_(True),
                         Organization.is_active.is_(True))
                 .order_by(Organization.name).all())
+
+    @property
+    def avatar_url(self):
+        return f'/avatars/{self.id}' if self.avatar_key else None
 
     @classmethod
     def get_by_email(cls, email: str) -> Optional['User']:

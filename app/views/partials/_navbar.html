@@ -26,6 +26,8 @@
              class="absolute end-0 z-20 mt-2 w-56 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5">
           <a href="{{ url_for('orgs.launcher') }}" role="menuitem"
              class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.launcher') }}</a>
+          <a href="{{ url_for('members.profile') }}" role="menuitem"
+             class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.profile') }}</a>
           <a href="{{ url_for('auth.change_password') }}" role="menuitem"
              class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.change_password') }}</a>
           {% if current_user.is_platform_admin %}

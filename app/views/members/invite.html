@@ -1,0 +1,49 @@
+{% extends 'layouts/minimal.html' %}
+
+{% block title %}{{ _('members.invite_page_title', org=g.org.name) }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1 class="text-xl font-semibold">{{ _('members.invite_page_title', org=g.org.name) }}</h1>
+  <p class="mt-2 text-sm text-slate-600">
+    {{ _('members.invite_page_body', org=g.org.name, role=_('roles.' + invitation.role)) }}
+  </p>
+
+  {% if already_member %}
+  <p class="mt-6 text-sm text-slate-700">{{ _('members.already_member') }}</p>
+  <a href="/" class="btn-primary mt-4 w-full">{{ _('setup.go_to_app') }}</a>
+
+  {% elif current_user.is_authenticated %}
+  <form method="POST" action="{{ url_for('members.accept_invite', token=token) }}" class="mt-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn-primary w-full">
+      {{ _('members.join_as', name=current_user.name) }}</button>
+  </form>
+
+  {% else %}
+  <form method="POST" action="{{ url_for('members.signup_via_invite', token=token) }}"
+        class="mt-6 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="name" class="label">{{ _('common.name') }}</label>
+      <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
+    </div>
+    <div>
+      <label for="email" class="label">{{ _('common.email') }}</label>
+      <input type="email" id="email" name="email" class="input mt-1" required
+             value="{{ invitation.email or '' }}">
+    </div>
+    <div>
+      <label for="password" class="label">{{ _('auth.password_label') }}</label>
+      <input type="password" id="password" name="password" class="input mt-1"
+             required minlength="8" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn-primary w-full">{{ _('members.create_account_join') }}</button>
+  </form>
+  <p class="mt-4 text-center text-sm text-slate-600">
+    {{ _('members.have_account') }}
+    <a href="{{ url_for('auth.login', next=request.path) }}" class="text-brand-600 hover:underline">{{ _('nav.login') }}</a>
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

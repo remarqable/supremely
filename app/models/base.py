@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import declared_attr
 
 from app.extensions import db
-from app.models.types import BigIntPK, BigIntFK
+from app.models.types import BigIntPK, BigIntFK, TZDateTime
 
 
 def utcnow() -> datetime:
@@ -32,8 +32,8 @@ class BaseModel(db.Model):
     __abstract__ = True
 
     id = db.Column(BigIntPK, primary_key=True, autoincrement=True)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
-    updated_at = db.Column(db.DateTime(timezone=True), nullable=False,
+    created_at = db.Column(TZDateTime, nullable=False, default=utcnow)
+    updated_at = db.Column(TZDateTime, nullable=False,
                            default=utcnow, onupdate=utcnow)
 
     def save(self):

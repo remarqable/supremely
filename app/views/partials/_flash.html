@@ -1,5 +1,5 @@
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% for category, message in messages %}
+  {% for category, message in messages if category != 'invite' %}
   <div x-data="{ show: true }" x-show="show" x-transition role="alert"
        class="mb-4 flex items-start gap-3 rounded-md p-4 text-sm ring-1
               {{ 'bg-red-50 text-red-800 ring-red-200' if category in ('error','danger')

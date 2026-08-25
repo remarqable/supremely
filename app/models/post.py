@@ -7,7 +7,7 @@ import re
 from app.extensions import db
 from app.platform.errors import ValidationError
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
-from .types import BigIntFK, JSONColumn
+from .types import BigIntFK, JSONColumn, TZDateTime
 
 post_category = db.Table(
     'post_category',
@@ -59,7 +59,7 @@ class Post(OrgScoped, AuditMixin, BaseModel):
     tags = db.Column(JSONColumn, nullable=False, default=list)
     status = db.Column(db.String(10), nullable=False, default='draft')
     visibility = db.Column(db.String(10), nullable=False, default='public')
-    published_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    published_at = db.Column(TZDateTime, nullable=True)
     seo_title = db.Column(db.String(200), nullable=True)
     seo_description = db.Column(db.String(300), nullable=True)
 

@@ -16,3 +16,28 @@ BigIntFK = sa.BigInteger().with_variant(sa.Integer, 'sqlite')
 
 # JSONB on Postgres (indexable, binary), plain JSON on SQLite.
 JSONColumn = sa.JSON().with_variant(postgresql.JSONB, 'postgresql')
+
+
+class TZDateTime(sa.TypeDecorator):
+    """UTC-aware datetimes on both engines.
+
+    SQLite has no timezone type: values written aware come back naive, and
+    comparing them against utcnow() raises TypeError. Store naive UTC on
+    SQLite and re-attach UTC on read; PostgreSQL passes through untouched.
+    """
+    impl = sa.DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        import datetime as dt
+        if value is None:
+            return None
+        if value.tzinfo is not None and dialect.name == 'sqlite':
+            return value.astimezone(dt.timezone.utc).replace(tzinfo=None)
+        return value
+
+    def process_result_value(self, value, dialect):
+        import datetime as dt
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=dt.timezone.utc)
+        return value
