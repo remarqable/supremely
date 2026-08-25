@@ -6,6 +6,7 @@
   "extends": "origin",
   "overrides": ["layout.html", "header.html", "footer.html", "front-page.html"],
   "description": "The Supremely marketing theme. A warm, product-forward landing page for the open-source community platform.",
+  "landing_editor": true,
   "settings": {
     "accent": {
       "type": "color",

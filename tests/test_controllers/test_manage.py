@@ -194,3 +194,30 @@ def test_theme_switch(app, client, acme, globex, user):
 
     home = client.get('/', base_url=ACME)
     assert b'#22ccff' in home.data          # theme setting reaches the page
+
+
+def test_landing_editor_saves_copy(app, client, acme, globex, user):
+    login_as(client, user)
+    response = client.post('/manage/landing', base_url=ACME, data={
+        'headline_lead': 'The open-source',
+        'headline_accent': 'community platform.',
+        'subhead': 'A simple home for your members.',
+        'primary_label': 'Get Started', 'secondary_label': 'View Demo',
+        'secondary_url': '/discussions',
+        'feature_0_title': 'Publish', 'feature_0_desc': 'Share articles',
+    })
+    assert response.status_code == 302
+    saved = db.session.get(Organization, acme.id).setting('landing')
+    assert saved['headline_lead'] == 'The open-source'
+    assert saved['features'][0] == {'title': 'Publish', 'desc': 'Share articles'}
+    assert len(saved['features']) == 4      # always the four fixed slots
+
+
+def test_landing_nav_only_for_marketing_theme(app, client, acme, globex, user):
+    login_as(client, user)
+    # Origin has no landing hero -> no editor entry.
+    acme.theme = 'origin'; acme.save()
+    assert b'/manage/landing' not in client.get('/manage/settings', base_url=ACME).data
+    # The marketing theme surfaces it.
+    acme.theme = 'supremely'; acme.save()
+    assert b'/manage/landing' in client.get('/manage/settings', base_url=ACME).data

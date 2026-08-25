@@ -38,11 +38,38 @@ def test_supremely_marketing_theme_renders(client, app, acme, globex):
     response = client.get('/', base_url='http://acme.example.test')
     assert response.status_code == 200
     body = response.data
-    assert b'The open-source' in body
     assert b'sup-gradient' in body                      # gradient headline
     assert b'themes/supremely/static/theme.css' in body  # ships its own CSS
     assert b'Welcome to our new home' in body           # product mockup
     assert b'Upcoming Event' in body
+
+
+def test_supremely_default_copy_is_neutral_not_a_clone(client, app, acme, globex):
+    """A fresh org on the theme shows placeholder copy — never Supremely's own
+    marketing words. This is what stops accidental clones."""
+    acme.theme = 'supremely'
+    acme.save()
+    body = client.get('/', base_url='http://acme.example.test').data
+    assert b'Your community,' in body                    # neutral placeholder
+    assert b'open-source' not in body                    # our copy stays ours
+    assert b'community platform' not in body
+
+
+def test_landing_copy_is_editable_per_org(client, app, acme, globex):
+    """Each org supplies its own copy; the design stays put."""
+    acme.theme = 'supremely'
+    acme.update_settings(landing={
+        'headline_lead': 'The open-source',
+        'headline_accent': 'community platform.',
+        'subhead': 'A simple home for your members.',
+        'features': [],
+    })
+    acme.save()
+    body = client.get('/', base_url='http://acme.example.test').data
+    assert b'The open-source' in body
+    assert b'community platform.' in body
+    assert b'Publish' in body                            # blank feature -> default
+    assert b'sup-gradient' in body                       # design unchanged
 
 
 def test_install_theme(admin_client, app):
