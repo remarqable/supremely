@@ -16,6 +16,14 @@
 @source not "../../../scripts";
 @source not "../../../blueprint";
 
+/* Do not combine an arbitrary hex colour with an opacity modifier, e.g.
+   bg-[#f6f5f1]/85. Tailwind converts the hex to an oklab() fallback at build
+   time, and that conversion lands on different final digits on arm64 macOS
+   than on x64 Linux, so `make css` stops being reproducible and the CI check
+   (make css && git diff --exit-code) can never pass. Bake the alpha into the
+   value instead: bg-[#f6f5f1d9]. Theme colours with a modifier are fine,
+   they compile to a plain hex fallback. */
+
 @theme {
   /* Brand scale. Every utility compiles to var(--color-brand-N), which is what
      makes per-tenant theming a variable override. */
