@@ -73,18 +73,17 @@ Happy publishing!
 def seed_default_content(session, org, owner_id=None) -> None:
     """Idempotent-enough for fresh orgs: only ever called at provisioning."""
     from app.models.base import utcnow
+    from app.models.content import Content
     from app.models.discussion import Space
     from app.models.navigation import NavigationItem
-    from app.models.page import Page
-    from app.models.post import Post
 
     now = utcnow()
 
     def page(slug, title, body, seo=None):
-        return Page(org_id=org.id, title=title, slug=slug, body=body,
-                    status='published', published_at=now, visibility='public',
-                    template='page', created_by_id=owner_id,
-                    seo_description=seo)
+        return Content(org_id=org.id, type='page', title=title, slug=slug,
+                       body=body, status='published', published_at=now,
+                       visibility='public', created_by_id=owner_id,
+                       seo_description=seo, fields={}, tags=[])
 
     home = page('home', 'Home', HOME_BODY.format(name=org.name),
                 seo=f'{org.name} — publishing, newsletter, and community.')
@@ -92,15 +91,15 @@ def seed_default_content(session, org, owner_id=None) -> None:
     faq = page('faq', 'FAQ', FAQ_BODY.format(name=org.name))
     contact = page('contact', 'Contact', CONTACT_BODY.format(name=org.name))
     session.add_all([home, about, faq, contact])
-    session.flush()                     # need page ids for nav + homepage
+    session.flush()                     # need ids for nav + homepage
 
     org.settings = {**(org.settings or {}),
-                    'homepage_page_id': home.id,
+                    'homepage_content_id': home.id,
                     'member_directory': True}
 
-    def nav(menu, label, position, url=None, page_id=None, parent=None):
+    def nav(menu, label, position, url=None, content_id=None, parent=None):
         item = NavigationItem(org_id=org.id, menu=menu, label=label, url=url,
-                              page_id=page_id, position=position,
+                              content_id=content_id, position=position,
                               parent_id=parent.id if parent else None)
         session.add(item)
         return item
@@ -113,11 +112,11 @@ def seed_default_content(session, org, owner_id=None) -> None:
     session.flush()                     # group ids for children
     nav('primary', 'Discussions', 1, url='/discussions', parent=community)
     nav('primary', 'Members', 2, url='/members', parent=community)
-    nav('primary', 'Blog', 1, url='/posts', parent=resources)
+    nav('primary', 'Blog', 1, url='/blog', parent=resources)
     nav('primary', 'Subscribe', 2, url='/subscribe', parent=resources)
-    nav('primary', 'About', 1, page_id=about.id, parent=about_group)
-    nav('primary', 'FAQ', 2, page_id=faq.id, parent=about_group)
-    nav('primary', 'Contact', 3, page_id=contact.id, parent=about_group)
+    nav('primary', 'About', 1, content_id=about.id, parent=about_group)
+    nav('primary', 'FAQ', 2, content_id=faq.id, parent=about_group)
+    nav('primary', 'Contact', 3, content_id=contact.id, parent=about_group)
 
     # Footer: grouped columns mirroring the primary navigation
     f_community = nav('footer', 'Community', 1)
@@ -126,19 +125,30 @@ def seed_default_content(session, org, owner_id=None) -> None:
     session.flush()
     nav('footer', 'Discussions', 1, url='/discussions', parent=f_community)
     nav('footer', 'Members', 2, url='/members', parent=f_community)
-    nav('footer', 'Blog', 1, url='/posts', parent=f_resources)
+    nav('footer', 'Blog', 1, url='/blog', parent=f_resources)
     nav('footer', 'Subscribe', 2, url='/subscribe', parent=f_resources)
-    nav('footer', 'About', 1, page_id=about.id, parent=f_about)
-    nav('footer', 'FAQ', 2, page_id=faq.id, parent=f_about)
-    nav('footer', 'Contact', 3, page_id=contact.id, parent=f_about)
+    nav('footer', 'About', 1, content_id=about.id, parent=f_about)
+    nav('footer', 'FAQ', 2, content_id=faq.id, parent=f_about)
+    nav('footer', 'Contact', 3, content_id=contact.id, parent=f_about)
 
-    session.add(Post(org_id=org.id, type='article', title='Hello, World!',
-                     slug='hello-world',
-                     body=FIRST_POST_BODY.format(name=org.name),
-                     excerpt=f'The first post on {org.name}.',
-                     status='published', published_at=now,
-                     visibility='public', tags=['welcome'], fields={},
-                     created_by_id=owner_id))
+    # A first article, and one Event so the vertical content type is a visible
+    # hint (this is where custom content goes).
+    session.add(Content(org_id=org.id, type='article', title='Hello, World!',
+                        slug='hello-world',
+                        body=FIRST_POST_BODY.format(name=org.name),
+                        excerpt=f'The first post on {org.name}.',
+                        status='published', published_at=now,
+                        visibility='public', tags=['welcome'], fields={},
+                        created_by_id=owner_id))
+    session.add(Content(org_id=org.id, type='event', title='Kickoff meetup',
+                        slug='kickoff-meetup',
+                        body='Our first community event. Edit or delete this '
+                             'under Manage → Events.',
+                        status='published', published_at=now,
+                        visibility='public', tags=[],
+                        fields={'starts_on': now.strftime('%Y-%m-%d'),
+                                'location': 'Online'},
+                        created_by_id=owner_id))
 
     session.add(Space(org_id=org.id, name='General', slug='general',
                       visibility='members', position=1,

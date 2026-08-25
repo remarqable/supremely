@@ -1,44 +1,142 @@
-"""Public organization site: pages through the theme system, uploaded files,
-theme assets."""
+"""Public organization site: unified Content routing (pages + feed types),
+uploaded files, theme assets.
+
+Routing model:
+  /<slug>                       -> a published `page`-type Content
+  /<base>                       -> archive of a feed type (e.g. /blog)
+  /<base>/<slug>                -> a single feed-type Content
+  /<base>/category/<cslug>      -> feed archive filtered by category
+  /<base>/tag/<tag>             -> feed archive filtered by tag
+A single-segment path is dispatched to a feed archive if it matches a type's
+base, otherwise treated as a page slug.
+"""
 
 from flask import (Blueprint, abort, g, redirect, request, send_file,
                    send_from_directory, url_for)
 from flask_login import current_user
 
 from app.extensions import db
-from app.models import Upload
-from app.models.page import Page
+from app.models import Content, Upload
+from app.models.content import Category
 from app.models.upload import VARIANTS
 from app.platform.authz import is_org_member, org_required
+from app.platform.content_types import type_for_base
 from app.platform.theming import AVAILABLE_THEMES, render_site
 
 bp = Blueprint('site', __name__)
 
+PER_PAGE = 10
+
 
 def render_org_home():
-    """The organization homepage: the designated Page, or the app default."""
+    """The organization homepage: the designated page, or the app default."""
     page = g.org.homepage()
     if page is not None and page.visible_to_current_visitor():
         return render_site(
-            ['front-page.html', f'{page.template}.html', 'page.html'],
-            org=g.org, page=page)
-    return render_site(['front-page.html'], org=g.org, page=None)
+            ['front-page.html', f'{page.template or "page"}.html', 'page.html'],
+            org=g.org, content=page, page=page)
+    return render_site(['front-page.html'], org=g.org, content=None, page=None)
 
 
-@bp.route('/<slug>')
-@org_required
-def page(slug):
-    page = Page.published_by_slug(slug)
-    if page is None:
+def _visible(query):
+    if is_org_member() or (current_user.is_authenticated
+                           and current_user.is_platform_admin):
+        return query
+    return query.filter_by(visibility='public')
+
+
+def _render_page(content):
+    if not content.visible_to_current_visitor():
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login', next=request.path))
         abort(404)
-    if not page.visible_to_current_visitor():
+    tmpl = content.template or content.content_type.template
+    return render_site([f'page-{content.slug}.html', f'{tmpl}.html', 'page.html'],
+                       org=g.org, content=content, page=content)
+
+
+def _render_archive(ct, title=None):
+    page_number = request.args.get('page', 1, type=int)
+    query = _visible(Content.published_query(ct.slug))
+    pagination = query.paginate(page=page_number, per_page=PER_PAGE,
+                                error_out=False)
+    return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
+                        'archive.html'],
+                       content_type=ct, items=pagination.items,
+                       pagination=pagination,
+                       archive_title=title or ct.plural)
+
+
+def _render_single(ct, content):
+    if not content.visible_to_current_visitor():
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login', next=request.path))
         abort(404)
     return render_site(
-        [f'page-{page.slug}.html', f'{page.template}.html', 'page.html'],
-        org=g.org, page=page)
+        [f'single-{content.slug}.html', f'{ct.template}.html', 'single.html'],
+        content_type=ct, content=content, post=content)
 
+
+@bp.route('/<seg>')
+@org_required
+def entry(seg):
+    ct = type_for_base('/' + seg)
+    if ct is not None:                       # a feed type's archive, e.g. /blog
+        return _render_archive(ct)
+    page = Content.published_page(seg)       # otherwise a standalone page
+    if page is None:
+        abort(404)
+    return _render_page(page)
+
+
+@bp.route('/<seg>/category/<cslug>')
+@org_required
+def archive_category(seg, cslug):
+    ct = type_for_base('/' + seg)
+    if ct is None:
+        abort(404)
+    category = Category.get_by_slug(cslug)
+    if category is None:
+        abort(404)
+    page_number = request.args.get('page', 1, type=int)
+    pagination = _visible(
+        Content.published_query(ct.slug).filter(
+            Content.categories.contains(category))
+    ).paginate(page=page_number, per_page=PER_PAGE, error_out=False)
+    return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
+                        'archive.html'],
+                       content_type=ct, items=pagination.items,
+                       pagination=pagination, archive_title=category.name)
+
+
+@bp.route('/<seg>/tag/<tag>')
+@org_required
+def archive_tag(seg, tag):
+    ct = type_for_base('/' + seg)
+    if ct is None:
+        abort(404)
+    page_number = request.args.get('page', 1, type=int)
+    pagination = _visible(Content.with_tag(ct.slug, tag)).paginate(
+        page=page_number, per_page=PER_PAGE, error_out=False)
+    return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
+                        'archive.html'],
+                       content_type=ct, items=pagination.items,
+                       pagination=pagination, archive_title=f'#{tag}')
+
+
+@bp.route('/<seg>/<slug>')
+@org_required
+def single(seg, slug):
+    ct = type_for_base('/' + seg)
+    if ct is None:
+        abort(404)
+    content = Content.published_by_slug(ct.slug, slug)
+    if content is None:
+        abort(404)
+    return _render_single(ct, content)
+
+
+# --- Files & theme assets ------------------------------------------------------
 
 @bp.route('/files/<int:upload_id>/<variant>')
 @org_required

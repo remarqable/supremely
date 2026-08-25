@@ -1,31 +1,31 @@
 {% extends site_layout %}
 
-{% block title %}{{ archive_title or _('posts.title') }} — {{ g.org.name }}{% endblock %}
+{% block title %}{{ archive_title or content_type.plural }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
-<h1 class="mb-8 text-3xl font-bold">{{ archive_title or _('posts.title') }}</h1>
+<h1 class="mb-8 text-3xl font-bold">{{ archive_title or content_type.plural }}</h1>
 
 <div class="space-y-10">
-  {% for post in posts %}
+  {% for item in items %}
   <article class="flex gap-5">
-    {% if post.featured_upload %}
-    <a href="{{ post.permalink }}" class="shrink-0">
-      <img src="{{ post.featured_upload.url('thumb' if post.featured_upload.has_variants else 'original') }}"
+    {% if item.featured_upload %}
+    <a href="{{ item.permalink }}" class="shrink-0">
+      <img src="{{ item.featured_upload.url('thumb' if item.featured_upload.has_variants else 'original') }}"
            alt="" class="h-24 w-32 rounded-md object-cover">
     </a>
     {% endif %}
     <div>
       <h2 class="text-xl font-semibold">
-        <a href="{{ post.permalink }}" class="hover:text-brand-600">{{ post.title }}</a>
+        <a href="{{ item.permalink }}" class="hover:text-brand-600">{{ item.title }}</a>
       </h2>
       <p class="mt-1 text-sm text-slate-500">
-        {% if post.published_at %}{{ post.published_at|localdate }}{% endif %}
-        {% if post.author %} · {{ post.author.name }}{% endif %}
-        {% for category in post.categories %}
-        · <a href="/posts/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
+        {% if item.published_at %}{{ item.published_at|localdate }}{% endif %}
+        {% if item.author %} · {{ item.author.name }}{% endif %}
+        {% for category in item.categories %}
+        · <a href="{{ content_type.base }}/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
         {% endfor %}
       </p>
-      <p class="mt-2 text-slate-700">{{ post.excerpt_or_summary() }}</p>
+      <p class="mt-2 text-slate-700">{{ item.excerpt_or_summary() }}</p>
     </div>
   </article>
   {% else %}

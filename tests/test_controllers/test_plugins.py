@@ -4,7 +4,7 @@ glossary reference plugin) works end to end without editing Supremely core."""
 from flask import g
 
 from app.extensions import db
-from app.models import Membership, OrgPlugin, Post
+from app.models import Content, Membership, OrgPlugin
 from app.platform.plugins import MANIFESTS, REGISTRY, installed_version
 from tests.conftest import login_as, make_user
 
@@ -88,19 +88,19 @@ def test_settings_apply(app, client, acme, globex, user):
 
 def test_plugin_post_type_registered(app, client, acme, globex, user):
     """The plugin contributes a structured Post Type usable in the editor."""
-    from app.platform.post_types import POST_TYPES
-    assert 'definition' in POST_TYPES
-    assert POST_TYPES['definition'].plugin == 'glossary'
+    from app.platform.content_types import CONTENT_TYPES
+    assert 'definition' in CONTENT_TYPES
+    assert CONTENT_TYPES['definition'].plugin == 'glossary'
 
     login_as(client, user)
-    client.post('/manage/posts/new?type=definition', base_url=ACME, data={
+    client.post('/manage/content/definition/new', base_url=ACME, data={
         'title': 'What is a Widget', 'slug': 'what-is-a-widget',
         'body': 'A widget is a thing.', 'visibility': 'public',
         'field_term': 'Widget', 'field_pronunciation': 'WIH-jit',
         'action': 'publish'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        post = Post.published_by_slug('what-is-a-widget')
+        post = Content.published_by_slug('definition', 'what-is-a-widget')
         assert post.fields == {'term': 'Widget', 'pronunciation': 'WIH-jit'}
 
 

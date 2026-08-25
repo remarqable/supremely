@@ -7,7 +7,7 @@ import re
 from flask import g
 
 from app.extensions import db
-from app.models import Invitation, Membership, Page, Post, User
+from app.models import Content, Invitation, Membership, User
 from app.platform.mailer import is_email_configured
 from tests.conftest import PASSWORD, login_as, make_png, make_user
 
@@ -100,8 +100,8 @@ def test_member_cannot_manage_members(app, client, acme, globex, user):
 def test_suspended_member_loses_access(app, client, acme, globex, user):
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        page = Page(title='Inside', slug='inside', org_id=acme.id,
-                    visibility='members')
+        page = Content(type='page', title='Inside', slug='inside',
+                       org_id=acme.id, visibility='members', fields={}, tags=[])
         page.save()
         page.publish()
 

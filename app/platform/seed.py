@@ -93,8 +93,8 @@ organization gets. No private forks, no special cases.
 
 def seed_getsupremely_org():
     from flask import g
-    from app.models import (InstallationSetting, Membership, NavigationItem,
-                            Organization, Page, Post, Space, User)
+    from app.models import (Content, InstallationSetting, Membership,
+                            NavigationItem, Organization, Space, User)
 
     org = Organization.get_by_slug('getsupremely')
     if org is None:
@@ -120,46 +120,48 @@ def seed_getsupremely_org():
         g.org = org
         g.membership = owner_membership
 
-        def page(slug, title, body, template='page', homepage=False):
-            existing = Page.query.filter_by(slug=slug).first()
+        def page(slug, title, body, homepage=False):
+            existing = Content.query.filter_by(type='page', slug=slug).first()
             if existing is None:
-                existing = Page(title=title, slug=slug, body=body,
-                                template=template, org_id=org.id,
-                                created_by_id=owner_id)
+                existing = Content(type='page', title=title, slug=slug,
+                                   body=body, org_id=org.id,
+                                   created_by_id=owner_id, fields={}, tags=[])
                 existing.save()
             existing.publish()
             if homepage:
-                org.update_settings(homepage_page_id=existing.id)
+                org.update_settings(homepage_content_id=existing.id)
             return existing
 
         home = page('welcome', 'Supremely', HOME_BODY, homepage=True)
         about = page('about', 'About', ABOUT_BODY)
         docs = page('docs', 'Documentation', DOCS_BODY)
 
-        def nav(menu, label, page_obj=None, url=None):
+        def nav(menu, label, content_obj=None, url=None):
             existing = NavigationItem.query.filter_by(menu=menu,
                                                       label=label).first()
             if existing is None:
                 NavigationItem(menu=menu, label=label,
-                               page_id=page_obj.id if page_obj else None,
+                               content_id=content_obj.id if content_obj else None,
                                url=url, org_id=org.id,
                                position=NavigationItem.next_position(menu)
                                ).save()
 
         nav('primary', 'About', about)
         nav('primary', 'Docs', docs)
-        nav('primary', 'Posts', url='/posts')
+        nav('primary', 'Blog', url='/blog')
         nav('primary', 'Community', url='/discussions')
         nav('footer', 'Subscribe', url='/subscribe')
         nav('footer', 'Source', url='https://github.com/remarqable/supremely')
 
-        if Post.query.filter_by(slug='supremely-runs-supremely').first() is None:
-            post = Post(title='Supremely now runs on Supremely',
-                        slug='supremely-runs-supremely', body=FIRST_POST,
-                        tags=['meta', 'milestones'], org_id=org.id,
-                        created_by_id=owner_id,
-                        seo_description='Dogfooding milestone: the project '
-                                        'website runs on the platform itself.')
+        if Content.query.filter_by(type='article',
+                                   slug='supremely-runs-supremely').first() is None:
+            post = Content(type='article',
+                           title='Supremely now runs on Supremely',
+                           slug='supremely-runs-supremely', body=FIRST_POST,
+                           tags=['meta', 'milestones'], org_id=org.id,
+                           created_by_id=owner_id, fields={},
+                           seo_description='Dogfooding milestone: the project '
+                                           'website runs on the platform itself.')
             post.save()
             post.publish()
 

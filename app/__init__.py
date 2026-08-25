@@ -14,6 +14,7 @@ APP_VERSION = '0.1.0'
 def create_app(config_class=Config):
     app = Flask(__name__, template_folder='views', static_folder='static')
     app.config.from_object(config_class)
+    app.jinja_env.add_extension('jinja2.ext.do')   # {% do list.append(...) %}
 
     Path(app.config['DATA_DIR']).mkdir(parents=True, exist_ok=True)
 
@@ -73,7 +74,7 @@ def create_app(config_class=Config):
     from .platform.theming import init_theming
     init_theming(app)
 
-    from .platform.post_types import register_core_types
+    from .platform.content_types import register_core_types
     register_core_types()
 
     # noqa below: imported for their side effect of registering job handlers.
@@ -81,9 +82,9 @@ def create_app(config_class=Config):
     from .platform import newsletter as _newsletter      # noqa: F401
 
     from .controllers import (main, auth, setup, admin, orgs, cli, manage,
-                              site, posts, members, discussions,
+                              site, members, discussions,
                               notifications, newsletter)
-    for module in (main, auth, setup, admin, orgs, manage, posts, members,
+    for module in (main, auth, setup, admin, orgs, manage, members,
                    discussions, notifications, newsletter, site):
         app.register_blueprint(module.bp)
 
@@ -134,6 +135,7 @@ def _init_context(app):
         from flask import g
         from flask_login import current_user
         from .models import NavigationItem
+        from .platform.content_types import CONTENT_TYPES
 
         def unread_notifications():
             if getattr(g, 'membership', None) is None:
@@ -148,6 +150,7 @@ def _init_context(app):
             'app_version': APP_VERSION,
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,
+            'content_types': lambda: CONTENT_TYPES,
         }
 
     @app.template_filter('localdate')

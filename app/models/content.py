@@ -1,5 +1,11 @@
-"""Posts: the universal publishing system. Every Post has a Post Type
-(default: article); structured types add validated fields stored as JSON."""
+"""Content: the universal publishing model. Every published thing an
+organization has -- pages, blog articles, events, and vertical types -- is a
+Content row with a `type`. The type (see app/platform/content_types.py)
+decides labels, URL base, template, and fields.
+
+("Content" is deliberately distinct from a discussion Post; see
+app/models/discussion.py.)
+"""
 
 import json
 import re
@@ -9,10 +15,10 @@ from app.platform.errors import ValidationError
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 
-post_category = db.Table(
-    'post_category',
-    db.Column('post_id', BigIntFK,
-              db.ForeignKey('post.id', ondelete='CASCADE'), primary_key=True),
+content_category = db.Table(
+    'content_category',
+    db.Column('content_id', BigIntFK,
+              db.ForeignKey('content.id', ondelete='CASCADE'), primary_key=True),
     db.Column('category_id', BigIntFK,
               db.ForeignKey('category.id', ondelete='CASCADE'), primary_key=True),
 )
@@ -44,8 +50,18 @@ class Category(OrgScoped, BaseModel):
         return cls.query.filter_by(slug=(slug or '').strip().lower()).first()
 
 
-class Post(OrgScoped, AuditMixin, BaseModel):
-    __tablename__ = 'post'
+# Slugs a page-type content cannot use, because a page is served at /<slug>
+# and must not shadow app routes. Feed-type bases are added dynamically.
+RESERVED_PAGE_SLUGS = {
+    'manage', 'dashboard', 'admin', 'auth', 'setup', 'static', 'files',
+    'themes', 'launcher', 'health', 'discussions', 'members', 'newsletter',
+    'feed', 'sitemap', 'profile', 'invite', 'avatars', 'subscribe',
+    'unsubscribe',
+}
+
+
+class Content(OrgScoped, AuditMixin, BaseModel):
+    __tablename__ = 'content'
 
     type = db.Column(db.String(50), nullable=False, default='article')
     title = db.Column(db.String(200), nullable=False)
@@ -60,24 +76,26 @@ class Post(OrgScoped, AuditMixin, BaseModel):
     status = db.Column(db.String(10), nullable=False, default='draft')
     visibility = db.Column(db.String(10), nullable=False, default='public')
     published_at = db.Column(TZDateTime, nullable=True)
+    template = db.Column(db.String(50), nullable=True)   # page-type override
     seo_title = db.Column(db.String(200), nullable=True)
     seo_description = db.Column(db.String(300), nullable=True)
 
-    categories = db.relationship('Category', secondary=post_category,
+    categories = db.relationship('Category', secondary=content_category,
                                  lazy='select')
     featured_upload = db.relationship('Upload', lazy='select')
 
     __table_args__ = (
-        db.UniqueConstraint('org_id', 'slug', name='uq_post_org_slug'),
-        db.Index('ix_post_org_status_published',
-                 'org_id', 'status', 'published_at'),
+        db.UniqueConstraint('org_id', 'type', 'slug',
+                            name='uq_content_org_type_slug'),
+        db.Index('ix_content_org_type_status',
+                 'org_id', 'type', 'status'),
     )
 
     STATUSES = ('draft', 'published', 'archived')
     VISIBILITIES = ('public', 'members')
 
     def validate(self):
-        from app.platform.post_types import POST_TYPES
+        from app.platform.content_types import CONTENT_TYPES, feed_types
         self.title = (self.title or '').strip()
         self.slug = (self.slug or '').strip().lower()
         self.type = self.type or 'article'
@@ -90,8 +108,8 @@ class Post(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('Title too long (max 200 chars)')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,198})?', self.slug):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
-        if self.type not in POST_TYPES:
-            raise ValidationError(f'Unknown post type: {self.type}')
+        if self.type not in CONTENT_TYPES:
+            raise ValidationError(f'Unknown content type: {self.type}')
         if self.status not in self.STATUSES:
             raise ValidationError('Invalid status')
         if self.visibility not in self.VISIBILITIES:
@@ -99,14 +117,25 @@ class Post(OrgScoped, AuditMixin, BaseModel):
         if self.tags is not None and not isinstance(self.tags, list):
             raise ValidationError('Tags must be a list')
 
-        existing = Post.query.filter_by(slug=self.slug).first()
+        # Page slugs live at /<slug>, so they cannot shadow app routes or a
+        # feed type's base segment (e.g. "blog", "events").
+        if self.content_type.is_page:
+            bases = {ct.base.strip('/') for ct in feed_types()}
+            if self.slug in RESERVED_PAGE_SLUGS or self.slug in bases:
+                raise ValidationError('That slug is reserved')
+
+        # Unique per (org, type, slug): a page "about" and an article "about"
+        # can coexist because they live at different URLs.
+        existing = Content.query.filter_by(type=self.type,
+                                           slug=self.slug).first()
         if existing and existing.id != self.id:
-            raise ValidationError('A post with that slug already exists')
+            raise ValidationError(
+                f'A {self.content_type.singular.lower()} with that slug already exists')
 
     @property
-    def post_type(self):
-        from app.platform.post_types import get_post_type
-        return get_post_type(self.type)
+    def content_type(self):
+        from app.platform.content_types import get_content_type
+        return get_content_type(self.type)
 
     @property
     def html(self) -> str:
@@ -119,7 +148,10 @@ class Post(OrgScoped, AuditMixin, BaseModel):
 
     @property
     def permalink(self) -> str:
-        return f'/posts/{self.slug}'
+        ct = self.content_type
+        if ct.is_page:
+            return f'/{self.slug}'
+        return f'{ct.base}/{self.slug}'
 
     @property
     def author(self):
@@ -134,7 +166,7 @@ class Post(OrgScoped, AuditMixin, BaseModel):
         return text[:length] + ('…' if len(text) > length else '')
 
     def set_structured_fields(self, data: dict):
-        self.fields = self.post_type.clean_fields(data)
+        self.fields = self.content_type.clean_fields(data)
         return self
 
     def publish(self):
@@ -159,24 +191,31 @@ class Post(OrgScoped, AuditMixin, BaseModel):
         return is_org_member() or (
             current_user.is_authenticated and current_user.is_platform_admin)
 
-    @classmethod
-    def published_query(cls):
-        return (cls.query.filter_by(status='published')
-                .order_by(cls.published_at.desc()))
+    # --- queries -----------------------------------------------------------
 
     @classmethod
-    def published_by_slug(cls, slug: str):
-        return cls.query.filter_by(slug=(slug or '').strip().lower(),
-                                   status='published').first()
+    def of_type(cls, type_slug: str):
+        return cls.query.filter_by(type=type_slug)
 
     @classmethod
-    def with_tag(cls, tag: str):
-        # Portable tag filtering: tags are stored as a JSON array of strings.
+    def published_query(cls, type_slug: str | None = None):
+        q = cls.query.filter_by(status='published')
+        if type_slug:
+            q = q.filter_by(type=type_slug)
+        return q.order_by(cls.published_at.desc())
+
+    @classmethod
+    def published_by_slug(cls, type_slug: str, slug: str):
+        return cls.query.filter_by(type=type_slug, status='published',
+                                   slug=(slug or '').strip().lower()).first()
+
+    @classmethod
+    def published_page(cls, slug: str):
+        return cls.published_by_slug('page', slug)
+
+    @classmethod
+    def with_tag(cls, type_slug: str, tag: str):
+        import sqlalchemy as sa
         needle = json.dumps(tag)[1:-1]
-        return (cls.published_query()
-                .filter(sa_cast_tags().ilike(f'%"{needle}"%')))
-
-
-def sa_cast_tags():
-    import sqlalchemy as sa
-    return sa.cast(Post.tags, sa.String)
+        return (cls.published_query(type_slug)
+                .filter(sa.cast(cls.tags, sa.String).like(f'%"{needle}"%')))

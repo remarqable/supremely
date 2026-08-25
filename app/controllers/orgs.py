@@ -63,7 +63,7 @@ def dashboard():
     """Community home: where members land inside the organization."""
     if g.membership is None and not current_user.is_platform_admin:
         abort(404)
-    from app.models import Post
+    from app.models import Content
     from app.models.discussion import Space, DiscussionPost
 
     spaces = [space for space in
@@ -77,7 +77,7 @@ def dashboard():
                                 DiscussionPost.is_hidden.is_(False))
                         .order_by(DiscussionPost.last_activity_at.desc())
                         .limit(15).all())
-    announcements = Post.published_query().limit(3).all()
+    announcements = Content.published_query('article').limit(3).all()
     member_count = Membership.query.filter_by(org_id=g.org.id,
                                               is_active=True).count()
     return render_template('orgs/dashboard.html', org=g.org, spaces=spaces,

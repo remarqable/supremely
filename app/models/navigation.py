@@ -17,14 +17,15 @@ class NavigationItem(OrgScoped, BaseModel):
     menu = db.Column(db.String(20), nullable=False, default='primary')
     label = db.Column(db.String(100), nullable=False)
     url = db.Column(db.String(500), nullable=True)
-    page_id = db.Column(BigIntFK, db.ForeignKey('page.id', ondelete='CASCADE'),
-                        nullable=True)
+    content_id = db.Column(BigIntFK,
+                           db.ForeignKey('content.id', ondelete='CASCADE'),
+                           nullable=True)
     parent_id = db.Column(BigIntFK,
                           db.ForeignKey('navigation_item.id', ondelete='CASCADE'),
                           nullable=True)
     position = db.Column(db.Integer, nullable=False, default=0)
 
-    page = db.relationship('Page', lazy='select')
+    content = db.relationship('Content', lazy='select')
     children = db.relationship(
         'NavigationItem', order_by='NavigationItem.position',
         cascade='all, delete-orphan',
@@ -44,6 +45,8 @@ class NavigationItem(OrgScoped, BaseModel):
         # A link may be label-only: it renders as a dropdown heading.
         if self.url and not (self.url.startswith(('http://', 'https://', '/', '#'))):
             raise ValidationError('URL must be absolute (http/https) or site-relative')
+        if self.content_id and self.url:
+            self.url = None         # a content link never also carries a URL
         if self.parent_id:
             parent = db.session.get(NavigationItem, self.parent_id)
             if parent is None or parent.menu != self.menu:
@@ -53,8 +56,8 @@ class NavigationItem(OrgScoped, BaseModel):
 
     @property
     def href(self) -> str:
-        if self.page_id and self.page:
-            return f'/{self.page.slug}'
+        if self.content_id and self.content:
+            return self.content.permalink
         return self.url or '#'
 
     @property

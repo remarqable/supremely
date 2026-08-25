@@ -1,0 +1,59 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="mb-4 flex items-center justify-between">
+  <div>
+    <h1 class="text-xl font-bold">{{ content_type.plural }}</h1>
+    {% if content_type.description %}
+    <p class="text-sm text-slate-600">{{ content_type.description }}</p>
+    {% endif %}
+  </div>
+  <a href="{{ url_for('manage.new_content', type_slug=content_type.slug) }}"
+     class="btn-primary">{{ _('manage.new_of', name=content_type.singular) }}</a>
+</div>
+
+<div class="card">
+  <table class="table-plain">
+    <thead><tr>
+      <th>{{ _('manage.page_title') }}</th><th>{{ _('orgs.slug_label') }}</th>
+      <th>{{ _('common.status') }}</th><th>{{ _('manage.visibility') }}</th>
+      {% if content_type.is_page %}<th>{{ _('manage.homepage') }}</th>{% endif %}
+      <th>{{ _('common.actions') }}</th>
+    </tr></thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('manage.edit_content', content_id=item.id) }}">{{ item.title }}</a></td>
+        <td>{{ item.permalink }}</td>
+        <td>
+          {% if item.status == 'published' %}<span class="badge-green">{{ _('manage.published') }}</span>
+          {% elif item.status == 'archived' %}<span class="badge-red">{{ _('manage.archived') }}</span>
+          {% else %}<span class="badge-slate">{{ _('manage.draft') }}</span>{% endif %}
+        </td>
+        <td><span class="badge-slate">{{ _('manage.visibility_' + item.visibility) }}</span></td>
+        {% if content_type.is_page %}
+        <td>
+          <form method="POST" action="{{ url_for('manage.set_homepage', content_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm {{ 'font-semibold text-brand-700' if homepage_id == item.id else 'text-slate-600 hover:text-slate-900' }}">
+              {{ '★' if homepage_id == item.id else '☆' }}
+              <span class="sr-only">{{ _('manage.homepage') }}</span>
+            </button>
+          </form>
+        </td>
+        {% endif %}
+        <td class="flex gap-3">
+          <a href="{{ url_for('manage.preview_content', content_id=item.id) }}" class="text-sm text-slate-600 hover:underline">{{ _('manage.preview') }}</a>
+          <form method="POST" action="{{ url_for('manage.delete_content', content_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('common.delete') }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-slate-500">{{ _('manage.no_content', name=content_type.plural|lower) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

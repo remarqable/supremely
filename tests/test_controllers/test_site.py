@@ -1,7 +1,7 @@
 from flask import g
 
 from app.extensions import db
-from app.models import Membership, NavigationItem, Page
+from app.models import Content, Membership, NavigationItem
 from tests.conftest import login_as, make_user
 
 
@@ -9,8 +9,9 @@ def publish_page(app, org, slug='story', title='Our Story', body='Our story.',
                  visibility='public', **kwargs):
     with app.test_request_context():
         g.org = org
-        page = Page(title=title, slug=slug, body=body, org_id=org.id,
-                    visibility=visibility, **kwargs)
+        page = Content(type='page', title=title, slug=slug, body=body,
+                       org_id=org.id, visibility=visibility, fields={}, tags=[],
+                       **kwargs)
         page.save()
         page.publish()
         page_id = page.id
@@ -32,7 +33,7 @@ def test_public_page_renders(app, client, acme, globex):
 def test_draft_page_404(app, client, acme, globex):
     with app.test_request_context():
         g.org = acme
-        Page(title='Secret', slug='secret', org_id=acme.id).save()
+        Content(type='page', title='Secret', slug='secret', org_id=acme.id, fields={}, tags=[]).save()
     assert client.get('/secret', base_url=ACME).status_code == 404
 
 
@@ -75,7 +76,7 @@ def test_member_only_page_hidden_from_non_member(app, client, acme, globex):
 def test_homepage_designation(app, client, acme, globex):
     page_id = publish_page(app, acme, slug='welcome', title='Welcome',
                            body='This is the homepage content.')
-    acme.update_settings(homepage_page_id=page_id)
+    acme.update_settings(homepage_content_id=page_id)
     response = client.get('/', base_url=ACME)
     assert b'This is the homepage content.' in response.data
 
@@ -84,7 +85,7 @@ def test_navigation_rendered(app, client, acme, globex):
     page_id = publish_page(app, acme)
     with app.test_request_context():
         g.org = acme
-        NavigationItem(menu='primary', label='Story', page_id=page_id,
+        NavigationItem(menu='primary', label='Story', content_id=page_id,
                        org_id=acme.id, position=99).save()
         NavigationItem(menu='footer', label='Imprint', url='https://x.test',
                        org_id=acme.id, position=99).save()

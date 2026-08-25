@@ -5,7 +5,7 @@ from flask import g
 
 from app.extensions import db
 from app.models import (Delivery, DeliveryRecipient, InstallationSetting,
-                        Job, Post, Subscriber)
+                        Content, Job, Subscriber)
 from app.platform import mailer
 from app.platform.jobs import run_pending_jobs
 from tests.conftest import login_as
@@ -100,21 +100,21 @@ def test_publish_to_web_and_email_simultaneously(app, client, acme, globex, user
         Subscriber.subscribe('gone@example.com', acme.id, False).unsubscribe()
 
     login_as(client, user)
-    client.post('/manage/posts/new', base_url=ACME, data={
+    client.post('/manage/content/article/new', base_url=ACME, data={
         'title': 'Big News', 'slug': 'big-news',
         'body': 'We **shipped** it.', 'visibility': 'public',
         'action': 'publish'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        post = Post.published_by_slug('big-news')
+        post = Content.published_by_slug('article', 'big-news')
         post_id = post.id
 
-    response = client.post(f'/manage/posts/{post_id}/send-newsletter',
+    response = client.post(f'/manage/content/{post_id}/send-newsletter',
                            base_url=ACME, follow_redirects=True)
     assert b'Queued for delivery to 3 subscribers' in response.data
 
     # Web is live immediately
-    web = app.test_client().get('/posts/big-news', base_url=ACME)
+    web = app.test_client().get('/blog/big-news', base_url=ACME)
     assert b'shipped' in web.data
 
     # The worker delivers
@@ -130,7 +130,7 @@ def test_publish_to_web_and_email_simultaneously(app, client, acme, globex, user
     message = mailer._outbox[0]
     assert message['Subject'] == 'Big News'
     body = message.get_body(('html',)).get_content()
-    assert '/posts/big-news' in body
+    assert '/blog/big-news' in body
     assert '/unsubscribe/' in body
 
 
@@ -139,13 +139,13 @@ def test_delivery_is_idempotent_after_partial_failure(app, client, acme,
     configure_email(app)
     add_subscribers(app, acme, ['ok1@example.com', 'ok2@example.com'])
     login_as(client, user)
-    client.post('/manage/posts/new', base_url=ACME, data={
+    client.post('/manage/content/article/new', base_url=ACME, data={
         'title': 'P', 'slug': 'p', 'body': 'x', 'visibility': 'public',
         'action': 'publish'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        post_id = Post.published_by_slug('p').id
-    client.post(f'/manage/posts/{post_id}/send-newsletter', base_url=ACME)
+        post_id = Content.published_by_slug('article', 'p').id
+    client.post(f'/manage/content/{post_id}/send-newsletter', base_url=ACME)
 
     # First run partially "crashes": simulate by marking one recipient sent
     delivery = Delivery.query.first()
@@ -164,18 +164,18 @@ def test_send_without_email_config_fails_gracefully(app, client, acme, globex,
                                                     user):
     add_subscribers(app, acme, ['a@example.com'])
     login_as(client, user)
-    client.post('/manage/posts/new', base_url=ACME, data={
+    client.post('/manage/content/article/new', base_url=ACME, data={
         'title': 'P2', 'slug': 'p2', 'body': 'x', 'visibility': 'public',
         'action': 'publish'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        post_id = Post.published_by_slug('p2').id
-    response = client.post(f'/manage/posts/{post_id}/send-newsletter',
+        post_id = Content.published_by_slug('article', 'p2').id
+    response = client.post(f'/manage/content/{post_id}/send-newsletter',
                            base_url=ACME, follow_redirects=True)
     assert b'Configure email' in response.data
     assert Delivery.query.count() == 0
     # Publishing itself remains fully operable
-    assert app.test_client().get('/posts/p2', base_url=ACME).status_code == 200
+    assert app.test_client().get('/blog/p2', base_url=ACME).status_code == 200
 
 
 def test_subscribers_tenant_isolated(app, client, acme, globex):

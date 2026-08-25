@@ -23,7 +23,7 @@
       {% if post.published_at %}{{ post.published_at|localdate }}{% endif %}
       {% if post.author %} · {{ post.author.name }}{% endif %}
       {% for category in post.categories %}
-      · <a href="/posts/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
+      · <a href="{{ content_type.base }}/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
       {% endfor %}
     </p>
   </header>
@@ -42,7 +42,7 @@
   {% if post.tags %}
   <p class="mt-8 flex flex-wrap gap-2">
     {% for tag in post.tags %}
-    <a href="/posts/tag/{{ tag }}" class="badge-slate hover:ring-brand-500">#{{ tag }}</a>
+    <a href="{{ content_type.base }}/tag/{{ tag }}" class="badge-slate hover:ring-brand-500">#{{ tag }}</a>
     {% endfor %}
   </p>
   {% endif %}

@@ -110,9 +110,9 @@ class Organization(BaseModel):
         return Upload.get_by_id(upload_id) if upload_id else None
 
     def homepage(self):
-        from .page import Page
-        page_id = self.setting('homepage_page_id')
-        if not page_id:
+        from .content import Content
+        content_id = self.setting('homepage_content_id')
+        if not content_id:
             return None
-        page = Page.get_by_id(page_id)
+        page = Content.get_by_id(content_id)
         return page if page and page.is_published else None

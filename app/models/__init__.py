@@ -6,10 +6,9 @@ from .organization import Organization
 from .membership import Membership, ROLES
 from .setting import InstallationSetting
 from .job import Job
-from .page import Page
 from .navigation import NavigationItem
 from .upload import Upload
-from .post import Post, Category
+from .content import Content, Category
 from .invitation import Invitation
 from .discussion import (Space, DiscussionPost, Comment, Reaction, PostFollow,
                          Flag)
@@ -21,7 +20,7 @@ from .domain import OrgDomain
 __all__ = [
     'BaseModel', 'OrgScoped', 'AuditMixin', 'utcnow', 'transaction',
     'User', 'Organization', 'Membership', 'ROLES', 'InstallationSetting',
-    'Job', 'Page', 'NavigationItem', 'Upload', 'Post', 'Category',
+    'Job', 'NavigationItem', 'Upload', 'Content', 'Category',
     'Invitation', 'Space', 'DiscussionPost', 'Comment', 'Reaction',
     'PostFollow', 'Flag', 'Notification', 'Subscriber', 'Delivery',
     'DeliveryRecipient', 'OrgPlugin', 'OrgDomain',

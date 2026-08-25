@@ -141,10 +141,10 @@ def test_member_cannot_manage_domains(app, client, acme, globex):
 
 def test_admin_org_detail_shows_state(admin_client, app, acme, globex, user):
     from flask import g
-    from app.models import Page
+    from app.models import Content
     with app.test_request_context():
         g.org = acme
-        page = Page(title='P', slug='p', org_id=acme.id)
+        page = Content(type='page', title='P', slug='p', org_id=acme.id, fields={}, tags=[])
         page.save()
 
     detail = admin_client.get(f'/admin/orgs/{acme.id}')

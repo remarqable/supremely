@@ -3,7 +3,7 @@ import io
 from flask import g
 
 from app.extensions import db
-from app.models import Membership, NavigationItem, Organization, Page, Upload
+from app.models import Content, Membership, NavigationItem, Organization, Upload
 from tests.conftest import login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
@@ -13,24 +13,24 @@ def test_manage_requires_permission(app, client, acme, globex):
     member = make_user(email='plain@example.com')
     Membership.add(member.id, acme.id, role='member')
     login_as(client, member)
-    assert client.get('/manage/pages', base_url=ACME).status_code == 403
+    assert client.get('/manage/content/page', base_url=ACME).status_code == 403
 
 
 def test_manage_requires_login(client, acme, globex):
-    response = client.get('/manage/pages', base_url=ACME)
+    response = client.get('/manage/content/page', base_url=ACME)
     assert response.status_code == 302
 
 
 def test_create_and_publish_page(app, client, acme, globex, user):
     login_as(client, user)      # owner of acme
-    response = client.post('/manage/pages/new', base_url=ACME, data={
+    response = client.post('/manage/content/page/new', base_url=ACME, data={
         'title': 'Features', 'slug': 'features', 'body': '## Great stuff',
-        'visibility': 'public', 'template': 'page', 'action': 'publish',
+        'visibility': 'public', 'action': 'publish',
     })
     assert response.status_code == 302
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        page = Page.published_by_slug('features')
+        page = Content.published_by_slug('page', 'features')
         assert page is not None
         assert page.created_by_id == user.id       # audit trail
 
@@ -38,21 +38,31 @@ def test_create_and_publish_page(app, client, acme, globex, user):
     assert b'Great stuff' in public.data
 
 
+def test_create_and_publish_article(app, client, acme, globex, user):
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'News', 'slug': 'news', 'body': 'Big **news**.',
+        'visibility': 'public', 'action': 'publish'})
+    public = client.get('/blog/news', base_url=ACME)
+    assert public.status_code == 200
+    assert b'Big' in public.data
+
+
 def test_edit_and_unpublish(app, client, acme, globex, user):
     login_as(client, user)
-    client.post('/manage/pages/new', base_url=ACME, data={
+    client.post('/manage/content/page/new', base_url=ACME, data={
         'title': 'P', 'slug': 'p', 'body': 'x', 'visibility': 'public',
         'action': 'publish'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        page_id = Page.published_by_slug('p').id
+        page_id = Content.published_by_slug('page', 'p').id
 
-    client.post(f'/manage/pages/{page_id}/edit', base_url=ACME, data={
+    client.post(f'/manage/content/{page_id}/edit', base_url=ACME, data={
         'title': 'P2', 'slug': 'p', 'body': 'y', 'visibility': 'public',
         'action': 'unpublish'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        page = db.session.get(Page, page_id)
+        page = db.session.get(Content, page_id)
         assert page.title == 'P2'
         assert not page.is_published
 
@@ -60,12 +70,13 @@ def test_edit_and_unpublish(app, client, acme, globex, user):
 def test_cannot_edit_other_orgs_page(app, client, acme, globex, user):
     with app.test_request_context():
         g.org = globex
-        other = Page(title='G', slug='g', org_id=globex.id)
+        other = Content(type='page', title='G', slug='g', org_id=globex.id,
+                        fields={}, tags=[])
         other.save()
         other_id = other.id
         db.session.expunge(other)   # requests never share an identity map
     login_as(client, user)
-    response = client.post(f'/manage/pages/{other_id}/edit', base_url=ACME,
+    response = client.post(f'/manage/content/{other_id}/edit', base_url=ACME,
                            data={'title': 'HACKED', 'slug': 'g', 'body': ''})
     assert response.status_code == 404      # tenant filter: row unreachable
 

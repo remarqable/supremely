@@ -5,16 +5,21 @@
 
 {% block main_class %}mx-auto max-w-7xl px-4 py-8{% endblock %}
 
+{# One Content group entry per registered content type (Pages, Blog, Events,
+   plugin types). content editor/preview highlight their type's entry. #}
+{% set content_items = [] %}
+{% for slug, ct in content_types().items() %}
+  {% do content_items.append({
+      'endpoint': 'manage.content_list', 'label': ct.plural,
+      'args': {'type_slug': slug}, 'match': 'type_slug',
+      'also': ['manage.content_list']}) %}
+{% endfor %}
+{% do content_items.append({'endpoint': 'manage.categories', 'label': _('manage.categories')}) %}
+{% do content_items.append({'endpoint': 'manage.media', 'label': _('manage.media')}) %}
+{% do content_items.append({'endpoint': 'manage.navigation', 'label': _('manage.navigation')}) %}
+
 {% set manage_groups = [
-  (_('manage.group_content'), [
-    {'endpoint': 'manage.pages', 'label': _('manage.pages'),
-     'also': ['manage.new_page', 'manage.edit_page']},
-    {'endpoint': 'manage.posts', 'label': _('manage.posts'),
-     'also': ['manage.new_post', 'manage.edit_post', 'manage.preview_post',
-              'manage.categories']},
-    {'endpoint': 'manage.media', 'label': _('manage.media')},
-    {'endpoint': 'manage.navigation', 'label': _('manage.navigation')},
-  ]),
+  (_('manage.group_content'), content_items),
   (_('manage.group_community'), [
     {'endpoint': 'manage.members', 'label': _('manage.members')},
     {'endpoint': 'manage.discussions', 'label': _('manage.discussions'),

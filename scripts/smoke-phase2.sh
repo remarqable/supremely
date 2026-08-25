@@ -32,8 +32,8 @@ curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/organization" -d "csrf_token=$T
   && pass "installed with org" || fail "install"
 
 # Build the site: three pages, one members-only
-T=$(csrf "$JAR" "$BASE/manage/pages/new")
-curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/pages/new" \
+T=$(csrf "$JAR" "$BASE/manage/content/page/new")
+curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/content/page/new" \
   --data-urlencode "csrf_token=$T" --data-urlencode "title=Welcome to Ambient Labs" \
   --data-urlencode "slug=welcome" --data-urlencode "visibility=public" --data-urlencode "action=publish" \
   --data-urlencode "body=# Software that breathes
@@ -42,23 +42,23 @@ Ambient Labs builds **calm technology**.
 
 - Thoughtful tools
 - No dark patterns" >/dev/null
-T=$(csrf "$JAR" "$BASE/manage/pages/new")
-curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/pages/new" \
+T=$(csrf "$JAR" "$BASE/manage/content/page/new")
+curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/content/page/new" \
   --data-urlencode "csrf_token=$T" --data-urlencode "title=Our Story" --data-urlencode "slug=story" \
   --data-urlencode "visibility=public" --data-urlencode "action=publish" \
   --data-urlencode "seo_description=The story of Ambient Labs" \
   --data-urlencode "body=We started in a garage. The garage was nice." >/dev/null
-T=$(csrf "$JAR" "$BASE/manage/pages/new")
-curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/pages/new" \
+T=$(csrf "$JAR" "$BASE/manage/content/page/new")
+curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/content/page/new" \
   --data-urlencode "csrf_token=$T" --data-urlencode "title=Team Handbook" --data-urlencode "slug=handbook" \
   --data-urlencode "visibility=members" --data-urlencode "action=publish" \
   --data-urlencode "body=Secret handshake instructions." >/dev/null
-curl -s -b "$JAR" "$BASE/manage/pages" | grep -q "Team Handbook" && pass "pages created" || fail "pages"
+curl -s -b "$JAR" "$BASE/manage/content/page" | grep -q "Team Handbook" && pass "pages created" || fail "pages"
 
 # Homepage designation (find our Welcome page's id; orgs seed starter pages)
-WID=$(curl -s -b "$JAR" "$BASE/manage/pages" | sed -n 's/.*pages\/\([0-9]*\)\/edit">Welcome to Ambient Labs.*/\1/p' | head -1)
-T=$(csrf "$JAR" "$BASE/manage/pages")
-curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/pages/$WID/homepage" -d "csrf_token=$T" >/dev/null
+WID=$(curl -s -b "$JAR" "$BASE/manage/content/page" | sed -n 's/.*content\/\([0-9]*\)\/edit">Welcome to Ambient Labs.*/\1/p' | head -1)
+T=$(csrf "$JAR" "$BASE/manage/content/page")
+curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/content/$WID/homepage" -d "csrf_token=$T" >/dev/null
 
 # Navigation (primary nav is seeded; add a footer link of our own)
 T=$(csrf "$JAR" "$BASE/manage/navigation")
@@ -74,7 +74,7 @@ curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/settings" \
 # --- The completion test: an anonymous visitor sees a real website -----------
 HOME=$(curl -s -c "$ANON" "$BASE/")
 echo "$HOME" | grep -q "Software that breathes" && pass "homepage is the designated page" || fail "homepage"
-echo "$HOME" | grep -q 'href="/posts"' && pass "primary navigation rendered (seeded)" || fail "nav"
+echo "$HOME" | grep -q 'href="/blog"' && pass "primary navigation rendered (seeded)" || fail "nav"
 echo "$HOME" | grep -q "example.com/privacy" && pass "footer navigation rendered" || fail "footer"
 echo "$HOME" | grep -q "#0e7490" && pass "brand color applied" || fail "brand"
 echo "$HOME" | grep -q "<strong>calm technology</strong>" && pass "markdown rendered" || fail "markdown"

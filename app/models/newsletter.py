@@ -85,7 +85,7 @@ class Delivery(OrgScoped, AuditMixin, BaseModel):
     """One email send of one Post to the subscribed audience."""
     __tablename__ = 'newsletter_delivery'
 
-    post_id = db.Column(BigIntFK, db.ForeignKey('post.id', ondelete='CASCADE'),
+    post_id = db.Column(BigIntFK, db.ForeignKey('content.id', ondelete='CASCADE'),
                         nullable=False, index=True)
     status = db.Column(db.String(10), nullable=False, default='pending')
     # pending -> sending -> done | failed
@@ -94,7 +94,7 @@ class Delivery(OrgScoped, AuditMixin, BaseModel):
     failed_count = db.Column(db.Integer, nullable=False, default=0)
     finished_at = db.Column(TZDateTime, nullable=True)
 
-    post = db.relationship('Post', lazy='select')
+    post = db.relationship('Content', lazy='select')
 
     @classmethod
     def create_for_post(cls, post) -> 'Delivery':

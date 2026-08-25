@@ -8,10 +8,11 @@ from flask import (Blueprint, abort, flash, g, redirect, render_template,
 from flask_login import current_user
 
 from app.extensions import db
-from app.models import Organization, Upload
+from app.models import Content, Organization, Upload
+from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
-from app.models.page import Page
 from app.platform.authz import org_required, require
+from app.platform.content_types import CONTENT_TYPES, get_content_type
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -25,243 +26,161 @@ log = get_logger()
 @org_required
 @require('content.write')
 def index():
-    return redirect(url_for('manage.pages'))
+    return redirect(url_for('manage.content_list', type_slug='page'))
 
 
-# --- Pages -------------------------------------------------------------------
+# --- Content (all types: page, article, event, plugin types) -------------------
 
-@bp.route('/pages')
-@org_required
-@require('content.write')
-def pages():
-    page_list = Page.query.order_by(Page.created_at.desc()).all()
-    homepage_id = g.org.setting('homepage_page_id')
-    return render_template('manage/pages.html', pages=page_list,
-                           homepage_id=homepage_id)
-
-
-def _page_from_form(page: Page) -> Page:
-    page.title = request.form.get('title', '')
-    page.slug = request.form.get('slug', '')
-    page.body = request.form.get('body', '')
-    page.visibility = request.form.get('visibility', 'public')
-    page.template = (request.form.get('template', 'page').strip() or 'page')[:50]
-    page.seo_title = request.form.get('seo_title', '').strip() or None
-    page.seo_description = request.form.get('seo_description', '').strip() or None
-    return page
-
-
-@bp.route('/pages/new', methods=['GET', 'POST'])
-@org_required
-@require('content.write')
-def new_page():
-    if request.method == 'POST':
-        page = _page_from_form(Page())
-        page.stamp_audit()
-        try:
-            if request.form.get('action') == 'publish':
-                page.validate()
-                db.session.add(page)
-                db.session.commit()
-                page.publish()
-            else:
-                page.save()
-            flash(t('common.saved'), 'success')
-            return redirect(url_for('manage.edit_page', page_id=page.id))
-        except ValidationError as e:
-            db.session.rollback()
-            flash(e.message, 'error')
-            return render_template('manage/page_form.html', page=page)
-    return render_template('manage/page_form.html', page=None)
-
-
-@bp.route('/pages/<int:page_id>/edit', methods=['GET', 'POST'])
-@org_required
-@require('content.write')
-def edit_page(page_id):
-    page = db.session.get(Page, page_id)
-    if page is None:
+def _content_or_404(content_id) -> Content:
+    content = db.session.get(Content, content_id)
+    if content is None:
         abort(404)
-    if request.method == 'POST':
-        _page_from_form(page)
-        page.stamp_audit()
-        action = request.form.get('action', 'save')
-        try:
-            if action == 'publish':
-                page.publish()
-            elif action == 'unpublish':
-                page.unpublish()
-            else:
-                page.save()
-            flash(t('common.saved'), 'success')
-            return redirect(url_for('manage.edit_page', page_id=page.id))
-        except ValidationError as e:
-            db.session.rollback()
-            flash(e.message, 'error')
-    return render_template('manage/page_form.html', page=page)
+    return content
 
 
-@bp.route('/pages/<int:page_id>/delete', methods=['POST'])
+@bp.route('/content/<type_slug>')
 @org_required
 @require('content.write')
-def delete_page(page_id):
-    page = db.session.get(Page, page_id)
-    if page is None:
+def content_list(type_slug):
+    if type_slug not in CONTENT_TYPES:
         abort(404)
-    if g.org.setting('homepage_page_id') == page.id:
-        g.org.update_settings(homepage_page_id=None)
-    page.delete()
-    flash(t('manage.page_deleted'), 'success')
-    return redirect(url_for('manage.pages'))
+    ct = get_content_type(type_slug)
+    items = (Content.of_type(type_slug)
+             .order_by(Content.created_at.desc()).all())
+    homepage_id = g.org.setting('homepage_content_id')
+    return render_template('manage/content_list.html', items=items,
+                           content_type=ct, homepage_id=homepage_id)
 
 
-@bp.route('/pages/<int:page_id>/homepage', methods=['POST'])
-@org_required
-@require('content.write')
-def set_homepage(page_id):
-    page = db.session.get(Page, page_id)
-    if page is None:
-        abort(404)
-    current = g.org.setting('homepage_page_id')
-    g.org.update_settings(homepage_page_id=None if current == page.id else page.id)
-    flash(t('common.saved'), 'success')
-    return redirect(url_for('manage.pages'))
-
-
-# --- Posts ---------------------------------------------------------------------
-
-@bp.route('/posts')
-@org_required
-@require('content.write')
-def posts():
-    from app.models.post import Post
-    post_list = Post.query.order_by(Post.created_at.desc()).all()
-    return render_template('manage/posts.html', posts=post_list)
-
-
-def _post_from_form(post):
-    from app.models.post import Category
-    post.title = request.form.get('title', '')
-    post.slug = request.form.get('slug', '')
-    post.body = request.form.get('body', '')
-    post.excerpt = request.form.get('excerpt', '').strip() or None
-    post.visibility = request.form.get('visibility', 'public')
-    post.seo_title = request.form.get('seo_title', '').strip() or None
-    post.seo_description = request.form.get('seo_description', '').strip() or None
+def _content_from_form(content):
+    content.title = request.form.get('title', '')
+    content.slug = request.form.get('slug', '')
+    content.body = request.form.get('body', '')
+    content.excerpt = request.form.get('excerpt', '').strip() or None
+    content.visibility = request.form.get('visibility', 'public')
+    content.seo_title = request.form.get('seo_title', '').strip() or None
+    content.seo_description = request.form.get('seo_description', '').strip() or None
+    if content.content_type.is_page:
+        content.template = (request.form.get('template', '').strip() or None)
     raw = request.form.get('featured_upload_id', '')
-    post.featured_upload_id = int(raw) if raw.isdigit() and int(raw) else None
-    post.tags = [tag.strip() for tag in
-                 request.form.get('tags', '').split(',') if tag.strip()]
+    content.featured_upload_id = int(raw) if raw.isdigit() and int(raw) else None
+    content.tags = [tag.strip() for tag in
+                    request.form.get('tags', '').split(',') if tag.strip()]
     category_ids = request.form.getlist('category_ids', type=int)
-    post.categories = (Category.query.filter(Category.id.in_(category_ids)).all()
-                       if category_ids else [])
-    post.set_structured_fields({
+    content.categories = (Category.query.filter(Category.id.in_(category_ids)).all()
+                          if category_ids else [])
+    content.set_structured_fields({
         key[len('field_'):]: value for key, value in request.form.items()
-        if key.startswith('field_')
-    })
-    return post
+        if key.startswith('field_')})
+    return content
 
 
-@bp.route('/posts/new', methods=['GET', 'POST'])
-@org_required
-@require('content.write')
-def new_post():
-    from app.models.post import Category, Post
-    from app.platform.post_types import POST_TYPES, get_post_type
-    type_slug = request.values.get('type', 'article')
-    post_type = get_post_type(type_slug)
-
-    if request.method == 'POST':
-        post = Post(type=post_type.slug)
-        try:
-            _post_from_form(post)
-            post.stamp_audit()
-            if request.form.get('action') == 'publish':
-                post.validate()
-                db.session.add(post)
-                db.session.commit()
-                post.publish()
-            else:
-                post.save()
-            flash(t('common.saved'), 'success')
-            return redirect(url_for('manage.edit_post', post_id=post.id))
-        except ValidationError as e:
-            db.session.rollback()
-            flash(e.message, 'error')
-            return render_template('manage/post_form.html', post=post,
-                                   post_type=post_type,
-                                   post_types=POST_TYPES,
-                                   categories=Category.query.order_by(Category.name).all())
-    return render_template('manage/post_form.html', post=None,
-                           post_type=post_type, post_types=POST_TYPES,
+def _render_content_form(content, ct):
+    return render_template('manage/content_form.html', content=content,
+                           content_type=ct,
                            categories=Category.query.order_by(Category.name).all())
 
 
-@bp.route('/posts/<int:post_id>/edit', methods=['GET', 'POST'])
+@bp.route('/content/<type_slug>/new', methods=['GET', 'POST'])
 @org_required
 @require('content.write')
-def edit_post(post_id):
-    from app.models.post import Category, Post
-    from app.platform.post_types import POST_TYPES
-    post = db.session.get(Post, post_id)
-    if post is None:
+def new_content(type_slug):
+    if type_slug not in CONTENT_TYPES:
         abort(404)
+    ct = get_content_type(type_slug)
+    if request.method == 'POST':
+        content = Content(type=ct.slug)
+        try:
+            _content_from_form(content)
+            content.stamp_audit()
+            if request.form.get('action') == 'publish':
+                content.validate()
+                db.session.add(content)
+                db.session.commit()
+                content.publish()
+            else:
+                content.save()
+            flash(t('common.saved'), 'success')
+            return redirect(url_for('manage.edit_content', content_id=content.id))
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+            return _render_content_form(content, ct)
+    return _render_content_form(None, ct)
+
+
+@bp.route('/content/<int:content_id>/edit', methods=['GET', 'POST'])
+@org_required
+@require('content.write')
+def edit_content(content_id):
+    content = _content_or_404(content_id)
+    ct = content.content_type
     if request.method == 'POST':
         try:
-            _post_from_form(post)
-            post.stamp_audit()
+            _content_from_form(content)
+            content.stamp_audit()
             action = request.form.get('action', 'save')
             if action == 'publish':
-                post.publish()
+                content.publish()
             elif action == 'unpublish':
-                post.unpublish()
+                content.unpublish()
             elif action == 'archive':
-                post.archive()
+                content.archive()
             else:
-                post.save()
+                content.save()
             flash(t('common.saved'), 'success')
-            return redirect(url_for('manage.edit_post', post_id=post.id))
+            return redirect(url_for('manage.edit_content', content_id=content.id))
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
-    return render_template('manage/post_form.html', post=post,
-                           post_type=post.post_type, post_types=POST_TYPES,
-                           categories=Category.query.order_by(Category.name).all())
+    return _render_content_form(content, ct)
 
 
-@bp.route('/posts/<int:post_id>/delete', methods=['POST'])
+@bp.route('/content/<int:content_id>/delete', methods=['POST'])
 @org_required
 @require('content.write')
-def delete_post(post_id):
-    from app.models.post import Post
-    post = db.session.get(Post, post_id)
-    if post is None:
-        abort(404)
-    post.delete()
-    flash(t('manage.post_deleted'), 'success')
-    return redirect(url_for('manage.posts'))
+def delete_content(content_id):
+    content = _content_or_404(content_id)
+    type_slug = content.type
+    if g.org.setting('homepage_content_id') == content.id:
+        g.org.update_settings(homepage_content_id=None)
+    content.delete()
+    flash(t('manage.content_deleted'), 'success')
+    return redirect(url_for('manage.content_list', type_slug=type_slug))
 
 
-@bp.route('/posts/<int:post_id>/preview')
+@bp.route('/content/<int:content_id>/preview')
 @org_required
 @require('content.write')
-def preview_post(post_id):
-    from app.models.post import Post
+def preview_content(content_id):
     from app.platform.theming import render_site
-    post = db.session.get(Post, post_id)
-    if post is None:
-        abort(404)
-    post_type = post.post_type
-    return render_site(
-        [f'{post_type.template}.html', 'single.html'],
-        post=post, post_type=post_type, preview=True)
+    content = _content_or_404(content_id)
+    ct = content.content_type
+    if ct.is_page:
+        tmpl = content.template or ct.template
+        names = [f'{tmpl}.html', 'page.html']
+    else:
+        names = [f'{ct.template}.html', 'single.html']
+    return render_site(names, content=content, content_type=ct, post=content,
+                       page=content, preview=True)
+
+
+@bp.route('/content/<int:content_id>/homepage', methods=['POST'])
+@org_required
+@require('content.write')
+def set_homepage(content_id):
+    content = _content_or_404(content_id)
+    current = g.org.setting('homepage_content_id')
+    g.org.update_settings(
+        homepage_content_id=None if current == content.id else content.id)
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.content_list', type_slug=content.type))
 
 
 @bp.route('/categories', methods=['GET', 'POST'])
 @org_required
 @require('content.write')
 def categories():
-    from app.models.post import Category
     if request.method == 'POST':
         category = Category(name=request.form.get('name', ''),
                             slug=request.form.get('slug', ''))
@@ -279,7 +198,6 @@ def categories():
 @org_required
 @require('content.write')
 def delete_category(category_id):
-    from app.models.post import Category
     category = db.session.get(Category, category_id)
     if category is None:
         abort(404)
@@ -299,7 +217,7 @@ def navigation():
             menu=request.form.get('menu', 'primary'),
             label=request.form.get('label', ''),
             url=request.form.get('url', '').strip() or None,
-            page_id=request.form.get('page_id', type=int) or None,
+            content_id=request.form.get('content_id', type=int) or None,
             parent_id=parent_id,
         )
         item.position = NavigationItem.next_position(item.menu, parent_id)
@@ -312,10 +230,11 @@ def navigation():
         return redirect(url_for('manage.navigation'))
 
     menus = {menu: NavigationItem.items_for(menu) for menu in MENUS}
-    published_pages = (Page.query.filter_by(status='published')
-                       .order_by(Page.title).all())
+    # Any published content can be a nav target (pages most commonly).
+    linkable = (Content.published_query()
+                .order_by(Content.type, Content.title).all())
     return render_template('manage/navigation.html', menus=menus,
-                           pages=published_pages)
+                           linkable=linkable)
 
 
 @bp.route('/navigation/<int:item_id>/move', methods=['POST'])
@@ -693,24 +612,23 @@ def remove_subscriber(subscriber_id):
     return redirect(url_for('manage.newsletter'))
 
 
-@bp.route('/posts/<int:post_id>/send-newsletter', methods=['POST'])
+@bp.route('/content/<int:content_id>/send-newsletter', methods=['POST'])
 @org_required
 @require('content.write')
-def send_post_newsletter(post_id):
-    from app.models.post import Post
+def send_post_newsletter(content_id):
     from app.models.newsletter import Delivery, Subscriber
     from app.platform.mailer import is_email_configured
     from app.platform.jobs import enqueue
 
-    post = db.session.get(Post, post_id)
+    post = db.session.get(Content, content_id)
     if post is None:
         abort(404)
     if not is_email_configured():
         flash(t('newsletter.email_required_to_send'), 'error')
-        return redirect(url_for('manage.edit_post', post_id=post.id))
+        return redirect(url_for('manage.edit_content', content_id=post.id))
     if Subscriber.audience().count() == 0:
         flash(t('newsletter.no_subscribers'), 'error')
-        return redirect(url_for('manage.edit_post', post_id=post.id))
+        return redirect(url_for('manage.edit_content', content_id=post.id))
 
     delivery = Delivery.create_for_post(post)
     enqueue('newsletter.send_delivery', org_id=g.org.id,

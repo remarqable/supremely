@@ -7,9 +7,13 @@
     {% endif %}
     <ul class="space-y-0.5">
       {% for item in items %}
-      {% set active = current == item.endpoint or current in item.get('also', []) %}
+      {% set args = item.get('args', {}) %}
+      {% set endpoint_active = current == item.endpoint or current in item.get('also', []) %}
+      {% set match_key = item.get('match') %}
+      {% set active = endpoint_active and (not match_key
+                        or request.view_args.get(match_key) == args.get(match_key)) %}
       <li>
-        <a href="{{ url_for(item.endpoint) }}"
+        <a href="{{ url_for(item.endpoint, **args) }}"
            class="block rounded-md px-3 py-1.5 text-sm {{ 'bg-brand-50 font-medium text-brand-700' if active else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}"
            {{ 'aria-current=page' if active }}>
           {{ item.label }}</a>

@@ -44,7 +44,7 @@ def _escape(text: str) -> str:
 
 @job('newsletter.send_delivery')
 def send_delivery(payload: dict) -> None:
-    from app.models import Organization, Post
+    from app.models import Content, Organization
     from app.models.newsletter import Delivery, DeliveryRecipient
     from app.platform.mailer import send_email, is_email_configured
 
@@ -57,7 +57,7 @@ def send_delivery(payload: dict) -> None:
         log.error('newsletter_send_no_email', delivery_id=delivery.id)
         return
 
-    post = db.session.get(Post, delivery.post_id)
+    post = db.session.get(Content, delivery.post_id)
     org = db.session.get(Organization, delivery.org_id)
     if post is None or org is None:
         delivery.status = 'failed'

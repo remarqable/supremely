@@ -37,8 +37,8 @@ class Plugin:
         """The Flask blueprint for this version, or None."""
         return None
 
-    def post_types(self):
-        """Structured Post Types this version declares."""
+    def content_types(self):
+        """Content Types this version declares."""
         return []
 
     def on_install(self, org_id: int) -> None:
@@ -83,7 +83,7 @@ def _in_dependency_order(slugs: list[str]) -> list[str]:
 def load_plugins(app) -> None:
     """Import every version of every plugin and wire up routing. Boot only."""
     from app.platform.i18n import merge_translations
-    from app.platform.post_types import POST_TYPES, register_post_type
+    from app.platform.content_types import CONTENT_TYPES, register_content_type
 
     REGISTRY.clear()
     MANIFESTS.clear()
@@ -115,13 +115,13 @@ def load_plugins(app) -> None:
                 # Private mount. Never linked; never on the public prefix.
                 app.register_blueprint(bp, url_prefix=f'/_v/{slug}/{major}')
 
-            for post_type in plugin.post_types():
-                existing = POST_TYPES.get(post_type.slug)
+            for content_type in plugin.content_types():
+                existing = CONTENT_TYPES.get(content_type.slug)
                 if existing is None:
-                    register_post_type(post_type)
+                    register_content_type(content_type)
                 elif existing.plugin != slug:
                     raise RuntimeError(
-                        f'Post type {post_type.slug} already owned by '
+                        f'Content type {content_type.slug} already owned by '
                         f'{existing.plugin or "core"}')
 
             lang_dir = Path(module.__path__[0]) / 'lang'

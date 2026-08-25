@@ -4,7 +4,7 @@
 <li class="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm {{ 'ms-8' if nested }}">
   {% if item.is_group and not nested %}<span aria-hidden="true">▾</span>{% endif %}
   <span class="font-medium">{{ item.label }}</span>
-  <span class="text-slate-500">{{ item.href if not item.is_group or item.url or item.page_id else _('manage.nav_group_hint') }}</span>
+  <span class="text-slate-500">{{ item.href if not item.is_group or item.url or item.content_id else _('manage.nav_group_hint') }}</span>
   <span class="ms-auto flex gap-1">
     <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -73,11 +73,11 @@
       </select>
     </div>
     <div>
-      <label for="page_id" class="label">{{ _('manage.link_page') }}</label>
-      <select id="page_id" name="page_id" class="select mt-1">
+      <label for="content_id" class="label">{{ _('manage.link_content') }}</label>
+      <select id="content_id" name="content_id" class="select mt-1">
         <option value="">—</option>
-        {% for page in pages %}
-        <option value="{{ page.id }}">{{ page.title }}</option>
+        {% for item in linkable %}
+        <option value="{{ item.id }}">{{ item.title }} ({{ item.content_type.singular }})</option>
         {% endfor %}
       </select>
     </div>

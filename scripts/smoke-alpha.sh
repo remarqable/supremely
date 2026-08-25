@@ -49,20 +49,20 @@ curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/manage/settings" \
 curl -s "$BASE/" | grep -q "bg-slate-950" && pass "theme selected (midnight)" || fail "theme"
 
 # --- create pages --------------------------------------------------------------------
-T=$(csrf "$OWNER" "$BASE/manage/pages/new")
-curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/manage/pages/new" \
+T=$(csrf "$OWNER" "$BASE/manage/content/page/new")
+curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/manage/content/page/new" \
   --data-urlencode "csrf_token=$T" --data-urlencode "title=Hello Night" \
   --data-urlencode "slug=hello" --data-urlencode "visibility=public" \
   --data-urlencode "action=publish" --data-urlencode "body=# We meet after dark" >/dev/null
 curl -s "$BASE/hello" | grep -q "We meet after dark" && pass "page created and public" || fail "page"
 
 # --- publish post ---------------------------------------------------------------------
-T=$(csrf "$OWNER" "$BASE/manage/posts/new")
-curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/manage/posts/new" \
+T=$(csrf "$OWNER" "$BASE/manage/content/article/new")
+curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/manage/content/article/new" \
   --data-urlencode "csrf_token=$T" --data-urlencode "title=First Flight" \
   --data-urlencode "slug=first-flight" --data-urlencode "visibility=public" \
   --data-urlencode "action=publish" --data-urlencode "body=Owls, assemble." >/dev/null
-curl -s "$BASE/posts/first-flight" | grep -q "Owls, assemble." && pass "post published" || fail "post"
+curl -s "$BASE/blog/first-flight" | grep -q "Owls, assemble." && pass "post published" || fail "post"
 
 # --- invite members (no email service anywhere) ------------------------------------------
 T=$(csrf "$OWNER" "$BASE/manage/members")
@@ -101,7 +101,7 @@ curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/" | grep -q "on your own 
   && pass "getsupremely.org homepage serves" || fail "dogfood home"
 curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/docs" | grep -q "docker compose up" \
   && pass "docs page serves" || fail "docs"
-curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/posts" | grep -q "Supremely now runs on Supremely" \
+curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/blog" | grep -q "Supremely now runs on Supremely" \
   && pass "dogfood post listed" || fail "dogfood post"
 curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/subscribe" | grep -qi "subscribe" \
   && pass "newsletter signup page serves" || fail "subscribe"

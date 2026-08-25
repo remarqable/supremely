@@ -1,5 +1,5 @@
 from app.platform.plugins import Plugin
-from app.platform.post_types import FieldSpec, PostType
+from app.platform.content_types import ContentType, FieldSpec
 
 from plugins.glossary.__manifest__ import manifest
 
@@ -11,12 +11,14 @@ class GlossaryPlugin(Plugin):
         from .controllers import bp
         return bp
 
-    def post_types(self):
-        # A structured Post Type contributed by a plugin: publish dictionary-
-        # style definition posts alongside the interactive glossary page.
-        return [PostType(
-            slug='definition', name='Definition',
-            description='A glossary definition, publishable as a post.',
+    def content_types(self):
+        # A structured Content Type contributed by a plugin: publish
+        # dictionary-style definitions at /definitions alongside the
+        # interactive glossary page.
+        return [ContentType(
+            slug='definition', singular='Definition', plural='Definitions',
+            description='A glossary definition, publishable as content.',
+            base='/definitions',
             fields=(
                 FieldSpec(key='term', type='string', label='Term',
                           required=True),
