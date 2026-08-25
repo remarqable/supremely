@@ -70,6 +70,11 @@ def create_app(config_class=Config):
     for module in (main, auth, setup, admin, orgs, manage, posts, members,
                    discussions, notifications, newsletter, site):
         app.register_blueprint(module.bp)
+
+    # Boot-time plugin registration: per-request tenant gating, no restarts.
+    from .platform.plugins import check_stranded_pins, load_plugins
+    load_plugins(app)
+    check_stranded_pins(app)
     for cli_bp in cli.CLI_BLUEPRINTS:
         app.register_blueprint(cli_bp)
 

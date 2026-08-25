@@ -14,6 +14,7 @@ from .invitation import Invitation
 from .discussion import Space, Topic, Reply, Reaction, TopicFollow, Flag
 from .notification import Notification
 from .newsletter import Subscriber, Delivery, DeliveryRecipient
+from .org_plugin import OrgPlugin
 
 __all__ = [
     'BaseModel', 'OrgScoped', 'AuditMixin', 'utcnow', 'transaction',
@@ -21,4 +22,5 @@ __all__ = [
     'Job', 'Page', 'NavigationItem', 'Upload', 'Post', 'Category',
     'Invitation', 'Space', 'Topic', 'Reply', 'Reaction', 'TopicFollow',
     'Flag', 'Notification', 'Subscriber', 'Delivery', 'DeliveryRecipient',
+    'OrgPlugin',
 ]

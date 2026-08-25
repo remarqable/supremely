@@ -1,0 +1,43 @@
+{% extends site_layout %}
+
+{% block title %}{{ glossary_settings.headline }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex items-center justify-between gap-4">
+  <h1 class="text-3xl font-bold">{{ glossary_settings.headline }}</h1>
+  <form method="GET" class="flex gap-2">
+    <input type="search" name="q" value="{{ q }}" class="input max-w-xs"
+           placeholder="{{ _('common.search') }}" aria-label="{{ _('common.search') }}">
+    <button type="submit" class="btn-secondary">{{ _('common.search') }}</button>
+  </form>
+</div>
+
+<dl class="space-y-4">
+  {% for term in terms %}
+  <div class="card p-4">
+    <dt class="font-semibold">{{ term.term }}</dt>
+    <dd class="mt-1 text-slate-700">{{ term.definition }}</dd>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500">{{ _('glossary.empty') }}</p>
+  {% endfor %}
+</dl>
+
+{% if can('content.write') %}
+<div class="card mt-8">
+  <h2 class="mb-3 font-semibold">{{ _('glossary.add_term') }}</h2>
+  <form method="POST" action="{{ plugin_url_for('add_term') }}" class="space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="term" class="label">{{ _('glossary.term') }}</label>
+      <input type="text" id="term" name="term" class="input mt-1" required maxlength="100">
+    </div>
+    <div>
+      <label for="definition" class="label">{{ _('glossary.definition') }}</label>
+      <textarea id="definition" name="definition" class="textarea mt-1" required></textarea>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

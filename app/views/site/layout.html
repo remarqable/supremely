@@ -35,6 +35,9 @@
       {% for item in nav_items('primary') %}
       <a href="{{ item.href }}" class="hover:text-brand-600">{{ item.label }}</a>
       {% endfor %}
+      {% for item in plugin_nav %}
+      <a href="{{ item.href }}" class="hover:text-brand-600">{{ _(item.label) }}</a>
+      {% endfor %}
       {% if current_user.is_authenticated and is_org_member() %}
       <a href="{{ url_for('orgs.dashboard') }}" class="btn-secondary">{{ _('orgs.home_member_area') }}</a>
       {% elif not current_user.is_authenticated %}

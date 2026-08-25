@@ -31,6 +31,7 @@ def init_tenant(app):
     def resolve_tenant():
         g.org = None
         g.membership = None
+        g.pop('installed_plugins', None)    # tenant-derived: never reuse
 
         if is_installation_path(request.path):
             return

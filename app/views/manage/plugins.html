@@ -1,0 +1,62 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-2xl space-y-4">
+  {% for slug, manifest in manifests.items() %}
+  {% set row = rows.get(slug) %}
+  <div class="card">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 class="text-lg font-semibold">{{ manifest.name }}
+          {% if row and row.is_enabled %}<span class="badge-green ms-2">{{ _('plugins.enabled') }} · v{{ row.version }}</span>
+          {% elif row %}<span class="badge-slate ms-2">{{ _('plugins.status_disabled') }}</span>{% endif %}
+        </h3>
+        {% if manifest.description %}<p class="text-sm text-slate-600">{{ manifest.description }}</p>{% endif %}
+      </div>
+      <div class="flex gap-2">
+        {% if row and row.is_enabled %}
+        <form method="POST" action="{{ url_for('manage.uninstall_plugin', slug=slug) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn-danger">{{ _('plugins.disable') }}</button>
+        </form>
+        {% else %}
+        <form method="POST" action="{{ url_for('manage.install_plugin', slug=slug) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn-primary">
+            {{ _('plugins.enable') if row else _('plugins.install') }}</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if row and row.is_enabled and manifest.versions|length > 1 and row.version != manifest.versions[-1] %}
+    <form method="POST" action="{{ url_for('manage.upgrade_plugin', slug=slug) }}"
+          class="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-sm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="version" value="{{ manifest.versions[-1] }}">
+      <span>{{ _('plugins.upgrade_available', version=manifest.versions[-1]) }}</span>
+      <button type="submit" class="btn-secondary">{{ _('plugins.upgrade') }}</button>
+    </form>
+    {% endif %}
+
+    {% if row and row.is_enabled and manifest.settings %}
+    <form method="POST" action="{{ url_for('manage.plugin_settings_save', slug=slug) }}"
+          class="mt-4 space-y-3 border-t border-slate-100 pt-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% for key, spec in manifest.settings.items() %}
+      <div>
+        <label for="setting_{{ slug }}_{{ key }}" class="label">{{ spec.label or key }}</label>
+        <input type="text" id="setting_{{ slug }}_{{ key }}" name="setting_{{ key }}"
+               class="input mt-1"
+               value="{{ (row.settings or {}).get(key, spec.default or '') }}">
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500">{{ _('plugins.none_available') }}</p>
+  {% endfor %}
+</div>
+{% endblock %}

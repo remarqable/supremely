@@ -535,6 +535,78 @@ def delete_media(upload_id):
     return redirect(url_for('manage.media'))
 
 
+# --- Plugins --------------------------------------------------------------------------
+
+@bp.route('/plugins')
+@org_required
+@require('plugins.manage')
+def plugins():
+    from app.models.org_plugin import OrgPlugin
+    from app.platform.plugins import MANIFESTS
+    rows = {row.plugin_slug: row
+            for row in OrgPlugin.query.filter_by(org_id=g.org.id).all()}
+    return render_template('manage/plugins.html', manifests=MANIFESTS,
+                           rows=rows)
+
+
+@bp.route('/plugins/<slug>/install', methods=['POST'])
+@org_required
+@require('plugins.manage')
+def install_plugin(slug):
+    from app.platform.plugins import install
+    from app.platform.errors import NotFoundError
+    try:
+        install(g.org.id, slug)
+        flash(t('plugins.installed'), 'success')
+    except (ValidationError, NotFoundError) as e:
+        flash(e.message, 'error')
+    return redirect(url_for('manage.plugins'))
+
+
+@bp.route('/plugins/<slug>/uninstall', methods=['POST'])
+@org_required
+@require('plugins.manage')
+def uninstall_plugin(slug):
+    from app.platform.plugins import uninstall
+    try:
+        uninstall(g.org.id, slug)
+        flash(t('plugins.disabled'), 'success')
+    except ValidationError as e:
+        flash(e.message, 'error')
+    return redirect(url_for('manage.plugins'))
+
+
+@bp.route('/plugins/<slug>/upgrade', methods=['POST'])
+@org_required
+@require('plugins.manage')
+def upgrade_plugin(slug):
+    from app.platform.plugins import upgrade
+    from app.platform.errors import NotFoundError
+    try:
+        upgrade(g.org.id, slug, request.form.get('version', ''))
+        flash(t('plugins.upgraded'), 'success')
+    except (ValidationError, NotFoundError) as e:
+        flash(e.message, 'error')
+    return redirect(url_for('manage.plugins'))
+
+
+@bp.route('/plugins/<slug>/settings', methods=['POST'])
+@org_required
+@require('plugins.manage')
+def plugin_settings_save(slug):
+    from app.models.org_plugin import OrgPlugin
+    from app.platform.plugins import MANIFESTS
+    row = OrgPlugin.query.filter_by(org_id=g.org.id, plugin_slug=slug).first()
+    if row is None or slug not in MANIFESTS:
+        abort(404)
+    schema = MANIFESTS[slug].get('settings', {})
+    row.settings = {key: request.form.get(f'setting_{key}', '')
+                    for key in schema}
+    db.session.commit()
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.plugins'))
+
+
 # --- Newsletter ---------------------------------------------------------------------
 
 @bp.route('/newsletter')
