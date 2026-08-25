@@ -1,0 +1,39 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{{ _('notifications.title') }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-2xl">
+  <div class="mb-6 flex items-center justify-between">
+    <h1 class="text-2xl font-bold">{{ _('notifications.title') }}</h1>
+    <form method="POST" action="{{ url_for('notifications.read_all') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary">{{ _('notifications.mark_all_read') }}</button>
+    </form>
+  </div>
+
+  <div class="space-y-2">
+    {% for notification in notifications %}
+    <form method="POST" action="{{ url_for('notifications.read_one', notification_id=notification.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit"
+              class="card block w-full p-4 text-start transition hover:ring-brand-500 {{ 'ring-brand-100 bg-brand-50/40' if not notification.is_read }}">
+        <div class="flex items-center gap-2 text-sm">
+          {% if not notification.is_read %}<span class="h-2 w-2 rounded-full bg-brand-600" aria-hidden="true"></span>{% endif %}
+          <span class="font-medium">{{ _('notifications.type_' + notification.type.replace('.', '_')) }}</span>
+          <span class="ms-auto text-xs text-slate-500">{{ notification.created_at|localdatetime }}</span>
+        </div>
+        <p class="mt-1 text-sm text-slate-700">
+          {% if notification.payload.actor_name %}{{ notification.payload.actor_name }} · {% endif %}
+          {{ notification.payload.title }}</p>
+        {% if notification.payload.snippet %}
+        <p class="mt-1 truncate text-xs text-slate-500">{{ notification.payload.snippet }}</p>
+        {% endif %}
+      </button>
+    </form>
+    {% else %}
+    <p class="text-sm text-slate-500">{{ _('notifications.empty') }}</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,183 @@
+{% extends site_layout %}
+
+{% block title %}{{ topic.title }} — {{ g.org.name }}{% endblock %}
+
+{% macro reaction_bar(target_type, target_id) %}
+{% set counts = reactions[target_type].get(target_id, {}) if target_type == 'reply' else reactions['topic'] %}
+<div class="mt-2 flex items-center gap-1">
+  {% for emoji in emoji_set %}
+  {% if can('discuss') %}
+  <form method="POST" action="/discussions/react" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="target_type" value="{{ target_type }}">
+    <input type="hidden" name="target_id" value="{{ target_id }}">
+    <input type="hidden" name="emoji" value="{{ emoji }}">
+    <button type="submit" class="rounded-full px-2 py-0.5 text-sm ring-1 ring-slate-200 hover:ring-brand-500">
+      {{ emoji }}{% if counts.get(emoji) %} {{ counts.get(emoji) }}{% endif %}
+    </button>
+  </form>
+  {% elif counts.get(emoji) %}
+  <span class="rounded-full px-2 py-0.5 text-sm ring-1 ring-slate-200">{{ emoji }} {{ counts.get(emoji) }}</span>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro reply_form(parent_id=None) %}
+<form method="POST" action="/discussions/{{ space.slug }}/{{ topic.id }}/reply" class="mt-3 space-y-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if parent_id %}<input type="hidden" name="parent_id" value="{{ parent_id }}">{% endif %}
+  <textarea name="body" class="textarea min-h-20" required
+            placeholder="{{ _('discussions.reply_placeholder') }}"
+            aria-label="{{ _('discussions.reply') }}"></textarea>
+  <button type="submit" class="btn-primary">{{ _('discussions.reply') }}</button>
+</form>
+{% endmacro %}
+
+{% macro render_reply(reply, nested=False) %}
+<div id="reply-{{ reply.id }}"
+     class="card p-4 {{ 'ms-10' if nested }} {{ 'opacity-60 ring-red-200' if reply.is_hidden }}">
+  {% if reply.is_hidden %}<span class="badge-red mb-2">{{ _('discussions.hidden') }}</span>{% endif %}
+  <div class="flex items-center gap-2 text-sm text-slate-500">
+    {% if reply.author %}
+      {% if reply.author.avatar_url %}<img src="{{ reply.author.avatar_url }}" alt="" class="h-6 w-6 rounded-full object-cover">{% endif %}
+      <span class="font-medium text-slate-800">{{ reply.author.name }}</span>
+    {% endif %}
+    <span>{{ reply.created_at|localdatetime }}</span>
+  </div>
+  <div class="prose-supremely mt-2">{{ reply.html | safe }}</div>
+  {{ reaction_bar('reply', reply.id) }}
+  <div class="mt-2 flex flex-wrap gap-3 text-xs">
+    {% if can('discuss') and not topic.is_locked and not nested %}
+    <details><summary class="cursor-pointer text-brand-600">{{ _('discussions.reply') }}</summary>
+      {{ reply_form(parent_id=reply.id) }}
+    </details>
+    {% endif %}
+    {% if reply.can_edit() %}
+    <details><summary class="cursor-pointer text-slate-500">{{ _('discussions.edit') }}</summary>
+      <form method="POST" action="/discussions/replies/{{ reply.id }}/edit" class="mt-2 space-y-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <textarea name="body" class="textarea min-h-20">{{ reply.body }}</textarea>
+        <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+      </form>
+    </details>
+    <form method="POST" action="/discussions/replies/{{ reply.id }}/delete" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="text-red-600 hover:underline">{{ _('common.delete') }}</button>
+    </form>
+    {% endif %}
+    {% if can('content.moderate') %}
+    <form method="POST" action="/discussions/replies/{{ reply.id }}/hide" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="text-amber-600 hover:underline">
+        {{ _('discussions.unhide') if reply.is_hidden else _('discussions.hide') }}</button>
+    </form>
+    {% endif %}
+    {% if can('discuss') %}
+    <form method="POST" action="/discussions/flag" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="target_type" value="reply">
+      <input type="hidden" name="target_id" value="{{ reply.id }}">
+      <button type="submit" class="text-slate-400 hover:text-slate-600">{{ _('discussions.flag') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<nav class="mb-4 text-sm text-slate-500" aria-label="Breadcrumb">
+  <a href="/discussions" class="hover:text-brand-600">{{ _('discussions.title') }}</a> /
+  <a href="/discussions/{{ space.slug }}" class="hover:text-brand-600">{{ space.name }}</a>
+</nav>
+
+<article class="card">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold">
+        {% if topic.is_pinned %}📌 {% endif %}{% if topic.is_locked %}🔒 {% endif %}{{ topic.title }}
+      </h1>
+      <p class="mt-1 text-sm text-slate-500">
+        {% if topic.author %}{{ topic.author.name }} · {% endif %}{{ topic.created_at|localdatetime }}
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2 text-sm">
+      {% if is_org_member() %}
+      <form method="POST" action="/discussions/{{ space.slug }}/{{ topic.id }}/follow">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-secondary">
+          {{ _('discussions.unfollow') if following else _('discussions.follow') }}</button>
+      </form>
+      {% endif %}
+      {% if can('content.moderate') %}
+      <form method="POST" action="/discussions/{{ space.slug }}/{{ topic.id }}/lock">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-secondary">{{ _('discussions.unlock') if topic.is_locked else _('discussions.lock') }}</button>
+      </form>
+      <form method="POST" action="/discussions/{{ space.slug }}/{{ topic.id }}/pin">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-secondary">{{ _('discussions.unpin') if topic.is_pinned else _('discussions.pin') }}</button>
+      </form>
+      <form method="POST" action="/discussions/{{ space.slug }}/{{ topic.id }}/hide">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-danger">{{ _('discussions.unhide') if topic.is_hidden else _('discussions.hide') }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="prose-supremely mt-4">{{ topic.html | safe }}</div>
+  {{ reaction_bar('topic', topic.id) }}
+
+  <div class="mt-3 flex flex-wrap gap-3 text-xs">
+    {% if topic.can_edit() %}
+    <details><summary class="cursor-pointer text-slate-500">{{ _('discussions.edit') }}</summary>
+      <form method="POST" action="/discussions/{{ space.slug }}/{{ topic.id }}/edit" class="mt-2 space-y-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="title" class="input" value="{{ topic.title }}">
+        <textarea name="body" class="textarea min-h-24">{{ topic.body }}</textarea>
+        <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+      </form>
+    </details>
+    <form method="POST" action="/discussions/{{ space.slug }}/{{ topic.id }}/delete" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="text-red-600 hover:underline">{{ _('common.delete') }}</button>
+    </form>
+    {% endif %}
+    {% if can('discuss') %}
+    <form method="POST" action="/discussions/flag" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="target_type" value="topic">
+      <input type="hidden" name="target_id" value="{{ topic.id }}">
+      <button type="submit" class="text-slate-400 hover:text-slate-600">{{ _('discussions.flag') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</article>
+
+<h2 class="mb-3 mt-8 text-lg font-semibold">{{ topic.reply_count }} {{ _('discussions.replies') }}</h2>
+<div class="space-y-3">
+  {% for reply in top_level %}
+    {{ render_reply(reply) }}
+    {% for child in children.get(reply.id, []) %}
+      {{ render_reply(child, nested=True) }}
+    {% endfor %}
+  {% endfor %}
+</div>
+
+{% if can('discuss') %}
+  {% if topic.is_locked %}
+  <p class="mt-6 rounded-md bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
+    {{ _('discussions.locked') }}</p>
+  {% else %}
+  <div class="card mt-6">
+    <h3 class="font-semibold">{{ _('discussions.reply') }}</h3>
+    {{ reply_form() }}
+  </div>
+  {% endif %}
+{% elif not current_user.is_authenticated %}
+<p class="mt-6 text-sm text-slate-600">
+  <a href="{{ url_for('auth.login', next=request.path) }}" class="text-brand-600 hover:underline">{{ _('nav.login') }}</a>
+  {{ _('discussions.login_to_participate') }}</p>
+{% endif %}
+{% endblock %}

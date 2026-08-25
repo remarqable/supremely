@@ -60,9 +60,12 @@ def create_app(config_class=Config):
     from .platform.post_types import register_core_types
     register_core_types()
 
+    from .platform import notify as _notify    # noqa: F401 -- registers job handlers
+
     from .controllers import (main, auth, setup, admin, orgs, cli, manage,
-                              site, posts, members)
-    for module in (main, auth, setup, admin, orgs, manage, posts, members, site):
+                              site, posts, members, discussions, notifications)
+    for module in (main, auth, setup, admin, orgs, manage, posts, members,
+                   discussions, notifications, site):
         app.register_blueprint(module.bp)
     for cli_bp in cli.CLI_BLUEPRINTS:
         app.register_blueprint(cli_bp)
@@ -104,13 +107,23 @@ def _init_context(app):
                     'installation.name', 'Supremely') or 'Supremely'
             except Exception:       # pre-migration states must still render
                 pass
+        from flask import g
+        from flask_login import current_user
         from .models import NavigationItem
+
+        def unread_notifications():
+            if getattr(g, 'membership', None) is None:
+                return 0
+            from .models.notification import Notification
+            return Notification.unread_count(current_user.id)
+
         return {
             'installation_name': installation_name,
             'can': can,
             'is_org_member': is_org_member,
             'app_version': APP_VERSION,
             'nav_items': NavigationItem.items_for,
+            'unread_notifications': unread_notifications,
         }
 
     @app.template_filter('localdate')

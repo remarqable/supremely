@@ -1,0 +1,54 @@
+{% extends site_layout %}
+
+{% block title %}{{ _('discussions.title') }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex items-center justify-between gap-4">
+  <h1 class="text-3xl font-bold">{{ _('discussions.title') }}</h1>
+  <form method="GET" class="flex gap-2">
+    <input type="search" name="q" value="{{ q }}" class="input max-w-xs"
+           placeholder="{{ _('common.search') }}" aria-label="{{ _('common.search') }}">
+    <button type="submit" class="btn-secondary">{{ _('common.search') }}</button>
+  </form>
+</div>
+
+<div class="grid gap-8 lg:grid-cols-3">
+  <div class="lg:col-span-1">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{{ _('discussions.spaces') }}</h2>
+    <div class="space-y-2">
+      {% for space in spaces %}
+      <a href="/discussions/{{ space.slug }}" class="card block p-4 transition hover:ring-brand-500">
+        <div class="font-semibold">{{ space.name }}</div>
+        {% if space.description %}<p class="mt-1 text-sm text-slate-600">{{ space.description }}</p>{% endif %}
+        <p class="mt-1 text-xs text-slate-500">{{ _('discussions.topic_count', n=space.topic_count()) }}</p>
+      </a>
+      {% else %}
+      <p class="text-sm text-slate-500">{{ _('discussions.no_spaces') }}</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="lg:col-span-2">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      {{ _('discussions.search_results') if q else _('discussions.recent') }}</h2>
+    <div class="space-y-2">
+      {% for topic in recent_topics %}
+      <a href="{{ topic.url }}" class="card block p-4 transition hover:ring-brand-500">
+        <div class="flex items-center gap-2">
+          {% if topic.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
+          {% if topic.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
+          <span class="font-medium">{{ topic.title }}</span>
+        </div>
+        <p class="mt-1 text-xs text-slate-500">
+          {{ topic.space.name }} · {{ topic.reply_count }} {{ _('discussions.replies') }}
+          · {{ topic.last_activity_at|localdatetime }}
+          {% if topic.author %} · {{ topic.author.name }}{% endif %}
+        </p>
+      </a>
+      {% else %}
+      <p class="text-sm text-slate-500">{{ _('discussions.no_topics') }}</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

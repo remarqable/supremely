@@ -90,9 +90,23 @@ def run_migrations_online():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
+    def render_item(type_, obj, autogen_context):
+        """Render custom column types as plain SQLAlchemy in migrations.
+
+        TZDateTime is a behavioral wrapper over DateTime(timezone=True) --
+        the schema is identical, and migrations should not import app code.
+        Postgres JSONB variants also need sa.Text qualified.
+        """
+        if type_ == 'type':
+            type_name = type(obj).__name__
+            if type_name == 'TZDateTime':
+                return 'sa.DateTime(timezone=True)'
+        return False
+
     conf_args = current_app.extensions['migrate'].configure_args
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
+    conf_args.setdefault("render_item", render_item)
 
     connectable = get_engine()
 

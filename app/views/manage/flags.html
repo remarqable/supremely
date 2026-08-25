@@ -1,0 +1,36 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-2xl">
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.flag_queue') }}</h3>
+    <div class="space-y-3">
+      {% for flag in flags %}
+      {% set target = flag.target() %}
+      <div class="rounded-md bg-slate-50 p-4 text-sm ring-1 ring-slate-200">
+        <div class="flex items-center gap-2">
+          <span class="badge-red">{{ flag.target_type }}</span>
+          <span class="text-slate-500">{{ flag.created_at|localdatetime }}</span>
+        </div>
+        {% if target %}
+        <p class="mt-2">
+          {% set topic = target if flag.target_type == 'topic' else target.topic %}
+          <a href="{{ topic.url }}" class="font-medium text-brand-700 hover:underline">{{ topic.title }}</a>
+        </p>
+        <p class="mt-1 truncate text-slate-600">{{ (target.body or '')[:200] }}</p>
+        {% else %}
+        <p class="mt-2 text-slate-500">{{ _('manage.flag_target_gone') }}</p>
+        {% endif %}
+        {% if flag.reason %}<p class="mt-1 text-xs text-slate-500">{{ _('manage.flag_reason') }}: {{ flag.reason }}</p>{% endif %}
+        <form method="POST" action="{{ url_for('manage.resolve_flag', flag_id=flag.id) }}" class="mt-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn-secondary">{{ _('manage.flag_resolve') }}</button>
+        </form>
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-500">{{ _('manage.no_flags') }}</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -535,6 +535,65 @@ def delete_media(upload_id):
     return redirect(url_for('manage.media'))
 
 
+# --- Discussion spaces & moderation queue ------------------------------------------
+
+@bp.route('/discussions', methods=['GET', 'POST'])
+@org_required
+@require('content.moderate')
+def discussions():
+    from app.models.discussion import Space
+    if request.method == 'POST':
+        space = Space(name=request.form.get('name', ''),
+                      slug=request.form.get('slug', ''),
+                      description=request.form.get('description', '').strip() or None,
+                      visibility=request.form.get('visibility', 'members'))
+        space.position = Space.query.count() + 1
+        try:
+            space.save()
+            flash(t('common.saved'), 'success')
+        except ValidationError as e:
+            flash(e.message, 'error')
+        return redirect(url_for('manage.discussions'))
+    spaces = Space.query.order_by(Space.position, Space.name).all()
+    return render_template('manage/discussions.html', spaces=spaces)
+
+
+@bp.route('/discussions/<int:space_id>/delete', methods=['POST'])
+@org_required
+@require('content.moderate')
+def delete_space(space_id):
+    from app.models.discussion import Space
+    space = db.session.get(Space, space_id)
+    if space is None:
+        abort(404)
+    space.delete()
+    flash(t('manage.space_deleted'), 'success')
+    return redirect(url_for('manage.discussions'))
+
+
+@bp.route('/flags')
+@org_required
+@require('content.moderate')
+def flags():
+    from app.models.discussion import Flag
+    open_flags = (Flag.query.filter_by(resolved_at=None)
+                  .order_by(Flag.created_at.desc()).all())
+    return render_template('manage/flags.html', flags=open_flags)
+
+
+@bp.route('/flags/<int:flag_id>/resolve', methods=['POST'])
+@org_required
+@require('content.moderate')
+def resolve_flag(flag_id):
+    from app.models.discussion import Flag
+    flag = db.session.get(Flag, flag_id)
+    if flag is None:
+        abort(404)
+    flag.resolve()
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.flags'))
+
+
 # --- Settings / branding / theme -------------------------------------------------
 
 @bp.route('/settings', methods=['GET', 'POST'])

@@ -15,6 +15,14 @@
     </div>
 
     <div class="ms-auto flex items-center gap-2">
+      {% if g.org and is_org_member() %}
+      {% set unread = unread_notifications() %}
+      <a href="{{ url_for('notifications.index') }}"
+         class="relative rounded-md px-2 py-1.5 text-sm hover:bg-slate-100"
+         aria-label="{{ _('nav.notifications') }}">
+        🔔{% if unread %}<span class="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">{{ unread }}</span>{% endif %}
+      </a>
+      {% endif %}
       {% if current_user.is_authenticated %}
       <div x-data="{ open: false }" class="relative">
         <button @click="open = !open" @keydown.escape="open = false"

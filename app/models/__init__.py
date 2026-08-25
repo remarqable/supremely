@@ -11,10 +11,13 @@ from .navigation import NavigationItem
 from .upload import Upload
 from .post import Post, Category
 from .invitation import Invitation
+from .discussion import Space, Topic, Reply, Reaction, TopicFollow, Flag
+from .notification import Notification
 
 __all__ = [
     'BaseModel', 'OrgScoped', 'AuditMixin', 'utcnow', 'transaction',
     'User', 'Organization', 'Membership', 'ROLES', 'InstallationSetting',
     'Job', 'Page', 'NavigationItem', 'Upload', 'Post', 'Category',
-    'Invitation',
+    'Invitation', 'Space', 'Topic', 'Reply', 'Reaction', 'TopicFollow',
+    'Flag', 'Notification',
 ]
