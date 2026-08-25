@@ -19,7 +19,7 @@ from app.models.base import OrgScoped
 # Paths that belong to the installation, not to any organization.
 # /files is NOT here: uploads are tenant data and must resolve the org.
 INSTALLATION_PREFIXES = ('/static/', '/setup', '/admin', '/auth/', '/launcher')
-INSTALLATION_EXACT = ('/health', '/favicon.ico')
+INSTALLATION_EXACT = ('/health', '/favicon.ico', '/tls-check')
 
 
 def is_installation_path(path: str) -> bool:
@@ -81,16 +81,26 @@ def _base_domain() -> str:
     return current_app.config['BASE_DOMAIN'].split(':')[0]
 
 
-def _from_subdomain():
+def _org_from_subdomain_of(host: str, base: str):
+    """Organization named by <slug>.<base>, active or not, or None."""
     from app.models import Organization
-    host = _request_host()
-    base = _base_domain()
     if not host.endswith('.' + base):
         return None
     slug = host[: -(len(base) + 1)]
     if not slug or '.' in slug or slug in Organization.RESERVED_SLUGS:
         return None
     return Organization.get_by_slug(slug)
+
+
+def _sole_active_org():
+    """The one active organization, or None when there are zero or many."""
+    from app.models import Organization
+    orgs = Organization.query.filter_by(is_active=True).limit(2).all()
+    return orgs[0] if len(orgs) == 1 else None
+
+
+def _from_subdomain():
+    return _org_from_subdomain_of(_request_host(), _base_domain())
 
 
 def _default_org():
@@ -100,11 +110,38 @@ def _default_org():
     exists, resolve to it. With a second organization the bare domain reverts
     to installation pages and subdomains take over.
     """
-    from app.models import Organization
     if _request_host() != _base_domain():
         return None
-    orgs = Organization.query.filter_by(is_active=True).limit(2).all()
-    return orgs[0] if len(orgs) == 1 else None
+    return _sole_active_org()
+
+
+def org_for_host(host: str):
+    """The ACTIVE organization a hostname serves, or None.
+
+    The one place that maps an arbitrary hostname to an organization without
+    a request context. Callers serving a request use org_for_request_host();
+    this exists for decisions made about a host we were merely handed, such
+    as whether to issue a TLS certificate for it.
+
+    Unlike the resolution helpers above, this filters on is_active: a
+    suspended organization serves nothing, so nothing should be provisioned
+    on its behalf.
+    """
+    from app.models.domain import OrgDomain
+
+    host = (host or '').strip().lower().split(':')[0].rstrip('.')
+    if not host:
+        return None
+    base = _base_domain().lower()
+
+    if host.endswith('.' + base):
+        org = _org_from_subdomain_of(host, base)
+    elif host == base:
+        org = _sole_active_org()
+    else:
+        org = OrgDomain.resolve(host)
+
+    return org if org is not None and org.is_active else None
 
 
 def org_for_request_host():

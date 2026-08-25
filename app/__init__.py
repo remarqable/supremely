@@ -110,7 +110,10 @@ def _init_setup_gate(app):
 
     @app.before_request
     def enforce_setup():
-        if request.path.startswith('/static/') or request.path == '/health':
+        # /tls-check must answer before the wizard has run, or the very first
+        # certificate never issues and the install is unreachable over HTTPS.
+        if (request.path.startswith('/static/')
+                or request.path in ('/health', '/tls-check')):
             return
         installed = installation_ready(app)
         if not installed and not request.path.startswith('/setup'):

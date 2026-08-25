@@ -6,6 +6,7 @@ real environment variables. Environment always wins so operators can override.
 """
 
 import os
+import re
 from pathlib import Path
 
 
@@ -88,14 +89,33 @@ class Config:
         'pool_recycle': 300, 'pool_pre_ping': True,
     } if IS_POSTGRES else {'connect_args': {'timeout': 30}}
 
-    SESSION_COOKIE_SECURE = APP_ENV != 'dev'
+    # Secure cookies follow the environment, but an installation reached over
+    # plain HTTP (no domain yet, bare-IP install) must be able to turn them
+    # off or no one can log in. Explicit env wins; production defaults to on.
+    # Fails CLOSED: only an explicit falsey value turns Secure off, so a
+    # typo ('1', 'yes', 'ture') keeps cookies protected instead of silently
+    # downgrading them -- REMEMBER_COOKIE_SECURE below inherits this.
+    _secure_env = os.environ.get('SESSION_COOKIE_SECURE', '').strip().lower()
+    SESSION_COOKIE_SECURE = (
+        _secure_env not in ('false', '0', 'no', 'off')
+        if _secure_env else APP_ENV != 'dev')
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = 86400 * 14
-    # Share the session across org subdomains. Host-only on localhost, where
-    # a leading-dot domain cookie is unreliable across browsers.
+    # Share the session across org subdomains. Host-only on localhost and on
+    # bare-IP installations: a leading-dot cookie domain is unreliable across
+    # browsers on localhost, and outright invalid for an IP address.
     _base = BASE_DOMAIN.split(':')[0]
-    SESSION_COOKIE_DOMAIN = f'.{_base}' if _base not in ('localhost', '127.0.0.1') else None
+    # A dotted quad, or any IPv6 form (bracketed, or more colons than the one
+    # a port would use -- splitting on ':' above empties _base for '::1').
+    # Matching hex loosely would classify real hostnames like 'cafe' as
+    # addresses and silently drop the cookie domain.
+    _is_ip = (not _base
+              or _base.startswith('[')
+              or BASE_DOMAIN.count(':') > 1
+              or bool(re.fullmatch(r'\d{1,3}(\.\d{1,3}){3}', _base)))
+    SESSION_COOKIE_DOMAIN = (
+        None if _is_ip or _base in ('localhost', '127.0.0.1') else f'.{_base}')
 
     # Flask-Login's remember-me cookie is a long-lived credential; it must
     # carry the same protections as the session cookie (it does NOT by

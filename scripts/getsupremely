@@ -1,0 +1,1545 @@
+#!/bin/bash
+#
+# Supremely Installer / Updater
+# Ubuntu 22.04 / 24.04 LTS
+#
+# IMPORTANT:
+#   - Bump VERSION and BUILD_DATE every time you make changes to this script.
+#
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/remarqable/supremely/main/scripts/getsupremely | sudo bash
+#   sudo /opt/supremely/getsupremely --update    # Re-run to update
+#
+
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+#===============================================================================
+# Version info (BUMP THESE ON EVERY CHANGE)
+#===============================================================================
+
+GETSUPREMELY_VERSION="1.0.0"  # <--- bump this on each script update
+BUILD_DATE="2026-08-25"       # <--- update this date when the version changes
+
+#===============================================================================
+# Config
+#===============================================================================
+
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[0;33m'
+RED=$'\033[0;31m'
+NC=$'\033[0m'
+
+VERBOSE=false
+
+SUPREMELY_DIR="/opt/supremely"
+SCRIPT_PATH="${SUPREMELY_DIR}/getsupremely"
+DATA_DIR="${SUPREMELY_DIR}/data"
+ENV_FILE="${SUPREMELY_DIR}/supremely.env"
+BACKUP_DIR="${SUPREMELY_DIR}/backups"
+
+# The image runs as uid 10001 (see Dockerfile); the bind-mounted data
+# directory must be owned by it or the app cannot write its database.
+APP_UID=10001
+APP_GID=10001
+
+IMAGE="remarqable/supremely:latest"
+
+# Override image from IMAGENAME file (staging environments)
+if [ -f "${SUPREMELY_DIR}/IMAGENAME" ]; then
+  IMAGE="$(tr -d '[:space:]' < "${SUPREMELY_DIR}/IMAGENAME")"
+fi
+IMAGE_REPO="${IMAGE%%:*}"
+
+DOCKERHUB_TAGS="https://hub.docker.com/v2/repositories/${IMAGE_REPO}/tags/?ordering=last_updated&page_size=5"
+PORT=8000
+
+CONTAINER="supremely"
+WORKER_CONTAINER="supremely-worker"
+
+INSTALLER_FILE="${SUPREMELY_DIR}/INSTALLER"
+if [ -f "$INSTALLER_FILE" ]; then
+  REMOTE_URL="$(tr -d '[:space:]' < "$INSTALLER_FILE")"
+else
+  REMOTE_URL="https://raw.githubusercontent.com/remarqable/supremely/main/scripts/getsupremely"
+fi
+
+FORCE_RESET=false
+DOMAIN=""
+EMAIL=""
+# Set when an update failed and the previous image was restored.
+ROLLED_BACK=false
+
+HEALTH_CHECK_URL="http://127.0.0.1:${PORT}/health"
+HEALTH_CHECK_TIMEOUT=90
+HEALTH_CHECK_INTERVAL=3
+ROLLBACK_IMAGE_TAG="${IMAGE_REPO}:rollback"
+
+#===============================================================================
+# Self-install + self-update
+#===============================================================================
+
+# 1) Ensure we are running as ./getsupremely inside SUPREMELY_DIR
+# Resolve our own path BEFORE any cd: $0 may be relative (bash ./getsupremely)
+# and would stop resolving once the working directory changes.
+SELF_PATH="$(readlink -f "$0" 2>/dev/null || true)"
+# Canonicalise the target too: if any component of /opt/supremely is a
+# symlink the two never compare equal and the script re-execs itself forever.
+CANON_SCRIPT_PATH="$(readlink -f "$SCRIPT_PATH" 2>/dev/null || echo "$SCRIPT_PATH")"
+
+if [ "$SELF_PATH" != "$SCRIPT_PATH" ] && [ "$SELF_PATH" != "$CANON_SCRIPT_PATH" ]; then
+  mkdir -p "$SUPREMELY_DIR"
+  cd "$SUPREMELY_DIR"
+
+  echo "[getsupremely] Installing to ${SCRIPT_PATH}..."
+
+  # Two ways to arrive here:
+  #
+  #   curl ... | sudo bash   - $0 is the shell, there is no local script to
+  #                            copy, so fetch it from REMOTE_URL.
+  #   bash ./getsupremely    - a real copy is already on disk. Install THAT,
+  #                            so installing from a git checkout, an
+  #                            air-gapped copy, or a local test build works
+  #                            without reaching the network at all.
+  #
+  # The version marker distinguishes a genuine copy of this script from the
+  # shell binary that $0 points at under a pipe.
+  if [ -n "$SELF_PATH" ] && [ -f "$SELF_PATH" ] \
+     && grep -q '^GETSUPREMELY_VERSION=' "$SELF_PATH" 2>/dev/null; then
+    logger -t getsupremely "Self-installing to ${SCRIPT_PATH} from local copy ${SELF_PATH}"
+    cp "$SELF_PATH" "$SCRIPT_PATH"
+  else
+    logger -t getsupremely "Self-installing to ${SCRIPT_PATH} from ${REMOTE_URL}"
+    if ! curl -fsSL "$REMOTE_URL" -o "$SCRIPT_PATH"; then
+      echo "Error: could not download the installer from ${REMOTE_URL}" >&2
+      echo "       Copy the script to this server and run it directly:" >&2
+      echo "         scp scripts/getsupremely root@HOST:/root/" >&2
+      echo "         ssh root@HOST 'bash /root/getsupremely --update'" >&2
+      rm -f "$SCRIPT_PATH"
+      exit 1
+    fi
+  fi
+  chmod +x "$SCRIPT_PATH"
+
+  # Drain stdin so curl finishes cleanly (prevents "error 23: Failure writing output")
+  cat > /dev/null 2>&1 || true
+
+  # If no args provided (pipe install), default to --update
+  if [ $# -eq 0 ]; then
+    exec "$SCRIPT_PATH" --update
+  else
+    exec "$SCRIPT_PATH" "$@"
+  fi
+fi
+
+# 2) Self-update: check remote; if changed, replace & re-exec once
+if [ -z "${SUPREMELY_NO_SELF_UPDATE:-}" ]; then
+  TMP_SCRIPT="$(mktemp)"
+
+  if curl -fsSL "$REMOTE_URL" -o "$TMP_SCRIPT"; then
+    if ! cmp -s "$TMP_SCRIPT" "$SCRIPT_PATH"; then
+      # A truncated download, a proxy error page or an HTML 200 must never
+      # replace a working installer: that bricks --update, --backup and
+      # --restore on this host with no way back except a manual re-install.
+      if grep -q '^GETSUPREMELY_VERSION=' "$TMP_SCRIPT" \
+         && bash -n "$TMP_SCRIPT" 2>/dev/null; then
+        echo "[getsupremely] Installer update available, updating..."
+        logger -t getsupremely "Self-updating installer from ${REMOTE_URL}"
+        mv "$TMP_SCRIPT" "$SCRIPT_PATH"
+        chmod +x "$SCRIPT_PATH"
+        SUPREMELY_NO_SELF_UPDATE=1 exec "$SCRIPT_PATH" "$@"
+      else
+        echo "[getsupremely] Ignoring corrupt installer download from ${REMOTE_URL}" >&2
+        logger -t getsupremely "Rejected corrupt installer download"
+      fi
+    fi
+  fi
+
+  rm -f "$TMP_SCRIPT" || true
+fi
+
+#===============================================================================
+# Cleanup / signal handling
+#===============================================================================
+
+STEP_FILE=$(mktemp)
+
+cleanup() {
+  kill $(jobs -p) 2>/dev/null || true
+  rm -f "$STEP_FILE" 2>/dev/null || true
+  printf "\r\033[K${RED}✗${NC} Interrupted\n"
+  logger -t getsupremely "Interrupted by user"
+  exit 130
+}
+trap cleanup INT TERM
+trap 'rm -f "$STEP_FILE" 2>/dev/null || true' EXIT
+
+#===============================================================================
+# Helper functions
+#===============================================================================
+
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+  logger -t getsupremely "$*"
+}
+
+# Convert YYYY-MM-DD to human readable (Mon D)
+format_installer_date() {
+  local d="$1"
+  local month="${d:5:2}"
+  local day="${d:8:2}"
+
+  local month_name
+  case "$month" in
+    01) month_name="Jan" ;; 02) month_name="Feb" ;; 03) month_name="Mar" ;;
+    04) month_name="Apr" ;; 05) month_name="May" ;; 06) month_name="Jun" ;;
+    07) month_name="Jul" ;; 08) month_name="Aug" ;; 09) month_name="Sep" ;;
+    10) month_name="Oct" ;; 11) month_name="Nov" ;; 12) month_name="Dec" ;;
+    *) month_name="$month" ;;
+  esac
+
+  day=$((10#$day))
+  echo "${month_name} ${day}"
+}
+
+# Spinner runner. Returns the command's exit status; on failure the captured
+# output is left in $STEP_LOG for the caller to print.
+#
+# `wait $pid` must NOT be a bare command here: under `set -e` a failing child
+# exits the shell AT the wait, so every line below it -- the failure branch,
+# the diagnostics, the rollback -- becomes unreachable dead code.
+STEP_LOG=""
+
+_spin_step() {
+  local msg="$1"
+  shift
+  local log_file
+  log_file=$(mktemp)
+
+  : > "$STEP_FILE"
+  STEP_LOG=""
+
+  "$@" > "$log_file" 2>&1 &
+  local pid=$!
+
+  trap "kill $pid 2>/dev/null; rm -f '$log_file'; cleanup" INT TERM
+
+  local spin='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local i=0
+  local substep=""
+  while kill -0 $pid 2>/dev/null; do
+    substep=$(cat "$STEP_FILE" 2>/dev/null || true)
+    if [ -n "$substep" ]; then
+      printf "\r\033[K${spin:$i:1} ${msg}... ${substep}"
+    else
+      printf "\r\033[K${spin:$i:1} ${msg}..."
+    fi
+    i=$(( (i+1) % 10 ))
+    sleep 0.1
+  done
+
+  local status=0
+  wait $pid || status=$?
+
+  trap cleanup INT TERM
+  : > "$STEP_FILE"
+
+  if [ $status -eq 0 ]; then
+    printf "\r\033[K${GREEN}✓${NC} ${msg}\n"
+    logger -t getsupremely "OK: ${msg}"
+    if [ "$VERBOSE" = "true" ]; then
+      cat "$log_file"
+    fi
+  else
+    printf "\r\033[K${RED}✗${NC} ${msg}\n"
+    logger -t getsupremely "FAIL: ${msg} (status ${status})"
+    STEP_LOG="$(cat "$log_file")"
+  fi
+
+  rm -f "$log_file"
+  return $status
+}
+
+# Fatal variant: any failure aborts the run after printing the diagnostics.
+# Usage: run_step "Message" command arg1 arg2 ...
+# Inner functions can write sub-step text to $STEP_FILE for progress display.
+run_step() {
+  if ! _spin_step "$@"; then
+    echo ""
+    echo "Error output:"
+    echo "$STEP_LOG"
+    exit 1
+  fi
+}
+
+require_root() {
+  if [ "$EUID" -ne 0 ]; then
+    echo "Error: this script must be run as root (use sudo)." >&2
+    logger -t getsupremely "ABORT: not running as root"
+    exit 1
+  fi
+}
+
+require_ubuntu() {
+  if [ ! -f /etc/os-release ]; then
+    echo "Error: cannot detect OS. This script supports Ubuntu 22.04/24.04 LTS only." >&2
+    exit 1
+  fi
+
+  . /etc/os-release
+
+  if [ "$ID" != "ubuntu" ]; then
+    echo "Error: unsupported OS ($ID). Ubuntu 22.04/24.04 LTS required." >&2
+    logger -t getsupremely "ABORT: unsupported OS ($ID)"
+    exit 1
+  fi
+
+  if [[ "$VERSION_ID" != "22.04" && "$VERSION_ID" != "24.04" ]]; then
+    echo "Error: unsupported Ubuntu version ($VERSION_ID). 22.04 or 24.04 LTS required." >&2
+    logger -t getsupremely "ABORT: unsupported Ubuntu version ($VERSION_ID)"
+    exit 1
+  fi
+}
+
+get_public_ip() {
+  local ip
+  ip=$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)
+  [ -z "$ip" ] && ip=$(curl -fsS --max-time 5 https://ifconfig.me 2>/dev/null || true)
+  [ -z "$ip" ] && ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  echo "${ip:-127.0.0.1}"
+}
+
+#===============================================================================
+# Environment file
+#
+# Two layers, by design (see app/config.py):
+#   supremely.env  - operator settings, written here. Real env vars, so they
+#                    always win.
+#   data/config.env - written by the in-app setup wizard.
+#===============================================================================
+
+ensure_env_file() {
+  mkdir -p "$DATA_DIR"
+  if [ ! -f "$ENV_FILE" ]; then
+    cat > "$ENV_FILE" << 'ENV_EOF'
+# Supremely operator configuration.
+# Written by getsupremely. These are real environment variables and take
+# precedence over anything the in-app setup wizard writes.
+
+APP_ENV=production
+
+# Number of reverse proxies in front of the app. Caddy on this host = 1.
+TRUSTED_PROXIES=1
+
+# SQLite on the data volume is the default and needs no configuration.
+# To use PostgreSQL instead, uncomment and point this at your server, then
+# run: sudo /opt/supremely/getsupremely --update
+# DATABASE_URL=postgresql+psycopg://user:password@host:5432/supremely
+ENV_EOF
+    chmod 600 "$ENV_FILE"
+  fi
+}
+
+# Docker's --env-file is NOT a shell: quotes are kept as part of the value,
+# so DATABASE_URL="postgres://..." reaches the app with the quotes attached
+# and fails to parse. Warn rather than silently crash-loop the container.
+warn_quoted_env_values() {
+  [ -f "$ENV_FILE" ] || return 0
+  local bad
+  bad=$(grep -nE '^[A-Za-z_][A-Za-z0-9_]*=["'"'"']' "$ENV_FILE" 2>/dev/null || true)
+  if [ -n "$bad" ]; then
+    echo ""
+    echo "  ${YELLOW}Warning:${NC} quoted values in ${ENV_FILE}:"
+    echo "$bad" | sed 's/^/    /'
+    echo "  Docker passes the quotes through as part of the value."
+    echo "  Remove them, then re-run: sudo ${SCRIPT_PATH} --update"
+    echo ""
+  fi
+}
+
+# set_env_var KEY VALUE — insert or replace a key in the operator env file
+set_env_var() {
+  local key="$1" value="$2"
+  ensure_env_file
+
+  if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+  else
+    echo "${key}=${value}" >> "$ENV_FILE"
+  fi
+}
+
+# Domain and TLS mode both live in the env file so the app agrees with Caddy.
+write_domain_to_env() {
+  if [ -n "$DOMAIN" ]; then
+    set_env_var "BASE_DOMAIN" "$DOMAIN"
+    set_env_var "SESSION_COOKIE_SECURE" "true"
+  else
+    local ip
+    ip=$(get_public_ip)
+    # #13: this value came from a third-party HTTP response and is written
+    # into a file that is loaded as real environment variables.
+    if ! echo "$ip" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+      echo "Error: could not determine a valid public IP (got: ${ip})" >&2
+      echo "       Re-run with a domain, or SUPREMELY_DOMAIN=<domain>." >&2
+      exit 1
+    fi
+    set_env_var "BASE_DOMAIN" "$ip"
+    # Plain HTTP: secure cookies would never be sent and nobody could log in.
+    set_env_var "SESSION_COOKIE_SECURE" "false"
+    echo ""
+    echo "  ${YELLOW}Warning:${NC} no domain configured, so this installation"
+    echo "  serves plain HTTP and session cookies travel in cleartext."
+    echo "  Set a domain before real use: sudo ${SCRIPT_PATH} --configure"
+    echo ""
+  fi
+}
+
+fix_data_permissions() {
+  mkdir -p "$DATA_DIR" "$BACKUP_DIR"
+  chown -R "${APP_UID}:${APP_GID}" "$DATA_DIR"
+  chmod 750 "$DATA_DIR"
+  # Archives contain data/secret_key and the env file's DATABASE_URL.
+  chmod 700 "$BACKUP_DIR"
+}
+
+#===============================================================================
+# Dependencies
+#===============================================================================
+
+_install_docker_inner() {
+  echo "updating packages" > "$STEP_FILE"
+  apt-get update -y
+
+  echo "installing prerequisites" > "$STEP_FILE"
+  apt-get install -y ca-certificates curl gnupg
+
+  echo "adding GPG key" > "$STEP_FILE"
+  install -m 0755 -d /etc/apt/keyrings
+  # -s not -f: a previous failed run can leave a 0-byte keyring that would
+  # otherwise never be regenerated, breaking apt-get update permanently.
+  if [ ! -s /etc/apt/keyrings/docker.gpg ]; then
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+      | gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg.tmp
+    mv -f /etc/apt/keyrings/docker.gpg.tmp /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+  fi
+
+  echo "adding repository" > "$STEP_FILE"
+  . /etc/os-release
+  echo \
+    "deb [arch=$(dpkg --print-architecture) \
+    signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/ubuntu \
+    ${VERSION_CODENAME} stable" \
+    > /etc/apt/sources.list.d/docker.list.tmp
+  mv -f /etc/apt/sources.list.d/docker.list.tmp /etc/apt/sources.list.d/docker.list
+
+  echo "installing packages" > "$STEP_FILE"
+  apt-get update -y
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  echo "enabling service" > "$STEP_FILE"
+  systemctl enable --now docker
+}
+
+install_docker() {
+  if command -v docker >/dev/null 2>&1; then
+    printf "${GREEN}✓${NC} Docker already installed\n"
+    logger -t getsupremely "Docker already installed — skipping"
+    return
+  fi
+
+  run_step "Installing Docker" _install_docker_inner
+}
+
+ensure_docker_running() {
+  systemctl enable docker >/dev/null 2>&1 || true
+  systemctl start docker  >/dev/null 2>&1 || true
+
+  if ! systemctl is-active docker >/dev/null 2>&1; then
+    echo "Error: Docker service failed to start." >&2
+    logger -t getsupremely "ABORT: Docker service failed to start"
+    exit 1
+  fi
+}
+
+_install_caddy_inner() {
+  echo "installing prerequisites" > "$STEP_FILE"
+  apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
+
+  echo "adding GPG key" > "$STEP_FILE"
+  if [ ! -s /usr/share/keyrings/caddy-stable-archive-keyring.gpg ]; then
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+      | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg.tmp
+    mv -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg.tmp \
+      /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  fi
+
+  echo "adding repository" > "$STEP_FILE"
+  # Write to a temp file first: redirecting straight at the target truncates
+  # it before curl runs, and a failure leaves a 0-byte file that the guard
+  # below then skips regenerating on every future run.
+  if [ ! -s /etc/apt/sources.list.d/caddy-stable.list ]; then
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+      -o /etc/apt/sources.list.d/caddy-stable.list.tmp
+    mv -f /etc/apt/sources.list.d/caddy-stable.list.tmp \
+      /etc/apt/sources.list.d/caddy-stable.list
+  fi
+
+  echo "installing packages" > "$STEP_FILE"
+  apt-get update -y
+  apt-get install -y caddy
+}
+
+install_caddy() {
+  if command -v caddy >/dev/null 2>&1; then
+    printf "${GREEN}✓${NC} Caddy already installed\n"
+    logger -t getsupremely "Caddy already installed — skipping"
+    return
+  fi
+
+  run_step "Installing Caddy" _install_caddy_inner
+}
+
+install_extras() {
+  if ! command -v zip >/dev/null 2>&1 || ! command -v sqlite3 >/dev/null 2>&1; then
+    run_step "Installing utilities" bash -c "apt-get update -y && apt-get install -y zip unzip sqlite3"
+  fi
+}
+
+#===============================================================================
+# Domain configuration
+#===============================================================================
+
+prompt_for_domain() {
+  local ip current_domain=""
+
+  # Read the existing domain from the operator env file
+  if [ -f "$ENV_FILE" ]; then
+    current_domain=$(grep -oP '^BASE_DOMAIN=\K.*' "$ENV_FILE" 2>/dev/null || true)
+    # A bare IP is not a domain — treat it as "no domain configured"
+    if echo "$current_domain" | grep -qE '^[0-9.]+$'; then
+      current_domain=""
+    fi
+  fi
+
+  # Unattended: an explicit domain wins, so cloud-init, Ansible and CI can
+  # drive a first install without a terminal. SUPREMELY_DOMAIN=ip selects the
+  # HTTP-on-the-public-IP mode.
+  if [ -n "${SUPREMELY_DOMAIN:-}" ]; then
+    if [ "$SUPREMELY_DOMAIN" = "ip" ]; then
+      DOMAIN=""
+    else
+      DOMAIN="$SUPREMELY_DOMAIN"
+    fi
+    EMAIL="${SUPREMELY_EMAIL:-}"
+    return
+  fi
+
+  # No usable terminal (cron, the watchdog, a piped install under cloud-init):
+  # keep whatever is already configured rather than dying on /dev/tty. Testing
+  # -t 0 is not enough -- stdin is the curl pipe, but /dev/tty may still be
+  # absent.
+  if ! (exec 3</dev/tty) 2>/dev/null; then
+    DOMAIN="$current_domain"
+    if [ -n "$current_domain" ] && [ -f /etc/caddy/Caddyfile ]; then
+      EMAIL=$(grep -oP '^\s*email\s+\K\S+' /etc/caddy/Caddyfile 2>/dev/null || true)
+    fi
+    if [ -z "$DOMAIN" ]; then
+      echo ""
+      echo "  No terminal and no SUPREMELY_DOMAIN set - installing on the"
+      echo "  public IP over plain HTTP. Set a domain later with:"
+      echo "    sudo ${SCRIPT_PATH} --configure"
+    fi
+    return
+  fi
+
+  ip=$(get_public_ip)
+
+  while true; do
+    echo ""
+    echo "Domain Configuration"
+    echo "--------------------"
+    echo ""
+    echo "  Server IP: ${ip}"
+    echo ""
+    if [ -n "$current_domain" ]; then
+      echo "  Current domain: ${current_domain}"
+      echo ""
+      echo "  Press Enter to keep current domain."
+      echo "  Type \"ip\" to switch to http://${ip} (HTTP only)."
+      echo "  Or enter a new domain name."
+      echo ""
+      read -p "  Domain [${current_domain}]: " DOMAIN </dev/tty
+    else
+      echo "  To enable HTTPS, enter your domain name."
+      echo "  Leave blank to use http://${ip} (HTTP only)."
+      echo ""
+      read -p "  Domain (e.g., community.example.com): " DOMAIN </dev/tty
+    fi
+
+    DOMAIN=$(echo "$DOMAIN" | tr -d '[:space:]')
+
+    # "ip" — switch to IP-only mode
+    if echo "$DOMAIN" | grep -qiE '^ip$'; then
+      DOMAIN=""
+      echo "  Using: http://${ip}"
+      break
+    fi
+
+    # Blank keeps the current domain
+    if [ -z "$DOMAIN" ] && [ -n "$current_domain" ]; then
+      DOMAIN="$current_domain"
+    fi
+
+    if [ -n "$DOMAIN" ] && ! echo "$DOMAIN" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$'; then
+      echo ""
+      echo "  Invalid domain format. Please enter a valid domain name."
+      echo ""
+      continue
+    fi
+
+    # Validate DNS if a domain was entered
+    if [ -n "$DOMAIN" ]; then
+      local resolved_ip
+      resolved_ip=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
+
+      if [ -z "$resolved_ip" ]; then
+        echo ""
+        echo "  ${RED}No DNS record found for ${DOMAIN}${NC}"
+        echo "  HTTPS requires an A record pointing to ${ip}"
+        echo ""
+        echo "  [1] Use http://${ip} for now (default)"
+        echo "  [2] Continue with ${DOMAIN} anyway"
+        echo "  [3] Re-enter domain"
+        echo ""
+        read -p "  Choice [1]: " dns_choice </dev/tty
+
+        if [ "$dns_choice" = "3" ]; then continue; fi
+        if [ "$dns_choice" != "2" ]; then
+          DOMAIN=""
+          echo "  Using: http://${ip}"
+        fi
+      elif [ "$resolved_ip" != "$ip" ]; then
+        echo ""
+        echo "  ${RED}DNS mismatch for ${DOMAIN}${NC}"
+        echo "  Resolves to: ${resolved_ip} (this server: ${ip})"
+        echo ""
+        echo "  [1] Use http://${ip} for now (default)"
+        echo "  [2] Continue with ${DOMAIN} anyway"
+        echo "  [3] Re-enter domain"
+        echo ""
+        read -p "  Choice [1]: " dns_choice </dev/tty
+
+        if [ "$dns_choice" = "3" ]; then continue; fi
+        if [ "$dns_choice" != "2" ]; then
+          DOMAIN=""
+          echo "  Using: http://${ip}"
+        fi
+      else
+        echo "  ${GREEN}✓${NC} DNS verified: ${DOMAIN} → ${resolved_ip}"
+      fi
+    fi
+
+    break
+  done
+
+  if [ -n "$DOMAIN" ]; then
+    echo ""
+    echo "  Email is optional but recommended for certificate expiry notices."
+    read -p "  Email (optional, press Enter to skip): " EMAIL </dev/tty
+    EMAIL=$(echo "$EMAIL" | tr -d '[:space:]')
+
+    # Organizations are served from subdomains once a second one exists.
+    echo ""
+    echo "  ${YELLOW}Note:${NC} additional organizations are served from"
+    echo "  subdomains (org.${DOMAIN}). When you add your second"
+    echo "  organization, add a wildcard DNS record:"
+    echo ""
+    echo "      A   *.${DOMAIN}   →   ${ip}"
+    echo ""
+    echo "  Certificates for those subdomains are issued automatically."
+  fi
+
+  echo ""
+}
+
+#===============================================================================
+# Caddy
+#===============================================================================
+
+create_maintenance_page() {
+  mkdir -p "${SUPREMELY_DIR}/maintenance"
+  cat > "${SUPREMELY_DIR}/maintenance/index.html" << 'MAINT_EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Updating</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #0b0b0f; color: #e8e8ed; padding: 24px; text-align: center;
+  }
+  .card { max-width: 26rem; }
+  h1 { font-size: 1.375rem; font-weight: 600; margin-bottom: 0.625rem; letter-spacing: -0.01em; }
+  p { color: #9a9aa5; line-height: 1.6; font-size: 0.9375rem; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #6c6cf5;
+    margin: 0 auto 1.5rem; animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+</style>
+<meta http-equiv="refresh" content="10">
+</head>
+<body>
+  <div class="card">
+    <div class="dot"></div>
+    <h1>Updating</h1>
+    <p>This site is being updated and will be back in a moment. This page refreshes automatically.</p>
+  </div>
+</body>
+</html>
+MAINT_EOF
+}
+
+create_caddyfile() {
+  local caddyfile="${SUPREMELY_DIR}/Caddyfile"
+
+  create_maintenance_page
+
+  if [ -n "$DOMAIN" ]; then
+    # Global options: ACME account email, plus the on-demand TLS gate the app
+    # answers so organization subdomains and custom domains get certificates
+    # without a wildcard certificate or DNS provider credentials.
+    {
+      echo "{"
+      [ -n "$EMAIL" ] && echo "    email ${EMAIL}"
+      echo "    on_demand_tls {"
+      echo "        ask http://127.0.0.1:${PORT}/tls-check"
+      echo "    }"
+      echo "}"
+      echo ""
+      echo "(supremely_app) {"
+      echo "    # /tls-check is for Caddy over the loopback only; never public."
+      echo "    handle /tls-check {"
+      echo "        respond 404"
+      echo "    }"
+      echo "    handle_errors {"
+      echo "        rewrite * /index.html"
+      echo "        file_server {"
+      echo "            root ${SUPREMELY_DIR}/maintenance"
+      echo "        }"
+      echo "    }"
+      echo "    handle {"
+      echo "        reverse_proxy 127.0.0.1:${PORT} {"
+      echo "            health_uri /health"
+      echo "            health_interval 2s"
+      echo "            health_timeout 5s"
+      echo "            fail_duration 10s"
+      echo "        }"
+      echo "    }"
+      echo "}"
+      echo ""
+      echo "# Primary installation domain. Its certificate is obtained at"
+      echo "# startup, so a bad DNS record fails loudly in the Caddy log."
+      echo "${DOMAIN} {"
+      echo "    import supremely_app"
+      echo "}"
+      echo ""
+      echo "# Organization subdomains and verified custom domains. Certificates"
+      echo "# are issued on first request, gated by /tls-check."
+      echo "https:// {"
+      echo "    tls {"
+      echo "        on_demand"
+      echo "    }"
+      echo "    import supremely_app"
+      echo "}"
+    } > "$caddyfile"
+  else
+    cat > "$caddyfile" << EOF
+:80 {
+    handle /tls-check {
+        respond 404
+    }
+    handle_errors {
+        rewrite * /index.html
+        file_server {
+            root ${SUPREMELY_DIR}/maintenance
+        }
+    }
+    handle {
+        reverse_proxy 127.0.0.1:${PORT} {
+            health_uri /health
+            health_interval 2s
+            health_timeout 5s
+            fail_duration 10s
+        }
+    }
+}
+EOF
+  fi
+
+  mkdir -p /etc/caddy
+  # Keep the last known-good config so a bad generation can be undone.
+  [ -f /etc/caddy/Caddyfile ] && cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.prev
+  cp "$caddyfile" /etc/caddy/Caddyfile
+  chown caddy:caddy /etc/caddy/Caddyfile 2>/dev/null || true
+  chmod 644 /etc/caddy/Caddyfile
+}
+
+_start_caddy_inner() {
+  # Validate before restarting: an invalid config takes the entire site down,
+  # and the previous working file has already been overwritten by then.
+  if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1; then
+    if [ -f /etc/caddy/Caddyfile.prev ]; then
+      echo "Generated Caddyfile is invalid - restoring the previous one"
+      cp /etc/caddy/Caddyfile.prev /etc/caddy/Caddyfile
+    fi
+    return 1
+  fi
+
+  systemctl enable caddy
+  systemctl restart caddy
+
+  if ! systemctl is-active caddy; then
+    echo "Caddy failed to start"
+    echo "Debug: journalctl -u caddy --no-pager -n 20"
+    return 1
+  fi
+}
+
+start_caddy() {
+  run_step "Starting Caddy" _start_caddy_inner
+}
+
+#===============================================================================
+# Image + containers
+#===============================================================================
+
+# Returns: 0=pulled, 1=pull failed but local image exists, 2=no image at all
+pull_image() {
+  local pull_output
+  pull_output=$(mktemp)
+
+  if docker pull "$IMAGE" > "$pull_output" 2>&1; then
+    rm -f "$pull_output"
+    return 0
+  fi
+
+  local error_msg
+  error_msg=$(cat "$pull_output")
+  rm -f "$pull_output"
+
+  if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    log "WARNING: Failed to pull latest image: $error_msg"
+    log "Using existing local image"
+    return 1
+  fi
+
+  log "ERROR: Failed to pull image and no local image available"
+  log "Error: $error_msg"
+  return 2
+}
+
+save_rollback_image() {
+  local current_id
+  current_id=$(docker inspect "$CONTAINER" --format='{{.Image}}' 2>/dev/null || echo "")
+  if [ -n "$current_id" ]; then
+    docker tag "$current_id" "$ROLLBACK_IMAGE_TAG" 2>/dev/null || true
+  fi
+}
+
+_start_containers() {
+  # Web container owns migrations (the entrypoint runs `flask db upgrade`
+  # before Gunicorn). Bound to loopback: Caddy is the only way in.
+  docker rm -f "$CONTAINER" 2>&1 || true
+  docker run -d \
+    --name "$CONTAINER" \
+    --restart unless-stopped \
+    --env-file "$ENV_FILE" \
+    -p "127.0.0.1:${PORT}:8000" \
+    -v "${DATA_DIR}:/data" \
+    --log-opt max-size=10m \
+    --log-opt max-file=3 \
+    --health-cmd "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).status==200 else 1)\"" \
+    --health-interval 30s \
+    --health-timeout 10s \
+    --health-start-period 40s \
+    "$IMAGE"
+
+  # Background jobs: same image, second process, shared volume. It waits for
+  # the web container's migrations before starting.
+  docker rm -f "$WORKER_CONTAINER" 2>&1 || true
+  docker run -d \
+    --name "$WORKER_CONTAINER" \
+    --restart unless-stopped \
+    --env-file "$ENV_FILE" \
+    -v "${DATA_DIR}:/data" \
+    --log-opt max-size=10m \
+    --log-opt max-file=3 \
+    "$IMAGE" worker
+}
+
+wait_for_healthy() {
+  local elapsed=0
+
+  while [ $elapsed -lt $HEALTH_CHECK_TIMEOUT ]; do
+    echo "waiting for app (${elapsed}s)" > "$STEP_FILE"
+
+    if curl -fsS --max-time 5 "$HEALTH_CHECK_URL" >/dev/null 2>&1; then
+      return 0
+    fi
+
+    # A container that has exited is never going to become healthy
+    if ! docker ps -q -f name="^${CONTAINER}$" 2>/dev/null | grep -q .; then
+      echo "Container exited during startup."
+      docker logs --tail 40 "$CONTAINER" 2>&1 || true
+      return 1
+    fi
+
+    sleep $HEALTH_CHECK_INTERVAL
+    elapsed=$((elapsed + HEALTH_CHECK_INTERVAL))
+  done
+
+  echo "Application did not become healthy within ${HEALTH_CHECK_TIMEOUT}s."
+  docker logs --tail 40 "$CONTAINER" 2>&1 || true
+  return 1
+}
+
+_run_containers_inner() {
+  _start_containers
+  wait_for_healthy
+}
+
+perform_rollback() {
+  echo ""
+  echo "  ${YELLOW}Rolling back to the previous image...${NC}"
+  logger -t getsupremely "Rolling back to ${ROLLBACK_IMAGE_TAG}"
+
+  if ! docker image inspect "$ROLLBACK_IMAGE_TAG" >/dev/null 2>&1; then
+    echo "  ${RED}No rollback image available.${NC}"
+    echo "  Inspect the failure with: docker logs ${CONTAINER}"
+    return 1
+  fi
+
+  local saved_image="$IMAGE"
+  IMAGE="$ROLLBACK_IMAGE_TAG"
+  if _start_containers >/dev/null 2>&1 && wait_for_healthy >/dev/null 2>&1; then
+    echo "  ${GREEN}✓${NC} Rolled back successfully. The previous version is running."
+    logger -t getsupremely "Rollback succeeded"
+    IMAGE="$saved_image"
+    return 0
+  fi
+
+  IMAGE="$saved_image"
+  echo "  ${RED}Rollback also failed.${NC}"
+  echo "  Inspect the failure with: docker logs ${CONTAINER}"
+  return 1
+}
+
+run_containers() {
+  fix_data_permissions
+
+  # The new image migrates the schema on start, and a rollback only reverts
+  # the IMAGE -- old code against a new schema is unrecoverable. Capture the
+  # pre-update database first so there is something to go back to.
+  if docker ps -q -f name="^${CONTAINER}$" 2>/dev/null | grep -q .; then
+    do_backup "pre-update"
+  fi
+
+  # Keep the current image so a failed update can be undone
+  save_rollback_image
+
+  # pull_image distinguishes pulled / fell back to local / no image at all.
+  # The status has to cross a subshell boundary, so it travels via a file.
+  local pull_status_file
+  pull_status_file=$(mktemp)
+  _pull_step() {
+    pull_image
+    echo $? > "$pull_status_file"
+    # Only "no image at all" is a failed step; falling back to the local
+    # image is a warning the operator must still see.
+    [ "$(cat "$pull_status_file")" -eq 2 ] && return 1
+    return 0
+  }
+
+  if ! _spin_step "Pulling ${IMAGE}" _pull_step; then
+    echo ""
+    echo "$STEP_LOG"
+    echo "  ${RED}No image available locally and the pull failed.${NC}"
+    rm -f "$pull_status_file"
+    exit 1
+  fi
+  if [ "$(cat "$pull_status_file" 2>/dev/null)" = "1" ]; then
+    printf "  ${YELLOW}!${NC} Pull failed - running the EXISTING local image (NOT updated)\n"
+  fi
+  rm -f "$pull_status_file"
+
+  if ! _spin_step "Starting Supremely" _run_containers_inner; then
+    echo ""
+    echo "$STEP_LOG"
+    perform_rollback || exit 1
+    ROLLED_BACK=true
+  fi
+}
+
+#===============================================================================
+# Database reset / backup / restore
+#===============================================================================
+
+reset_database() {
+  [ "$FORCE_RESET" != "true" ] && return 0
+
+  log "Resetting installation (data directory will be cleared)"
+  docker rm -f "$CONTAINER" "$WORKER_CONTAINER" 2>/dev/null || true
+  # Remove and recreate rather than globbing: "*" skips dotfiles, so state
+  # like .wizard-* survived a --reset that claims to wipe everything.
+  rm -rf "${DATA_DIR:?}"
+  fix_data_permissions
+}
+
+do_backup() {
+  require_root
+  ensure_docker_running
+
+  local label="${1:-manual}"
+  mkdir -p "$BACKUP_DIR"
+  chmod 700 "$BACKUP_DIR"
+
+  local stamp archive
+  stamp=$(date -u +"%Y%m%d-%H%M%S")
+  archive="${BACKUP_DIR}/supremely-${label}-${stamp}.tar.gz"
+
+  _backup_inner() {
+    echo "stopping worker" > "$STEP_FILE"
+    docker stop "$WORKER_CONTAINER" >/dev/null 2>&1 || true
+
+    # The web container is still serving and writing app.db, so copying the
+    # file directly yields a torn WAL that SQLite may refuse at restore time.
+    # .backup takes a consistent snapshot of a live database.
+    echo "snapshotting database" > "$STEP_FILE"
+    local snap=""
+    if [ -f "${DATA_DIR}/app.db" ] && command -v sqlite3 >/dev/null 2>&1; then
+      snap="${DATA_DIR}/app.db.backup"
+      rm -f "$snap"
+      if ! sqlite3 "${DATA_DIR}/app.db" ".backup '${snap}'"; then
+        docker start "$WORKER_CONTAINER" >/dev/null 2>&1 || true
+        echo "sqlite3 .backup failed"
+        return 1
+      fi
+    fi
+
+    echo "archiving data" > "$STEP_FILE"
+    local rc=0
+    # umask 077: the archive carries data/secret_key and supremely.env, which
+    # may hold the PostgreSQL password. Root's default umask would make it
+    # world-readable.
+    (umask 077; tar -czf "$archive" -C "$SUPREMELY_DIR" \
+      --exclude="backups" \
+      --exclude="data/app.db-wal" --exclude="data/app.db-shm" \
+      data supremely.env) || rc=$?
+    rm -f "$snap"
+
+    # Always bring the worker back, even when the archive failed: leaving it
+    # stopped silently kills background jobs until somebody notices.
+    echo "restarting worker" > "$STEP_FILE"
+    docker start "$WORKER_CONTAINER" >/dev/null 2>&1 || true
+
+    # tar exit 1 is only "file changed as we read it", which is expected on a
+    # live installation. Anything above 1 is a real failure.
+    if [ "$rc" -gt 1 ]; then
+      echo "tar failed with status ${rc}"
+      return 1
+    fi
+    return 0
+  }
+
+  run_step "Creating backup" _backup_inner
+
+  # Keep the ten most recent backups
+  ls -1t "${BACKUP_DIR}"/supremely-*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f
+
+  echo ""
+  echo "  Backup: ${archive}"
+  echo "  Size:   $(du -h "$archive" | cut -f1)"
+  echo ""
+  echo "  Restore with: sudo ${SCRIPT_PATH} --restore ${archive}"
+  echo ""
+}
+
+do_restore() {
+  require_root
+  ensure_docker_running
+
+  local archive="$1"
+
+  if [ -z "$archive" ]; then
+    echo ""
+    echo "Available backups:"
+    echo ""
+    ls -1t "${BACKUP_DIR}"/supremely-*.tar.gz 2>/dev/null | head -10 | sed 's/^/  /' || echo "  (none)"
+    echo ""
+    read -p "  Backup file to restore: " archive </dev/tty
+    archive=$(echo "$archive" | tr -d '[:space:]')
+  fi
+
+  if [ ! -f "$archive" ]; then
+    echo "Error: backup file not found: ${archive}" >&2
+    exit 1
+  fi
+
+  # Validate BEFORE anything destructive happens. The old flow deleted the
+  # data directory and only then tried to extract, so pointing --restore at a
+  # truncated or wrong file destroyed the installation and replaced nothing.
+  if ! tar -tzf "$archive" >/dev/null 2>&1; then
+    echo "Error: not a readable .tar.gz archive: ${archive}" >&2
+    exit 1
+  fi
+  if ! tar -tzf "$archive" 2>/dev/null | grep -q '^data/'; then
+    echo "Error: archive contains no data/ directory: ${archive}" >&2
+    exit 1
+  fi
+  # Refuse absolute or traversing members: this is extracted as root.
+  if tar -tzf "$archive" 2>/dev/null | grep -qE '^/|(^|/)\.\./'; then
+    echo "Error: archive contains unsafe paths: ${archive}" >&2
+    exit 1
+  fi
+
+  echo ""
+  echo "  ${RED}This replaces the current database, uploads and configuration.${NC}"
+  echo "  The current data directory is kept at ${DATA_DIR}.prev"
+  read -p "  Type 'restore' to continue: " confirm </dev/tty
+  if [ "$confirm" != "restore" ]; then
+    echo "  Cancelled."
+    exit 0
+  fi
+
+  _restore_inner() {
+    echo "extracting to staging" > "$STEP_FILE"
+    local staging="${SUPREMELY_DIR}/.restore.$$"
+    rm -rf "${staging:?}"
+    mkdir -p "$staging"
+    if ! tar -xzf "$archive" -C "$staging"; then
+      rm -rf "${staging:?}"
+      echo "extraction failed"
+      return 1
+    fi
+    if [ ! -d "${staging}/data" ]; then
+      rm -rf "${staging:?}"
+      echo "archive has no data/ directory"
+      return 1
+    fi
+
+    echo "stopping containers" > "$STEP_FILE"
+    docker rm -f "$CONTAINER" "$WORKER_CONTAINER" >/dev/null 2>&1 || true
+
+    # Only now is live data touched, and the previous copy is kept.
+    echo "swapping data directory" > "$STEP_FILE"
+    rm -rf "${DATA_DIR:?}.prev"
+    [ -d "$DATA_DIR" ] && mv "${DATA_DIR:?}" "${DATA_DIR}.prev"
+    mv "${staging}/data" "${DATA_DIR}"
+    [ -f "${staging}/supremely.env" ] && mv "${staging}/supremely.env" "$ENV_FILE"
+    rm -rf "${staging:?}"
+
+    # A snapshot taken by `sqlite3 .backup` is the consistent copy; prefer it.
+    if [ -f "${DATA_DIR}/app.db.backup" ]; then
+      mv -f "${DATA_DIR}/app.db.backup" "${DATA_DIR}/app.db"
+      rm -f "${DATA_DIR}/app.db-wal" "${DATA_DIR}/app.db-shm"
+    fi
+    return 0
+  }
+
+  run_step "Restoring from backup" _restore_inner
+
+  fix_data_permissions
+
+  # The archive carries its own BASE_DOMAIN; Caddy must be re-pointed to match
+  # or it keeps serving the vhost the old installation used.
+  prompt_for_domain
+  write_domain_to_env
+  create_caddyfile
+
+  run_containers
+  start_caddy
+  show_status
+}
+
+#===============================================================================
+# Watchdog
+#===============================================================================
+
+setup_watchdog() {
+  cat > "${SUPREMELY_DIR}/watchdog.sh" << 'WATCHDOG_EOF'
+#!/bin/bash
+# Supremely watchdog — restarts unhealthy or stopped containers.
+
+SUPREMELY_DIR="/opt/supremely"
+LOG="/var/log/supremely-watchdog.log"
+
+# Health only. This runs as root every minute; it deliberately has no
+# update trigger, because the data directory is writable by the container
+# and any file-creation bug there would become "root fetches and executes
+# remote code". Updates are an operator action: getsupremely --update.
+for name in supremely supremely-worker; do
+  status=$(docker inspect --format="{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" "$name" 2>/dev/null || echo "not-running")
+  if [ "$status" = "unhealthy" ] || [ "$status" = "not-running" ] || [ "$status" = "exited" ]; then
+    docker restart "$name" && echo "[$(date)] Restarted ${name} - was ${status}" >> "$LOG"
+  fi
+done
+WATCHDOG_EOF
+  chmod +x "${SUPREMELY_DIR}/watchdog.sh"
+
+  cat > /etc/systemd/system/supremely-watchdog.service << EOF
+[Unit]
+Description=Supremely Health Watchdog
+
+[Service]
+Type=oneshot
+ExecStart=${SUPREMELY_DIR}/watchdog.sh
+EOF
+
+  cat > /etc/systemd/system/supremely-watchdog.timer << 'EOF'
+[Unit]
+Description=Run the Supremely health watchdog every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  systemctl daemon-reload
+  systemctl enable --now supremely-watchdog.timer >/dev/null 2>&1
+}
+
+#===============================================================================
+# Status / info / update check
+#===============================================================================
+
+installed_version() {
+  docker exec "$CONTAINER" python -c \
+    "from app import APP_VERSION; print(APP_VERSION)" 2>/dev/null || echo "unknown"
+}
+
+current_url() {
+  local domain
+  domain=$(grep -oP '^BASE_DOMAIN=\K.*' "$ENV_FILE" 2>/dev/null || true)
+  if [ -n "$domain" ] && ! echo "$domain" | grep -qE '^[0-9.]+$'; then
+    echo "https://${domain}"
+  else
+    echo "http://$(get_public_ip)"
+  fi
+}
+
+show_status() {
+  local url db_kind
+  url=$(current_url)
+
+  if grep -q '^DATABASE_URL=postgresql' "$ENV_FILE" 2>/dev/null; then
+    db_kind="PostgreSQL (external)"
+  else
+    db_kind="SQLite (${DATA_DIR}/app.db)"
+  fi
+
+  echo ""
+  echo "============================================================"
+  echo "  Supremely is running"
+  echo "============================================================"
+  echo ""
+  echo "  Installer:       v${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+  if [ "$ROLLED_BACK" = "true" ]; then
+    echo "  Image:           ${ROLLBACK_IMAGE_TAG}  ${YELLOW}(rolled back - update failed)${NC}"
+  else
+    echo "  Image:           ${IMAGE}"
+  fi
+  echo "  Directory:       ${SUPREMELY_DIR}"
+  echo "  Data directory:  ${DATA_DIR}"
+  echo "  Database:        ${db_kind}"
+  echo ""
+  echo "  Web UI:          ${url}"
+  echo ""
+  if [ ! -f "${DATA_DIR}/config.env" ] || ! grep -q '^SETUP_COMPLETE=true' "${DATA_DIR}/config.env" 2>/dev/null; then
+    echo "  ${YELLOW}Next step:${NC} open ${url}/setup to finish the installation."
+    echo ""
+  fi
+  echo "  Commands:"
+  echo "    docker logs -f ${CONTAINER}             - View app logs"
+  echo "    docker logs -f ${WORKER_CONTAINER}      - View worker logs"
+  echo "    docker restart ${CONTAINER}             - Restart app"
+  echo "    journalctl -u caddy -f                  - View Caddy logs"
+  echo "    systemctl restart caddy                 - Restart Caddy"
+  echo ""
+  echo "  Health watchdog:"
+  echo "    systemctl status supremely-watchdog.timer"
+  echo "    cat /var/log/supremely-watchdog.log"
+  echo ""
+  echo "  Configuration:   ${ENV_FILE}"
+  echo "    (set DATABASE_URL here to use PostgreSQL instead of SQLite)"
+  echo ""
+  echo "  To update later:"
+  echo "    sudo ${SCRIPT_PATH} --update"
+  echo ""
+}
+
+latest_hub_tag_date() {
+  curl -fsS --max-time 10 "$DOCKERHUB_TAGS" 2>/dev/null \
+    | grep -oE '"last_updated":"[^"]+"' | head -1 | cut -d'"' -f4 || true
+}
+
+check_for_update() {
+  local local_digest remote_digest
+  local_digest=$(docker image inspect "$IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null \
+    | sed 's/.*@//' || echo "")
+
+  echo ""
+  echo "  Installed image:  ${local_digest:-none}"
+  echo "  Registry updated: $(latest_hub_tag_date || echo unknown)"
+  echo ""
+
+  # Read-only: `docker pull` would download the image and move the local tag,
+  # which is not what "check" should do. manifest inspect only reads.
+  remote_digest=$(docker manifest inspect "$IMAGE" 2>/dev/null \
+    | sha256sum | cut -d' ' -f1 || echo "")
+
+  if [ -z "$remote_digest" ]; then
+    echo "  ${YELLOW}!${NC} Could not reach the registry - update status unknown"
+  elif [ -z "$local_digest" ]; then
+    echo "  ${YELLOW}!${NC} No local image. Run: sudo ${SCRIPT_PATH} --update"
+  elif docker image inspect "$IMAGE" >/dev/null 2>&1 \
+       && docker manifest inspect "$IMAGE" >/dev/null 2>&1 \
+       && [ "$(docker image inspect "$IMAGE" --format='{{index .RepoDigests 0}}' 2>/dev/null | sed 's/.*@//')" \
+            = "$(docker manifest inspect -v "$IMAGE" 2>/dev/null | grep -m1 -o '"digest": "sha256:[a-f0-9]*"' | cut -d'"' -f4)" ]; then
+    echo "  ${GREEN}✓${NC} Up to date"
+  else
+    echo "  ${YELLOW}!${NC} A newer image may be available. Run: sudo ${SCRIPT_PATH} --update"
+  fi
+  echo ""
+}
+
+show_info() {
+  ensure_docker_running
+  echo ""
+  echo "  Installer version:  ${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+  echo "  App version:        $(installed_version)"
+  echo "  Image:              ${IMAGE}"
+  echo "  URL:                $(current_url)"
+  echo ""
+  docker ps --filter "name=supremely" \
+    --format "  {{.Names}}\t{{.Status}}" 2>/dev/null || true
+  echo ""
+}
+
+#===============================================================================
+# Update / uninstall
+#===============================================================================
+
+do_update() {
+  require_root
+  require_ubuntu
+  log "Starting update (installer v${GETSUPREMELY_VERSION}, force_reset=${FORCE_RESET})"
+
+  install_docker
+  ensure_docker_running
+  install_caddy
+  install_extras
+
+  ensure_env_file
+  warn_quoted_env_values
+  prompt_for_domain
+  write_domain_to_env
+  create_caddyfile
+
+  reset_database
+  run_containers
+  setup_watchdog
+  start_caddy
+
+  touch "${SUPREMELY_DIR}/.setup_complete"
+
+  log "Update complete"
+  show_status
+}
+
+do_uninstall() {
+  require_root
+
+  echo ""
+  echo "Supremely Uninstaller"
+  echo "====================="
+  echo ""
+  echo "This will remove EVERYTHING the installer created:"
+  echo ""
+  echo "  - Docker containers and images"
+  echo "  - All data in ${DATA_DIR} (database, uploads, configuration)"
+  echo "  - Backups in ${BACKUP_DIR}"
+  echo "  - Watchdog timer and service"
+  echo "  - Caddy site configuration"
+  echo "  - Installer directory (${SUPREMELY_DIR})"
+  echo ""
+  echo "  ${RED}This cannot be undone.${NC}"
+  echo ""
+  read -p "  Type 'uninstall' to continue: " confirm </dev/tty
+
+  if [ "$confirm" != "uninstall" ]; then
+    echo "  Cancelled."
+    exit 0
+  fi
+
+  _uninstall_inner() {
+    echo "stopping containers" > "$STEP_FILE"
+    docker rm -f "$CONTAINER" "$WORKER_CONTAINER" >/dev/null 2>&1 || true
+
+    echo "removing images" > "$STEP_FILE"
+    docker rmi -f "$IMAGE" "$ROLLBACK_IMAGE_TAG" >/dev/null 2>&1 || true
+
+    echo "removing watchdog" > "$STEP_FILE"
+    systemctl disable --now supremely-watchdog.timer >/dev/null 2>&1 || true
+    rm -f /etc/systemd/system/supremely-watchdog.service
+    rm -f /etc/systemd/system/supremely-watchdog.timer
+    systemctl daemon-reload
+
+    echo "removing Caddy site" > "$STEP_FILE"
+    rm -f /etc/caddy/Caddyfile /etc/caddy/Caddyfile.prev
+    systemctl restart caddy >/dev/null 2>&1 || true
+
+    echo "removing files" > "$STEP_FILE"
+    rm -rf "$SUPREMELY_DIR"
+    rm -f /var/log/supremely-watchdog.log
+  }
+
+  run_step "Uninstalling Supremely" _uninstall_inner
+
+  echo ""
+  echo "  Supremely has been removed."
+  echo "  Docker and Caddy were left installed."
+  echo ""
+}
+
+show_help() {
+  echo "Supremely Installer / Updater"
+  echo "Version: ${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+  echo ""
+  echo "Usage:"
+  echo "  getsupremely --update             Install or update Supremely"
+  echo "  getsupremely --configure          Change domain / HTTPS settings"
+  echo "  getsupremely --check              Check for updates"
+  echo "  getsupremely --info               Show version and status"
+  echo "  getsupremely --backup             Create a backup"
+  echo "  getsupremely --restore [FILE]     Restore from a backup"
+  echo "  getsupremely --rollback           Roll back to the previous image"
+  echo "  getsupremely --reset              Update and wipe all data (no prompt)"
+  echo "  getsupremely --uninstall          Remove Supremely and its data"
+  echo ""
+  echo "First-time install:"
+  echo "  curl -fsSL https://raw.githubusercontent.com/remarqable/supremely/main/scripts/getsupremely | sudo bash"
+  echo ""
+  echo "Unattended install (no prompts):"
+  echo "  SUPREMELY_DOMAIN=example.com SUPREMELY_EMAIL=you@example.com \\"
+  echo "    bash -c \"curl -fsSL <url> | sudo -E bash\""
+  echo "  SUPREMELY_DOMAIN=ip  installs on the public IP over plain HTTP"
+  echo ""
+  echo "Notes:"
+  echo "  --update is safe to run repeatedly"
+  echo "  --configure only changes domain/HTTPS, it does not update software"
+  echo "  --reset deletes all data WITHOUT prompting"
+  echo "  --verbose can be combined with any command"
+  echo ""
+  echo "  Data is stored in ${DATA_DIR}"
+  echo "  Operator configuration is ${ENV_FILE}"
+  echo "  SQLite is used by default; set DATABASE_URL in the env file for"
+  echo "  PostgreSQL, then re-run --update."
+}
+
+#===============================================================================
+# Main
+#===============================================================================
+
+COMMAND=""
+RESTORE_FILE=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --verbose)   VERBOSE=true; shift ;;
+    --check|-c)  COMMAND="check"; shift ;;
+    --update|-u) COMMAND="update"; shift ;;
+    --configure) COMMAND="configure"; shift ;;
+    --reset)     COMMAND="reset"; shift ;;
+    --rollback)  COMMAND="rollback"; shift ;;
+    --backup|-b) COMMAND="backup"; shift ;;
+    --restore)   COMMAND="restore"; shift
+                 if [ $# -gt 0 ] && [ "${1:0:2}" != "--" ]; then
+                   RESTORE_FILE="$1"; shift
+                 fi ;;
+    --uninstall) COMMAND="uninstall"; shift ;;
+    --info)      COMMAND="info"; shift ;;
+    --help|-h)   COMMAND="help"; shift ;;
+    *)
+      echo "Error: unknown option '$1'" >&2
+      echo "Run '${SCRIPT_PATH} --help' for usage." >&2
+      exit 2
+      ;;
+  esac
+done
+
+echo "getsupremely v${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+
+case "$COMMAND" in
+  check)
+    require_root
+    ensure_docker_running
+    check_for_update
+    ;;
+  update)
+    do_update
+    ;;
+  configure)
+    require_root
+    ensure_docker_running
+    log "Running configure"
+    ensure_env_file
+    prompt_for_domain
+    write_domain_to_env
+    create_caddyfile
+    start_caddy
+    docker restart "$CONTAINER" "$WORKER_CONTAINER" >/dev/null 2>&1 || true
+    log "Configure complete (domain=${DOMAIN:-none})"
+    show_status
+    ;;
+  reset)
+    FORCE_RESET=true
+    do_update
+    ;;
+  rollback)
+    require_root
+    ensure_docker_running
+    if perform_rollback; then
+      ROLLED_BACK=true
+      show_status
+    else
+      exit 1
+    fi
+    ;;
+  backup)
+    do_backup
+    ;;
+  restore)
+    do_restore "$RESTORE_FILE"
+    ;;
+  uninstall)
+    do_uninstall
+    ;;
+  info)
+    require_root
+    show_info
+    ;;
+  help|"")
+    show_help
+    ;;
+esac

@@ -4,6 +4,10 @@
    directory, and plugin templates live outside app/ entirely. */
 @source "../../views";
 @source "../../../plugins";
+/* Shell scripts are not templates. The installer embeds a plain HTML
+   maintenance page whose CSS words (ease-in-out, ...) would otherwise be
+   scanned as utility classes and compiled into the stylesheet. */
+@source not "../../../scripts";
 
 @theme {
   /* Brand scale. Every utility compiles to var(--color-brand-N), which is what
