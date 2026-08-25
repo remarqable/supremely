@@ -4,10 +4,17 @@
    directory, and plugin templates live outside app/ entirely. */
 @source "../../views";
 @source "../../../plugins";
-/* Shell scripts are not templates. The installer embeds a plain HTML
-   maintenance page whose CSS words (ease-in-out, ...) would otherwise be
-   scanned as utility classes and compiled into the stylesheet. */
+/* Auto-detection scans the project root on top of the sources above, which
+   pulls in files that are not templates. Exclude them explicitly, or the
+   stylesheet's contents depend on what happens to be checked out:
+     scripts/   - the installer embeds a plain HTML maintenance page whose
+                  CSS words (ease-in-out, ...) parse as utility classes
+     blueprint/ - a git submodule of documentation. CI checks out without
+                  submodules, so classes that exist only in its examples
+                  (rounded-[--radius-card], dark:*, rtl:*) made `make css`
+                  unreproducible between a dev machine and CI. */
 @source not "../../../scripts";
+@source not "../../../blueprint";
 
 @theme {
   /* Brand scale. Every utility compiles to var(--color-brand-N), which is what
