@@ -86,7 +86,9 @@ def deliver_notification_email(payload: dict) -> None:
     if not is_email_configured():
         return
     notification = db.session.get(Notification, payload.get('notification_id'))
-    if notification is None or notification.is_read:
+    # emailed_at makes this idempotent: a retry or zombie-recovery after a
+    # successful send must not re-mail. is_read short-circuits stale sends.
+    if notification is None or notification.is_read or notification.emailed_at:
         return
     user = db.session.get(User, notification.user_id)
     if user is None or not user.is_active:
@@ -97,3 +99,6 @@ def deliver_notification_email(payload: dict) -> None:
     body = (f"{data.get('actor_name', 'Someone')} — {notification.type}\n\n"
             f"{data.get('snippet', '')}\n\n{data.get('url', '')}\n")
     send_email(user.email, subject, body)
+    from app.models.base import utcnow
+    notification.emailed_at = utcnow()
+    db.session.commit()

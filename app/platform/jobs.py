@@ -65,12 +65,15 @@ def _claim_next() -> Optional[Job]:
 
 
 def _execute(job_row: Job) -> None:
+    job_id = job_row.id
     try:
         HANDLERS[job_row.name](job_row.payload or {})
         job_row.status, job_row.finished_at = 'done', utcnow()
     except Exception as e:            # noqa: BLE001 -- worker must survive any handler error
         db.session.rollback()
-        job_row = db.session.get(Job, job_row.id)
+        job_row = db.session.get(Job, job_id)
+        if job_row is None:
+            return                    # job was deleted mid-run; nothing to update
         log.error('job_failed', job=job_row.name, id=job_row.id, error=str(e))
         job_row.last_error = f'{type(e).__name__}: {e}'
         if job_row.attempts >= job_row.max_attempts:
@@ -80,27 +83,58 @@ def _execute(job_row: Job) -> None:
             backoff = 30 * 4 ** max(job_row.attempts - 1, 0)
             job_row.run_at = utcnow() + timedelta(seconds=backoff)
     finally:
-        job_row.locked_at = None
-        db.session.add(job_row)
-        db.session.commit()
+        if job_row is not None:
+            job_row.locked_at = None
+            db.session.add(job_row)
+            db.session.commit()
 
 
 def recover_zombies() -> int:
-    """Reset 'running' jobs orphaned by a crashed worker."""
+    """Reset 'running' jobs orphaned by a crashed worker. Covers rows whose
+    locked_at is NULL (crash between the reset and its commit) as well as
+    those locked before the timeout."""
     cutoff = utcnow() - ZOMBIE_TIMEOUT
     result = db.session.execute(
         sa.update(Job)
-        .where(Job.status == 'running', Job.locked_at < cutoff)
+        .where(Job.status == 'running',
+               sa.or_(Job.locked_at < cutoff, Job.locked_at.is_(None)))
         .values(status='pending', locked_at=None)
     )
     db.session.commit()
     return result.rowcount
 
 
+DONE_RETENTION = timedelta(days=7)
+
+
+@job('system.cleanup')
+def _cleanup(payload: dict) -> None:
+    """Recurring: re-enqueue for tomorrow, then purge old finished jobs so the
+    queue table stays a queue, not an archive."""
+    enqueue('system.cleanup', run_at=utcnow() + timedelta(days=1))
+    cutoff = utcnow() - DONE_RETENTION
+    db.session.execute(
+        sa.delete(Job).where(Job.status.in_(('done', 'failed')),
+                             Job.finished_at.isnot(None),
+                             Job.finished_at < cutoff))
+    db.session.commit()
+
+
+def _seed_recurring_jobs() -> None:
+    """Ensure singleton recurring jobs exist. Idempotent."""
+    for name in ('system.cleanup',):
+        exists = db.session.scalar(
+            sa.select(Job.id).where(Job.name == name,
+                                    Job.status == 'pending').limit(1))
+        if not exists:
+            enqueue(name)
+
+
 def run_worker() -> None:
     """Blocking worker loop. Run as `flask jobs run`."""
     log.info('worker_started')
     recover_zombies()
+    _seed_recurring_jobs()
     interval = current_app.config.get('JOBS_POLL_INTERVAL', 2)
     while True:
         job_row = _claim_next()

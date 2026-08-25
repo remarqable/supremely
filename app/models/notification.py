@@ -17,6 +17,7 @@ class Notification(OrgScoped, BaseModel):
     payload = db.Column(JSONColumn, nullable=False, default=dict)
     # payload keys: title, url, actor_name, snippet
     read_at = db.Column(TZDateTime, nullable=True)
+    emailed_at = db.Column(TZDateTime, nullable=True)   # idempotency marker
 
     __table_args__ = (
         db.Index('ix_notification_user_read', 'user_id', 'read_at'),
