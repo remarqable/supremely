@@ -12,8 +12,15 @@ ACME = 'http://acme.example.test'
 
 
 def make_space(app, org, slug='general', name='General', visibility='members'):
+    """Fetch-or-create: new orgs come seeded with a 'general' space, so tests
+    reuse it (and can flip its visibility)."""
     with app.test_request_context():
         g.org = org
+        existing = Space.query.filter_by(slug=slug).first()
+        if existing:
+            existing.name = name
+            existing.visibility = visibility
+            return existing.save()
         return Space(name=name, slug=slug, org_id=org.id,
                      visibility=visibility).save()
 

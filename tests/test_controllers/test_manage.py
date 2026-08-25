@@ -77,22 +77,25 @@ def test_navigation_crud(app, client, acme, globex, user):
     client.post('/manage/navigation', base_url=ACME, data={
         'menu': 'primary', 'label': 'Blog', 'url': '/blog-page'})
 
+    def labels():
+        with app.test_request_context(base_url=ACME):
+            g.org = acme
+            return [i.label for i in NavigationItem.items_for('primary')]
+
+    # Appended after the seeded starter navigation, in order.
+    assert labels()[-2:] == ['Docs', 'Blog']
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        items = NavigationItem.items_for('primary')
-        assert [i.label for i in items] == ['Docs', 'Blog']
-        second_id = items[1].id
+        blog_id = next(i.id for i in NavigationItem.items_for('primary')
+                       if i.label == 'Blog')
 
-    client.post(f'/manage/navigation/{second_id}/move', base_url=ACME,
+    client.post(f'/manage/navigation/{blog_id}/move', base_url=ACME,
                 data={'direction': 'up'})
-    with app.test_request_context(base_url=ACME):
-        g.org = acme
-        assert [i.label for i in NavigationItem.items_for('primary')] == ['Blog', 'Docs']
+    assert labels()[-2:] == ['Blog', 'Docs']
 
-    client.post(f'/manage/navigation/{second_id}/delete', base_url=ACME)
-    with app.test_request_context(base_url=ACME):
-        g.org = acme
-        assert [i.label for i in NavigationItem.items_for('primary')] == ['Docs']
+    client.post(f'/manage/navigation/{blog_id}/delete', base_url=ACME)
+    assert 'Blog' not in labels()
+    assert labels()[-1] == 'Docs'
 
 
 def test_media_upload_and_serve(app, client, acme, globex, user):

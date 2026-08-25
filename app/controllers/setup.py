@@ -273,6 +273,8 @@ def _seed(db_session, state: dict) -> User:
         db_session.flush()
         db_session.add(Membership(user_id=admin_user.id, org_id=org.id,
                                   role='owner'))
+        from app.platform.defaults import seed_default_content
+        seed_default_content(db_session, org, owner_id=admin_user.id)
 
     db_session.commit()
     return admin_user

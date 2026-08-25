@@ -5,7 +5,7 @@ from app.models import Membership, NavigationItem, Page
 from tests.conftest import login_as, make_user
 
 
-def publish_page(app, org, slug='about', title='About Us', body='Our story.',
+def publish_page(app, org, slug='story', title='Our Story', body='Our story.',
                  visibility='public', **kwargs):
     with app.test_request_context():
         g.org = org
@@ -23,9 +23,9 @@ ACME = 'http://acme.example.test'
 
 def test_public_page_renders(app, client, acme, globex):
     publish_page(app, acme)
-    response = client.get('/about', base_url=ACME)
+    response = client.get('/story', base_url=ACME)
     assert response.status_code == 200
-    assert b'About Us' in response.data
+    assert b'Our Story' in response.data
     assert b'Our story.' in response.data
 
 
@@ -43,8 +43,8 @@ def test_unknown_page_404(client, acme, globex):
 def test_pages_are_tenant_isolated(app, client, acme, globex):
     publish_page(app, acme, body='Acme story')
     publish_page(app, globex, body='Globex story')
-    acme_page = client.get('/about', base_url=ACME)
-    globex_page = client.get('/about', base_url='http://globex.example.test')
+    acme_page = client.get('/story', base_url=ACME)
+    globex_page = client.get('/story', base_url='http://globex.example.test')
     assert b'Acme story' in acme_page.data
     assert b'Globex story' not in acme_page.data
     assert b'Globex story' in globex_page.data
@@ -84,12 +84,12 @@ def test_navigation_rendered(app, client, acme, globex):
     page_id = publish_page(app, acme)
     with app.test_request_context():
         g.org = acme
-        NavigationItem(menu='primary', label='About', page_id=page_id,
-                       org_id=acme.id, position=1).save()
+        NavigationItem(menu='primary', label='Story', page_id=page_id,
+                       org_id=acme.id, position=99).save()
         NavigationItem(menu='footer', label='Imprint', url='https://x.test',
-                       org_id=acme.id, position=1).save()
+                       org_id=acme.id, position=99).save()
     response = client.get('/', base_url=ACME)
-    assert b'href="/about"' in response.data
+    assert b'href="/story"' in response.data
     assert b'https://x.test' in response.data
 
 

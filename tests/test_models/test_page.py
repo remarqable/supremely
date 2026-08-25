@@ -7,7 +7,7 @@ from app.platform.errors import ValidationError
 
 
 def make_page(app, org, **kwargs):
-    defaults = dict(title='About', slug='about', body='Hello **world**',
+    defaults = dict(title='Story', slug='story', body='Hello **world**',
                     org_id=org.id)
     defaults.update(kwargs)
     with app.test_request_context():
@@ -52,7 +52,7 @@ def test_reserved_slug_rejected(app, acme):
 def test_duplicate_slug_same_org_rejected(app, acme):
     make_page(app, acme)
     with pytest.raises(ValidationError, match='already exists'):
-        make_page(app, acme, title='About 2')
+        make_page(app, acme, title='Story 2')
 
 
 def test_same_slug_different_orgs_allowed(app, acme, globex):

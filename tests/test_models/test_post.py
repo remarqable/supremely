@@ -7,7 +7,7 @@ from app.platform.errors import ValidationError
 
 
 def make_post(app, org, **kwargs):
-    defaults = dict(title='Hello World', slug='hello-world',
+    defaults = dict(title='First Light', slug='first-light',
                     body='First **post**.', org_id=org.id)
     defaults.update(kwargs)
     with app.test_request_context():
@@ -26,7 +26,7 @@ def test_create_and_publish(app, acme):
         g.org = acme
         post.publish()
     assert post.is_published
-    assert post.permalink == '/posts/hello-world'
+    assert post.permalink == '/posts/first-light'
 
 
 def test_excerpt_fallback(app, acme):

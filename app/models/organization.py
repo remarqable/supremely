@@ -56,8 +56,11 @@ class Organization(BaseModel):
         return cls.query.filter_by(slug=(slug or '').strip().lower()).first()
 
     @classmethod
-    def provision(cls, name: str, slug: str, owner) -> 'Organization':
-        """Create an organization with its owner membership, atomically."""
+    def provision(cls, name: str, slug: str, owner,
+                  seed_defaults: bool = True) -> 'Organization':
+        """Create an organization with its owner membership and starter
+        content (homepage, About, navigation, first post, General space),
+        atomically."""
         from .membership import Membership
         org = cls(name=name, slug=slug)
         org.validate()
@@ -65,6 +68,9 @@ class Organization(BaseModel):
             db.session.add(org)
             db.session.flush()                       # need org.id
             db.session.add(Membership(user_id=owner.id, org_id=org.id, role='owner'))
+            if seed_defaults:
+                from app.platform.defaults import seed_default_content
+                seed_default_content(db.session, org, owner_id=owner.id)
         return org
 
     def suspend(self):

@@ -56,8 +56,10 @@ def init_theming(app) -> None:
 def scan_themes() -> None:
     """Rebuild AVAILABLE_THEMES from both roots."""
     app = current_app
+    # 'default' is the internal fallback slug; Origin is its public name --
+    # the theme every organization starts from.
     themes = {
-        'default': {'name': 'Supremely Default', 'version': '1.0.0',
+        'default': {'name': 'Origin', 'version': '1.0.0',
                     'author': 'Supremely', 'source': 'builtin', 'path': None,
                     'settings': {}},
     }

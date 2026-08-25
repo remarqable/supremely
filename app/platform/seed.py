@@ -103,7 +103,7 @@ def seed_getsupremely_org():
         if owner is None:
             raise RuntimeError('Run the setup wizard (or users create-admin) first')
         org = Organization.provision(name='Supremely', slug='getsupremely',
-                                     owner=owner)
+                                     owner=owner, seed_defaults=False)
     org.description = ('The open-source platform for publishing, memberships, '
                        'newsletters, and community.')
     org.brand_primary = '#4f46e5'
