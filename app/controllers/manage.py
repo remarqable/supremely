@@ -535,6 +535,82 @@ def delete_media(upload_id):
     return redirect(url_for('manage.media'))
 
 
+# --- Newsletter ---------------------------------------------------------------------
+
+@bp.route('/newsletter')
+@org_required
+@require('content.write')
+def newsletter():
+    from app.models.newsletter import Delivery, Subscriber
+    from app.platform.mailer import is_email_configured
+    subscribers = Subscriber.query.order_by(Subscriber.created_at.desc()).all()
+    deliveries = (Delivery.query.order_by(Delivery.created_at.desc())
+                  .limit(20).all())
+    stats = {
+        'subscribed': Subscriber.audience().count(),
+        'pending': Subscriber.query.filter_by(status='pending').count(),
+        'unsubscribed': Subscriber.query.filter_by(status='unsubscribed').count(),
+    }
+    return render_template('manage/newsletter.html', subscribers=subscribers,
+                           deliveries=deliveries, stats=stats,
+                           email_configured=is_email_configured())
+
+
+@bp.route('/newsletter/subscribers', methods=['POST'])
+@org_required
+@require('content.write')
+def add_subscriber():
+    from app.models.newsletter import Subscriber
+    try:
+        Subscriber.subscribe(request.form.get('email', ''), g.org.id,
+                             require_confirmation=False)
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        flash(e.message, 'error')
+    return redirect(url_for('manage.newsletter'))
+
+
+@bp.route('/newsletter/subscribers/<int:subscriber_id>/remove', methods=['POST'])
+@org_required
+@require('content.write')
+def remove_subscriber(subscriber_id):
+    from app.models.newsletter import Subscriber
+    subscriber = db.session.get(Subscriber, subscriber_id)
+    if subscriber is None:
+        abort(404)
+    subscriber.delete()
+    flash(t('newsletter.subscriber_removed'), 'success')
+    return redirect(url_for('manage.newsletter'))
+
+
+@bp.route('/posts/<int:post_id>/send-newsletter', methods=['POST'])
+@org_required
+@require('content.write')
+def send_post_newsletter(post_id):
+    from app.models.post import Post
+    from app.models.newsletter import Delivery, Subscriber
+    from app.platform.mailer import is_email_configured
+    from app.platform.jobs import enqueue
+
+    post = db.session.get(Post, post_id)
+    if post is None:
+        abort(404)
+    if not is_email_configured():
+        flash(t('newsletter.email_required_to_send'), 'error')
+        return redirect(url_for('manage.edit_post', post_id=post.id))
+    if Subscriber.audience().count() == 0:
+        flash(t('newsletter.no_subscribers'), 'error')
+        return redirect(url_for('manage.edit_post', post_id=post.id))
+
+    delivery = Delivery.create_for_post(post)
+    enqueue('newsletter.send_delivery', org_id=g.org.id,
+            delivery_id=delivery.id)
+    log.info('newsletter_queued', delivery_id=delivery.id,
+             recipients=delivery.recipients_total)
+    flash(t('newsletter.queued', n=delivery.recipients_total), 'success')
+    return redirect(url_for('manage.newsletter'))
+
+
 # --- Discussion spaces & moderation queue ------------------------------------------
 
 @bp.route('/discussions', methods=['GET', 'POST'])

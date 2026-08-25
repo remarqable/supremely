@@ -111,6 +111,9 @@
       {% endif %}
       {% if post and post.id %}
       <a href="{{ url_for('manage.preview_post', post_id=post.id) }}" class="btn-secondary w-full">{{ _('manage.preview') }}</a>
+      <button type="submit" name="action" value="save"
+              formaction="{{ url_for('manage.send_post_newsletter', post_id=post.id) }}"
+              class="btn-secondary w-full">{{ _('newsletter.send_by_email') }}</button>
       {% if post.status != 'archived' %}
       <button type="submit" name="action" value="archive" class="btn-danger w-full">{{ _('manage.archive_post') }}</button>
       {% endif %}

@@ -1,0 +1,81 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+{% if not email_configured %}
+<div class="mb-6 rounded-md bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+  {{ _('newsletter.no_email_banner') }}
+</div>
+{% endif %}
+
+<div class="mb-6 grid gap-4 sm:grid-cols-3">
+  {% for key, value in stats.items() %}
+  <div class="card">
+    <div class="text-sm text-slate-600">{{ _('newsletter.stat_' + key) }}</div>
+    <div class="mt-1 text-3xl font-bold">{{ value }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid gap-6 lg:grid-cols-2">
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('newsletter.subscribers') }}</h3>
+    <form method="POST" action="{{ url_for('manage.add_subscriber') }}"
+          class="mb-4 flex items-end gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="flex-1">
+        <label for="email" class="label">{{ _('newsletter.add_subscriber') }}</label>
+        <input type="email" id="email" name="email" class="input mt-1" required>
+      </div>
+      <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
+    </form>
+    <table class="table-plain">
+      <thead><tr><th>{{ _('common.email') }}</th><th>{{ _('common.status') }}</th><th>{{ _('newsletter.signup_date') }}</th><th></th></tr></thead>
+      <tbody>
+        {% for subscriber in subscribers %}
+        <tr>
+          <td>{{ subscriber.email }}</td>
+          <td>
+            {% if subscriber.status == 'subscribed' %}<span class="badge-green">{{ _('newsletter.status_subscribed') }}</span>
+            {% elif subscriber.status == 'pending' %}<span class="badge-slate">{{ _('newsletter.status_pending') }}</span>
+            {% else %}<span class="badge-red">{{ _('newsletter.status_unsubscribed') }}</span>{% endif %}
+          </td>
+          <td>{{ subscriber.created_at|localdate }}</td>
+          <td>
+            <form method="POST" action="{{ url_for('manage.remove_subscriber', subscriber_id=subscriber.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('common.remove') }}</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-slate-500">{{ _('common.none') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="mt-3 text-xs text-slate-500">{{ _('newsletter.form_hint') }}</p>
+  </div>
+
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('newsletter.deliveries') }}</h3>
+    <table class="table-plain">
+      <thead><tr><th>{{ _('manage.posts') }}</th><th>{{ _('common.status') }}</th><th>{{ _('newsletter.sent') }}</th><th>{{ _('common.created') }}</th></tr></thead>
+      <tbody>
+        {% for delivery in deliveries %}
+        <tr>
+          <td>{{ delivery.post.title if delivery.post else '—' }}</td>
+          <td>
+            {% if delivery.status == 'done' %}<span class="badge-green">{{ delivery.status }}</span>
+            {% elif delivery.status == 'failed' %}<span class="badge-red">{{ delivery.status }}</span>
+            {% else %}<span class="badge-slate">{{ delivery.status }}</span>{% endif %}
+          </td>
+          <td>{{ delivery.sent_count }}/{{ delivery.recipients_total }}{% if delivery.failed_count %} ({{ delivery.failed_count }} {{ _('newsletter.failed') }}){% endif %}</td>
+          <td>{{ delivery.created_at|localdatetime }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-slate-500">{{ _('common.none') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

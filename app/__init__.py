@@ -60,12 +60,15 @@ def create_app(config_class=Config):
     from .platform.post_types import register_core_types
     register_core_types()
 
-    from .platform import notify as _notify    # noqa: F401 -- registers job handlers
+    # noqa below: imported for their side effect of registering job handlers.
+    from .platform import notify as _notify              # noqa: F401
+    from .platform import newsletter as _newsletter      # noqa: F401
 
     from .controllers import (main, auth, setup, admin, orgs, cli, manage,
-                              site, posts, members, discussions, notifications)
+                              site, posts, members, discussions,
+                              notifications, newsletter)
     for module in (main, auth, setup, admin, orgs, manage, posts, members,
-                   discussions, notifications, site):
+                   discussions, notifications, newsletter, site):
         app.register_blueprint(module.bp)
     for cli_bp in cli.CLI_BLUEPRINTS:
         app.register_blueprint(cli_bp)

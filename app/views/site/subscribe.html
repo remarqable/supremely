@@ -1,0 +1,26 @@
+{% extends site_layout %}
+
+{% block title %}{{ _('newsletter.subscribe_title') }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md py-10">
+  <div class="card text-center">
+    {% if done %}
+      <h1 class="text-xl font-semibold">
+        {{ _('newsletter.check_inbox') if pending else _('newsletter.subscribed_title') }}</h1>
+      <p class="mt-2 text-slate-600">
+        {{ _('newsletter.check_inbox_body') if pending else _('newsletter.subscribed_body', org=g.org.name) }}</p>
+      <a href="/" class="btn-secondary mt-6">{{ _('errors.home') }}</a>
+    {% else %}
+      <h1 class="text-xl font-semibold">{{ _('newsletter.subscribe_title') }}</h1>
+      <p class="mt-2 text-slate-600">{{ _('newsletter.subscribe_body', org=g.org.name) }}</p>
+      <form method="POST" class="mt-6 flex gap-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="email" name="email" class="input flex-1" required
+               placeholder="you@example.com" aria-label="{{ _('common.email') }}">
+        <button type="submit" class="btn-primary">{{ _('newsletter.subscribe_button') }}</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
