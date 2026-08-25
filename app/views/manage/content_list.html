@@ -17,7 +17,6 @@
     <thead><tr>
       <th>{{ _('manage.page_title') }}</th><th>{{ _('orgs.slug_label') }}</th>
       <th>{{ _('common.status') }}</th><th>{{ _('manage.visibility') }}</th>
-      {% if content_type.is_page %}<th>{{ _('manage.homepage') }}</th>{% endif %}
       <th>{{ _('common.actions') }}</th>
     </tr></thead>
     <tbody>
@@ -31,17 +30,6 @@
           {% else %}<span class="badge-slate">{{ _('manage.draft') }}</span>{% endif %}
         </td>
         <td><span class="badge-slate">{{ _('manage.visibility_' + item.visibility) }}</span></td>
-        {% if content_type.is_page %}
-        <td>
-          <form method="POST" action="{{ url_for('manage.set_homepage', content_id=item.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="text-sm {{ 'font-semibold text-brand-700' if homepage_id == item.id else 'text-slate-600 hover:text-slate-900' }}">
-              {{ '★' if homepage_id == item.id else '☆' }}
-              <span class="sr-only">{{ _('manage.homepage') }}</span>
-            </button>
-          </form>
-        </td>
-        {% endif %}
         <td class="flex gap-3">
           <a href="{{ url_for('manage.preview_content', content_id=item.id) }}" class="text-sm text-slate-600 hover:underline">{{ _('manage.preview') }}</a>
           <form method="POST" action="{{ url_for('manage.delete_content', content_id=item.id) }}">
@@ -51,7 +39,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="text-slate-500">{{ _('manage.no_content', name=content_type.plural|lower) }}</td></tr>
+      <tr><td colspan="5" class="text-slate-500">{{ _('manage.no_content', name=content_type.plural|lower) }}</td></tr>
       {% endfor %}
     </tbody>
   </table>

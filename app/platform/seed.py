@@ -10,24 +10,6 @@ from app.platform.logger import get_logger
 
 log = get_logger()
 
-HOME_BODY = """\
-# Publishing, memberships, and community — on your own terms
-
-**Supremely** is an open-source, multi-tenant platform for publishing,
-memberships, newsletters, and discussions. One codebase serves self-hosted
-installations, third-party hosts, and the official hosted service.
-
-- **Pages are core** — host a complete website, not a community bolted on
-- **Email is optional** — install, publish, and onboard with no SMTP anywhere
-- **Structured content** — verticals emerge through Post Types and plugins,
-  never forks
-- **Presentation is replaceable** — themes restyle everything, content
-  survives
-
-[Read the docs](/docs) · [Join the discussion](/discussions) ·
-[Subscribe](/subscribe)
-"""
-
 ABOUT_BODY = """\
 ## Why Supremely exists
 
@@ -107,7 +89,26 @@ def seed_getsupremely_org():
     org.description = ('The open-source platform for publishing, memberships, '
                        'newsletters, and community.')
     org.brand_primary = '#4f46e5'
+    # Dogfood the marketing theme: getsupremely.org runs on the Supremely
+    # theme, and its home page is that theme's designed landing, filled in
+    # with our own copy via theme-declared content.
+    org.theme = 'supremely'
     org.save()
+    org.update_settings(theme_content={'supremely': {
+        'headline_lead': 'The open-source',
+        'headline_accent': 'community platform.',
+        'subhead': 'A simple home for your members, content, newsletters '
+                   'and discussions.',
+        'primary_label': 'Get Started',
+        'secondary_label': 'View Demo',
+        'secondary_url': '/discussions',
+        'features': [
+            {'title': 'Publish', 'desc': 'Share updates and articles'},
+            {'title': 'Newsletter', 'desc': 'Send beautiful emails'},
+            {'title': 'Discussions', 'desc': 'Connect and talk with your members'},
+            {'title': 'Membership', 'desc': 'Offer access and grow your community'},
+        ],
+    }})
 
     owner_membership = (Membership.query
                         .filter_by(org_id=org.id, role='owner').first())
@@ -120,7 +121,7 @@ def seed_getsupremely_org():
         g.org = org
         g.membership = owner_membership
 
-        def page(slug, title, body, homepage=False):
+        def page(slug, title, body):
             existing = Content.query.filter_by(type='page', slug=slug).first()
             if existing is None:
                 existing = Content(type='page', title=title, slug=slug,
@@ -128,11 +129,8 @@ def seed_getsupremely_org():
                                    created_by_id=owner_id, fields={}, tags=[])
                 existing.save()
             existing.publish()
-            if homepage:
-                org.update_settings(homepage_content_id=existing.id)
             return existing
 
-        home = page('welcome', 'Supremely', HOME_BODY, homepage=True)
         about = page('about', 'About', ABOUT_BODY)
         docs = page('docs', 'Documentation', DOCS_BODY)
 

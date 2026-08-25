@@ -73,12 +73,13 @@ def test_member_only_page_hidden_from_non_member(app, client, acme, globex):
     assert client.get('/inside', base_url=ACME).status_code == 404
 
 
-def test_homepage_designation(app, client, acme, globex):
-    page_id = publish_page(app, acme, slug='welcome', title='Welcome',
-                           body='This is the homepage content.')
-    acme.update_settings(homepage_content_id=page_id)
+def test_home_page_is_theme_hero(app, client, acme, globex):
+    """The home page is the active theme's front page, edited as theme content
+    (Manage → Home page) — not a CMS page. Origin renders an editable hero."""
+    acme.update_settings(theme_content={'origin': {
+        'headline': 'This is the home page.'}})
     response = client.get('/', base_url=ACME)
-    assert b'This is the homepage content.' in response.data
+    assert b'This is the home page.' in response.data
 
 
 def test_navigation_rendered(app, client, acme, globex):

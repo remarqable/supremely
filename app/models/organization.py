@@ -108,11 +108,3 @@ class Organization(BaseModel):
         from .upload import Upload
         upload_id = self.setting('favicon_upload_id')
         return Upload.get_by_id(upload_id) if upload_id else None
-
-    def homepage(self):
-        from .content import Content
-        content_id = self.setting('homepage_content_id')
-        if not content_id:
-            return None
-        page = Content.get_by_id(content_id)
-        return page if page and page.is_published else None

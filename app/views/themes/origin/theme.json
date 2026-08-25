@@ -7,7 +7,7 @@
   "content": {
     "fields": [
       {"key": "headline", "type": "text", "label": "Headline", "max": 100,
-       "hint": "Shown on the home page when no page is set as the homepage. Defaults to your organization name."},
+       "hint": "Shown on your home page. Defaults to your organization name."},
       {"key": "subhead", "type": "textarea", "label": "Subheading", "max": 240,
        "hint": "Defaults to your organization description."},
       {"key": "cta_label", "type": "text", "label": "Button label", "max": 40,

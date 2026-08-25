@@ -3,7 +3,9 @@
 Every fresh organization gets a small, working website modeled on a real
 community-product split:
 
-- External pages: Home (designated homepage), About, FAQ, Contact
+- Home page: the active theme's front page (Origin's hero), editable under
+  Manage → Home page — not a CMS page that can shadow it
+- Pages: About, FAQ, Contact
 - Primary navigation with dropdown groups: Community, Resources, About
 - A grouped footer mirroring the navigation
 - A first post, a General discussion space, and the member directory on
@@ -15,19 +17,10 @@ session that is not db.session), so objects are constructed with known-good
 constants and added directly -- no .save()/validate round-trips.
 """
 
-HOME_BODY = """\
-# Welcome to {name}
-
-A community for people who care about what we're building — publish, discuss,
-and grow together.
-
-- Read the latest on the [blog](/posts)
-- Join the conversation in [discussions](/discussions)
-- Get new posts by email — [subscribe](/subscribe)
-
-*You're looking at the starter homepage. Owners can edit or replace it
-under **Manage → Pages**.*
-"""
+# The default (Origin) home page is a hero; seed friendly copy for it so a
+# fresh site isn't bare. The headline falls back to the org name.
+HOME_SUBHEAD = ("A community for people who care about what we're building — "
+                "publish, discuss, and grow together.")
 
 ABOUT_BODY = """\
 Tell the world what **{name}** is about.
@@ -64,7 +57,7 @@ Hello, world! This is the first post on **{name}**.
 
 Posts support **Markdown**, categories, tags, featured images, and
 member-only visibility. This one was created automatically — edit or delete
-it under **Manage → Posts**, then write something real.
+it under **Manage → Blog**, then write something real.
 
 Happy publishing!
 """
@@ -85,17 +78,19 @@ def seed_default_content(session, org, owner_id=None) -> None:
                        visibility='public', created_by_id=owner_id,
                        seo_description=seo, fields={}, tags=[])
 
-    home = page('home', 'Home', HOME_BODY.format(name=org.name),
-                seo=f'{org.name} — publishing, newsletter, and community.')
     about = page('about', 'About', ABOUT_BODY.format(name=org.name))
     faq = page('faq', 'FAQ', FAQ_BODY.format(name=org.name))
     contact = page('contact', 'Contact', CONTACT_BODY.format(name=org.name))
-    session.add_all([home, about, faq, contact])
-    session.flush()                     # need ids for nav + homepage
+    session.add_all([about, faq, contact])
+    session.flush()                     # need ids for nav links
 
     org.settings = {**(org.settings or {}),
-                    'homepage_content_id': home.id,
-                    'member_directory': True}
+                    'member_directory': True,
+                    # Friendly starter copy for Origin's home-page hero
+                    # (Manage → Home page). Headline defaults to the org name.
+                    'theme_content': {'origin': {
+                        'subhead': HOME_SUBHEAD,
+                        'cta_label': 'Subscribe', 'cta_url': '/subscribe'}}}
 
     def nav(menu, label, position, url=None, content_id=None, parent=None):
         item = NavigationItem(org_id=org.id, menu=menu, label=label, url=url,

@@ -13,13 +13,8 @@
 {% endblock %}
 
 {% block content %}
-{% if page %}
-<article class="prose-supremely">
-  {{ page.html | safe }}
-</article>
-{% else %}
-{# No homepage page set: show the theme's editable hero (Manage → Landing
-   page). Blank fields fall back to the org's own name/description. #}
+{# The home page is the theme's editable hero (Manage → Home page). Blank
+   fields fall back to the org's own name/description. #}
 {% set hero = theme_content() %}
 <div class="py-16 text-center">
   <h1 class="text-4xl font-bold">{{ hero.headline or g.org.name }}</h1>
@@ -31,5 +26,4 @@
   <a href="{{ hero.cta_url or '/subscribe' }}" class="btn-primary mt-6">{{ hero.cta_label }}</a>
   {% endif %}
 </div>
-{% endif %}
 {% endblock %}

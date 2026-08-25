@@ -78,9 +78,8 @@ def test_origin_theme_has_landing_editor_too(client, app, acme, globex):
     from app.platform.theme_content import has_editor
     assert has_editor('origin')
     acme.theme = 'origin'
-    # No homepage page set -> the editable hero shows; blanks fall back to org.
-    acme.update_settings(homepage_content_id=None,
-                         theme_content={'origin': {'headline': 'Hello, Acme'}})
+    # The home page is the theme's hero; blanks fall back to the org.
+    acme.update_settings(theme_content={'origin': {'headline': 'Hello, Acme'}})
     acme.save()
     body = client.get('/', base_url='http://acme.example.test').data
     assert b'Hello, Acme' in body

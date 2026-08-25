@@ -48,9 +48,8 @@ def content_list(type_slug):
     ct = get_content_type(type_slug)
     items = (Content.of_type(type_slug)
              .order_by(Content.created_at.desc()).all())
-    homepage_id = g.org.setting('homepage_content_id')
     return render_template('manage/content_list.html', items=items,
-                           content_type=ct, homepage_id=homepage_id)
+                           content_type=ct)
 
 
 def _content_from_form(content):
@@ -143,8 +142,6 @@ def edit_content(content_id):
 def delete_content(content_id):
     content = _content_or_404(content_id)
     type_slug = content.type
-    if g.org.setting('homepage_content_id') == content.id:
-        g.org.update_settings(homepage_content_id=None)
     content.delete()
     flash(t('manage.content_deleted'), 'success')
     return redirect(url_for('manage.content_list', type_slug=type_slug))
@@ -164,18 +161,6 @@ def preview_content(content_id):
         names = [f'{ct.template}.html', 'single.html']
     return render_site(names, content=content, content_type=ct, post=content,
                        page=content, preview=True)
-
-
-@bp.route('/content/<int:content_id>/homepage', methods=['POST'])
-@org_required
-@require('content.write')
-def set_homepage(content_id):
-    content = _content_or_404(content_id)
-    current = g.org.setting('homepage_content_id')
-    g.org.update_settings(
-        homepage_content_id=None if current == content.id else content.id)
-    flash(t('common.saved'), 'success')
-    return redirect(url_for('manage.content_list', type_slug=content.type))
 
 
 @bp.route('/categories', methods=['GET', 'POST'])

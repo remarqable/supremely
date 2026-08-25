@@ -29,12 +29,9 @@ PER_PAGE = 10
 
 
 def render_org_home():
-    """The organization homepage: the designated page, or the app default."""
-    page = g.org.homepage()
-    if page is not None and page.visible_to_current_visitor():
-        return render_site(
-            ['front-page.html', f'{page.template or "page"}.html', 'page.html'],
-            org=g.org, content=page, page=page)
+    """The organization home page is the active theme's front page, whose copy
+    is theme-declared content (Manage → Home page). One concept, every theme —
+    there is no separate 'homepage' Page that can shadow it."""
     return render_site(['front-page.html'], org=g.org, content=None, page=None)
 
 

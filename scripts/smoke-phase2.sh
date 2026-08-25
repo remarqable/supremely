@@ -55,10 +55,13 @@ curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/content/page/new" \
   --data-urlencode "body=Secret handshake instructions." >/dev/null
 curl -s -b "$JAR" "$BASE/manage/content/page" | grep -q "Team Handbook" && pass "pages created" || fail "pages"
 
-# Homepage designation (find our Welcome page's id; orgs seed starter pages)
-WID=$(curl -s -b "$JAR" "$BASE/manage/content/page" | sed -n 's/.*content\/\([0-9]*\)\/edit">Welcome to Ambient Labs.*/\1/p' | head -1)
-T=$(csrf "$JAR" "$BASE/manage/content/page")
-curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/content/$WID/homepage" -d "csrf_token=$T" >/dev/null
+# The home page is the theme's editable hero — set it via Manage → Home page.
+T=$(csrf "$JAR" "$BASE/manage/landing")
+curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/landing" \
+  --data-urlencode "csrf_token=$T" \
+  --data-urlencode "headline=Software that breathes" \
+  --data-urlencode "subhead=Ambient Labs builds calm technology." \
+  --data-urlencode "cta_label=Join us" --data-urlencode "cta_url=/subscribe" >/dev/null
 
 # Navigation (primary nav is seeded; add a footer link of our own)
 T=$(csrf "$JAR" "$BASE/manage/navigation")
@@ -73,11 +76,14 @@ curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/settings" \
 
 # --- The completion test: an anonymous visitor sees a real website -----------
 HOME=$(curl -s -c "$ANON" "$BASE/")
-echo "$HOME" | grep -q "Software that breathes" && pass "homepage is the designated page" || fail "homepage"
+echo "$HOME" | grep -q "Software that breathes" && pass "home page hero renders" || fail "homepage"
 echo "$HOME" | grep -q 'href="/blog"' && pass "primary navigation rendered (seeded)" || fail "nav"
 echo "$HOME" | grep -q "example.com/privacy" && pass "footer navigation rendered" || fail "footer"
 echo "$HOME" | grep -q "#0e7490" && pass "brand color applied" || fail "brand"
-echo "$HOME" | grep -q "<strong>calm technology</strong>" && pass "markdown rendered" || fail "markdown"
+
+# Markdown renders on a content page
+WELCOME=$(curl -s -b "$ANON" "$BASE/welcome")
+echo "$WELCOME" | grep -q "<strong>calm technology</strong>" && pass "markdown rendered" || fail "markdown"
 
 ABOUT=$(curl -s -b "$ANON" "$BASE/story")
 echo "$ABOUT" | grep -q "The garage was nice" && pass "story page renders" || fail "story"
@@ -98,7 +104,8 @@ curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/manage/settings" \
 THEMED=$(curl -s "$BASE/")
 echo "$THEMED" | grep -q "bg-slate-950" && pass "midnight theme layout active" || fail "theme layout"
 echo "$THEMED" | grep -q "#f59e0b" && pass "theme setting applied" || fail "theme setting"
-echo "$THEMED" | grep -q "Software that breathes" && pass "content survives theme switch" || fail "content/theme"
+# Pages are theme-independent content and still render after a theme switch
+curl -s "$BASE/story" | grep -q "The garage was nice" && pass "content survives theme switch" || fail "content/theme"
 curl -s "$BASE/themes/midnight/static/theme.css" | grep -q "midnight-accent" && pass "theme asset served" || fail "asset"
 
 echo ""
