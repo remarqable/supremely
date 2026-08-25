@@ -86,7 +86,7 @@
       <div class="flex-1">
         <label for="to" class="label">{{ _('common.email') }}</label>
         <input type="email" id="to" name="to" class="input mt-1"
-               value="{{ current_user.email }}">
+               value="{{ current_user.email if current_user.is_emailable else '' }}">
       </div>
       <button type="submit" class="btn-secondary">{{ _('admin.send_test_email') }}</button>
     </form>

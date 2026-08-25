@@ -29,13 +29,27 @@ class User(BaseModel, UserMixin):
 
     MIN_PASSWORD_LENGTH = 8
 
+    EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+    # The one account the first-boot wizard creates, so an installation is
+    # usable before any SMTP exists. It is the single value allowed to sit in
+    # the identity column without being an address; everyone else must be
+    # reachable, because invitations, newsletters and notifications are all
+    # delivered by email.
+    #
+    # Keyed on the VALUE, not on is_platform_admin: tying it to the privilege
+    # would let any admin be created with a bare username, and would make this
+    # very account fail validation the moment it is demoted.
+    INSTALL_ADMIN_USERNAME = 'admin'
+
     def validate(self):
         self.email = self.email.strip().lower() if self.email else ''
         self.name = self.name.strip() if self.name else ''
 
         if not self.email:
             raise ValidationError('Email is required')
-        if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', self.email):
+        if not (self.email == self.INSTALL_ADMIN_USERNAME
+                or self.EMAIL_RE.match(self.email)):
             raise ValidationError('Invalid email format')
         if len(self.email) > 255:
             raise ValidationError('Email too long')
@@ -48,6 +62,16 @@ class User(BaseModel, UserMixin):
         existing = User.query.filter_by(email=self.email).first()
         if existing and existing.id != self.id:
             raise ValidationError('Email already registered')
+
+    @property
+    def is_emailable(self) -> bool:
+        """Whether this account has an address anything can be sent to.
+
+        False for the installation administrator, whose identity is a
+        username. Senders must check this rather than assume the identity
+        column holds a deliverable address.
+        """
+        return bool(self.email) and bool(self.EMAIL_RE.match(self.email))
 
     def set_password(self, password: str) -> None:
         if not password or len(password) < self.MIN_PASSWORD_LENGTH:

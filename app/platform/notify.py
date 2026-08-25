@@ -93,6 +93,11 @@ def deliver_notification_email(payload: dict) -> None:
     user = db.session.get(User, notification.user_id)
     if user is None or not user.is_active:
         return
+    # The installation administrator signs in with a username, not an address
+    # (see User.INSTALL_ADMIN_USERNAME). Handing that to smtplib raises, which
+    # would fail the job and burn its retries on every notification.
+    if not user.is_emailable:
+        return
 
     data = notification.payload or {}
     subject = f"[{data.get('title', 'Notification')}]"

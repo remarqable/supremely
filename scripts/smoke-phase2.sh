@@ -24,9 +24,7 @@ for i in $(seq 1 30); do curl -s "$BASE/health" >/dev/null 2>&1 && break; sleep 
 # Install with one org; wizard leaves us logged in as the admin/owner.
 T=$(csrf "$JAR" "$BASE/setup/environment")
 curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/environment" -d "csrf_token=$T&name=Smoke&base_url=$BASE&timezone=UTC&language=en" >/dev/null
-T=$(csrf "$JAR" "$BASE/setup/database"); curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/database" -d "csrf_token=$T&engine=sqlite" >/dev/null
-T=$(csrf "$JAR" "$BASE/setup/admin"); curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/admin" -d "csrf_token=$T&email=admin@smoke.test&password=smoke-secret-1&confirm_password=smoke-secret-1" >/dev/null
-T=$(csrf "$JAR" "$BASE/setup/email"); curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/email" -d "csrf_token=$T&skip=1" >/dev/null
+T=$(csrf "$JAR" "$BASE/setup/admin"); curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/admin" -d "csrf_token=$T&password=smoke-secret-1&confirm_password=smoke-secret-1" >/dev/null
 T=$(csrf "$JAR" "$BASE/setup/organization")
 curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/organization" -d "csrf_token=$T&name=Ambient Labs&slug=ambient" | grep -q "Installation complete" \
   && pass "installed with org" || fail "install"

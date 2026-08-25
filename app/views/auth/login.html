@@ -12,9 +12,11 @@
     <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
 
     <div>
-      <label for="email" class="label">{{ _('auth.email_label') }}</label>
-      <input type="email" id="email" name="email" class="input mt-1" required
-             autocomplete="email" autofocus>
+      <label for="email" class="label">{{ _('auth.login_identifier_label') }}</label>
+      {# Not type=email: the platform admin signs in as "admin", which the
+         browser's built-in validation would reject before submit. #}
+      <input type="text" id="email" name="email" class="input mt-1" required
+             autocomplete="username" autofocus>
     </div>
 
     <div>

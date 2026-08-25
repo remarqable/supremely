@@ -78,3 +78,26 @@ def test_cli_password_reset(runner, user):
     assert 'New password' in result.output
     new_password = result.output.split(':', 1)[1].split()[0]
     assert user.check_password(new_password)
+
+
+def test_installation_admin_signs_in_with_its_username(client, app):
+    """The account the first-boot wizard creates has no email address, so the
+    login form must accept a bare username end to end."""
+    from app.models import User
+
+    User.create(email=User.INSTALL_ADMIN_USERNAME, name='Admin',
+                password=PASSWORD, is_platform_admin=True)
+
+    response = client.post('/auth/login', data={
+        'email': User.INSTALL_ADMIN_USERNAME, 'password': PASSWORD})
+    assert response.status_code == 302
+
+    with client.session_transaction() as session:
+        assert session.get('_user_id') is not None
+
+
+def test_login_form_does_not_constrain_input_to_an_email(client, app):
+    """type=email would make the browser reject the administrator username
+    before the request is ever sent."""
+    body = client.get('/auth/login').data
+    assert b'type="email"' not in body

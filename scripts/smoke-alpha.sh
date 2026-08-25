@@ -28,9 +28,7 @@ curl -s "$BASE/health" | grep -q '"ok"' && pass "server up (docker compose up eq
 # --- complete wizard -----------------------------------------------------------
 T=$(csrf "$OWNER" "$BASE/setup/environment")
 curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/setup/environment" -d "csrf_token=$T&name=Alpha Install&base_url=$BASE&timezone=UTC&language=en" >/dev/null
-T=$(csrf "$OWNER" "$BASE/setup/database"); curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/setup/database" -d "csrf_token=$T&engine=sqlite" >/dev/null
-T=$(csrf "$OWNER" "$BASE/setup/admin"); curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/setup/admin" -d "csrf_token=$T&email=alpha@test.dev&password=alpha-secret-99&confirm_password=alpha-secret-99" >/dev/null
-T=$(csrf "$OWNER" "$BASE/setup/email"); curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/setup/email" -d "csrf_token=$T&skip=1" >/dev/null
+T=$(csrf "$OWNER" "$BASE/setup/admin"); curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/setup/admin" -d "csrf_token=$T&password=alpha-secret-99&confirm_password=alpha-secret-99" >/dev/null
 T=$(csrf "$OWNER" "$BASE/setup/organization")
 curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/setup/organization" -d "csrf_token=$T&skip=1" | grep -q "Installation complete" \
   && pass "wizard completed" || fail "wizard"

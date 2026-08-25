@@ -1,10 +1,12 @@
 """First-run installation wizard.
 
-Bootstrap model (spec § 4): the app always boots on SQLite with safe
-defaults; the wizard collects configuration in the session and applies it in
-one final step. Choosing PostgreSQL writes DATABASE_URL to data/config.env,
-migrates the new database, seeds it, and asks for a restart. Nothing here
-requires outbound email.
+Three steps: environment, administrator, first organization.
+
+The wizard does not choose a database engine. Configuration resolves that
+before the app boots (app/config.py) and the schema is migrated before the
+first request, so every step here writes to the database already in use.
+Outbound email is configured later in Administration -> Settings; nothing in
+this flow requires it.
 """
 
 import json
@@ -15,9 +17,9 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-import sqlalchemy as sa
 from flask import (Blueprint, current_app, flash, redirect, render_template,
                    request, session, url_for)
+from flask.typing import ResponseReturnValue
 from flask_login import login_user
 
 from app.extensions import db
@@ -25,13 +27,18 @@ from app.models import Organization, User
 from app.platform.config_store import mark_installed, write_runtime_config
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
-from app.platform.install import migrate_and_seed_postgres, seed_installation
+from app.platform.install import seed_installation
 from app.platform.logger import get_logger
 
 bp = Blueprint('setup', __name__, url_prefix='/setup')
 log = get_logger()
 
-STEPS = ('environment', 'database', 'admin', 'email', 'organization')
+# The identity itself is a domain rule and lives on the model; the wizard
+# only decides that this is the account it creates.
+ADMIN_USERNAME = User.INSTALL_ADMIN_USERNAME
+
+# Starting points, not constraints: both fields stay editable.
+DEFAULT_ORG = {'name': 'Our community', 'slug': 'our-community'}
 
 COMMON_TIMEZONES = (
     'UTC', 'America/New_York', 'America/Chicago', 'America/Denver',
@@ -42,9 +49,9 @@ COMMON_TIMEZONES = (
 )
 
 
-# Wizard state (admin password, DB password, SMTP password) is kept
-# SERVER-SIDE in a scratch file on the data volume, never in the signed-but-
-# unencrypted session cookie. The session holds only an opaque handle.
+# Wizard state (the administrator password) is kept SERVER-SIDE in a scratch
+# file on the data volume, never in the signed-but-unencrypted session cookie.
+# The session holds only an opaque handle.
 def _scratch_path(handle: str) -> Path:
     safe = re.sub(r'[^a-f0-9]', '', handle)[:64]
     return Path(current_app.config['DATA_DIR']) / f'.wizard-{safe}.json'
@@ -83,12 +90,12 @@ def _clear_state() -> None:
 
 
 @bp.route('/')
-def index():
+def index() -> ResponseReturnValue:
     return render_template('setup/welcome.html')
 
 
 @bp.route('/environment', methods=['GET', 'POST'])
-def environment():
+def environment() -> ResponseReturnValue:
     state = _state()
     if request.method == 'POST':
         name = request.form.get('name', '').strip() or 'Supremely'
@@ -105,7 +112,7 @@ def environment():
                 'language': language, 'base_domain': parsed.hostname,
             }
             _save_state(state)
-            return redirect(url_for('setup.database'))
+            return redirect(url_for('setup.admin'))
 
     defaults = state.get('environment', {
         'name': 'Supremely', 'base_url': request.url_root.rstrip('/'),
@@ -115,106 +122,32 @@ def environment():
                            timezones=COMMON_TIMEZONES, step='environment')
 
 
-@bp.route('/database', methods=['GET', 'POST'])
-def database():
-    state = _state()
-    if request.method == 'POST':
-        engine = request.form.get('engine', 'sqlite')
-        if engine == 'sqlite':
-            state['database'] = {'engine': 'sqlite'}
-            _save_state(state)
-            return redirect(url_for('setup.admin'))
-
-        host = request.form.get('host', 'localhost').strip()
-        port = request.form.get('port', '5432').strip() or '5432'
-        dbname = request.form.get('dbname', '').strip()
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-
-        if not (host and dbname and username):
-            flash(t('setup.postgres_fields_required'), 'error')
-        elif not port.isdigit():
-            flash(t('setup.postgres_fields_required'), 'error')
-        else:
-            # URL.create percent-encodes every component, so special
-            # characters in the password/username cannot re-point the host or
-            # inject libpq connection parameters. Never f-string a DSN.
-            url = sa.engine.URL.create(
-                'postgresql+psycopg', username=username, password=password,
-                host=host, port=int(port), database=dbname,
-            ).render_as_string(hide_password=False)
-            ok, error = _test_connection(url)
-            if ok:
-                state['database'] = {'engine': 'postgres', 'url': url}
-                _save_state(state)
-                flash(t('setup.connection_ok'), 'success')
-                return redirect(url_for('setup.admin'))
-            flash(t('setup.connection_failed', error=error), 'error')
-
-    return render_template('setup/database.html', step='database',
-                           defaults=state.get('database', {}))
-
-
-def _test_connection(url: str) -> tuple[bool, str]:
-    try:
-        engine = sa.create_engine(url, connect_args={'connect_timeout': 5})
-        with engine.connect() as conn:
-            conn.execute(sa.text('SELECT 1'))
-        engine.dispose()
-        return True, ''
-    except Exception as e:      # noqa: BLE001 -- surface any driver error to the operator
-        return False, str(e)
-
-
 @bp.route('/admin', methods=['GET', 'POST'])
-def admin():
+def admin() -> ResponseReturnValue:
     state = _state()
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
+        # The username is not read from the form: it is fixed for every
+        # installation, so a tampered field cannot change it.
         password = request.form.get('password', '')
         confirm = request.form.get('confirm_password', '')
 
-        if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
-            flash(t('setup.invalid_email'), 'error')
-        elif len(password) < User.MIN_PASSWORD_LENGTH:
+        if len(password) < User.MIN_PASSWORD_LENGTH:
             flash(t('setup.password_too_short', n=User.MIN_PASSWORD_LENGTH), 'error')
         elif password != confirm:
             flash(t('auth.passwords_do_not_match'), 'error')
         else:
-            state['admin'] = {'email': email, 'password': password}
+            state['admin'] = {'email': ADMIN_USERNAME, 'password': password}
             _save_state(state)
-            return redirect(url_for('setup.email'))
+            return redirect(url_for('setup.organization'))
 
     return render_template('setup/admin.html', step='admin',
-                           defaults=state.get('admin', {}))
-
-
-@bp.route('/email', methods=['GET', 'POST'])
-def email():
-    state = _state()
-    if request.method == 'POST':
-        if request.form.get('skip'):
-            state['email'] = {}
-        else:
-            state['email'] = {
-                'smtp_host': request.form.get('smtp_host', '').strip(),
-                'smtp_port': request.form.get('smtp_port', '587').strip(),
-                'smtp_username': request.form.get('smtp_username', '').strip(),
-                'smtp_password': request.form.get('smtp_password', ''),
-                'from_address': request.form.get('from_address', '').strip(),
-                'use_tls': 'true' if request.form.get('use_tls', 'on') == 'on' else 'false',
-            }
-        _save_state(state)
-        return redirect(url_for('setup.organization'))
-
-    return render_template('setup/email.html', step='email',
-                           defaults=state.get('email', {}))
+                           username=ADMIN_USERNAME)
 
 
 @bp.route('/organization', methods=['GET', 'POST'])
-def organization():
+def organization() -> ResponseReturnValue:
     state = _state()
-    if not all(k in state for k in ('environment', 'database', 'admin')):
+    if not all(k in state for k in ('environment', 'admin')):
         flash(t('setup.incomplete'), 'error')
         return redirect(url_for('setup.environment'))
 
@@ -224,16 +157,11 @@ def organization():
         else:
             name = request.form.get('name', '').strip()
             slug = request.form.get('slug', '').strip().lower()
-            probe = Organization(name=name, slug=slug)
             try:
-                # Validate format only; existence checks are meaningless on a
-                # fresh install and the DB may be the not-yet-active postgres.
-                if not name:
-                    raise ValidationError('Organization name is required')
-                if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?', slug):
-                    raise ValidationError('Slug must be 3-63 chars: a-z, 0-9 and hyphens')
-                if slug in Organization.RESERVED_SLUGS:
-                    raise ValidationError('That slug is reserved')
+                # The model owns these rules. Re-stating them here let a name
+                # longer than the column through, which is silent on SQLite
+                # and aborts the install mid-write on PostgreSQL.
+                Organization(name=name, slug=slug).validate()
             except ValidationError as e:
                 flash(e.message, 'error')
                 return render_template('setup/organization.html', step='organization',
@@ -243,42 +171,31 @@ def organization():
         return _apply(state)
 
     return render_template('setup/organization.html', step='organization',
-                           defaults=state.get('organization', {}))
+                           defaults=state.get('organization') or DEFAULT_ORG)
 
 
-def _apply(state: dict):
+def _apply(state: dict) -> ResponseReturnValue:
+    """Seed the database the app is already running on.
+
+    The wizard does not choose an engine. Configuration resolves the database
+    before the app boots (see app/config.py): SQLite on the data volume by
+    default, or whatever DATABASE_URL points at when an operator sets one. By
+    the time this runs the schema is already migrated, so there is a single
+    path here regardless of engine.
+    """
     app = current_app
     env = state['environment']
-    database = state['database']
-    postgres = database.get('engine') == 'postgres'
 
     # SECRET_KEY is self-managed by config._resolve_secret_key (persisted on
     # the data volume); the wizard no longer touches it.
-    config_updates = {
-        'BASE_DOMAIN': env['base_domain'],
-    }
+    write_runtime_config(app, {'BASE_DOMAIN': env['base_domain']})
 
-    if postgres:
-        config_updates['DATABASE_URL'] = database['url']
-        write_runtime_config(app, config_updates)
-        ok, error = migrate_and_seed_postgres(database['url'], state)
-        if not ok:
-            flash(t('setup.postgres_apply_failed', error=error), 'error')
-            return redirect(url_for('setup.database'))
-        mark_installed(app)
-        _clear_state()
-        log.info('installation_complete', database='postgres')
-        return render_template('setup/done.html', restart_required=True)
-
-    # SQLite: the running database is already the real one.
-    write_runtime_config(app, config_updates)
     admin_user = seed_installation(db.session, state)
     mark_installed(app)
     _clear_state()
 
     session.clear()
     login_user(admin_user, remember=True)
-    log.info('installation_complete', database='sqlite')
-    return render_template('setup/done.html', restart_required=False,
-                           org=state.get('organization') or None)
-
+    log.info('installation_complete',
+             database='postgres' if app.config['IS_POSTGRES'] else 'sqlite')
+    return render_template('setup/done.html')

@@ -342,7 +342,14 @@ def settings():
 
 @bp.route('/settings/test-email', methods=['POST'])
 def test_email():
-    to = request.form.get('to', '').strip() or current_user.email
+    # The installation administrator signs in with a username, so
+    # current_user.email is not always an address worth defaulting to.
+    to = request.form.get('to', '').strip()
+    if not to and current_user.is_emailable:
+        to = current_user.email
+    if not to:
+        flash(t('admin.test_email_needs_address'), 'error')
+        return redirect(url_for('admin.settings'))
     try:
         send_email(to, 'Supremely test email',
                    'Email delivery from your Supremely installation works.')

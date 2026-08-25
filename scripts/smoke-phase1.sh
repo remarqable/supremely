@@ -37,13 +37,9 @@ curl -s "$BASE/health" | grep -q '"ok"' && pass "server up" || fail "server did 
 T=$(csrf "$JAR" "$BASE/setup/environment")
 curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/environment" \
   -d "csrf_token=$T&name=Smoke Install&base_url=http://localhost:$PORT&timezone=UTC&language=en" >/dev/null
-T=$(csrf "$JAR" "$BASE/setup/database")
-curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/database" -d "csrf_token=$T&engine=sqlite" >/dev/null
 T=$(csrf "$JAR" "$BASE/setup/admin")
 curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/admin" \
-  -d "csrf_token=$T&email=admin@smoke.test&password=smoke-secret-1&confirm_password=smoke-secret-1" >/dev/null
-T=$(csrf "$JAR" "$BASE/setup/email")
-curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/email" -d "csrf_token=$T&skip=1" >/dev/null
+  -d "csrf_token=$T&password=smoke-secret-1&confirm_password=smoke-secret-1" >/dev/null
 T=$(csrf "$JAR" "$BASE/setup/organization")
 DONE=$(curl -s -c "$JAR" -b "$JAR" -X POST "$BASE/setup/organization" \
   -d "csrf_token=$T&name=Acme Community&slug=acme")
