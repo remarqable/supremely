@@ -1,0 +1,16 @@
+{
+  "slug": "supremely",
+  "name": "Supremely",
+  "version": "1.0.0",
+  "author": "Supremely",
+  "extends": "origin",
+  "overrides": ["layout.html", "header.html", "footer.html", "front-page.html"],
+  "description": "The Supremely marketing theme. A warm, product-forward landing page for the open-source community platform.",
+  "settings": {
+    "accent": {
+      "type": "color",
+      "label": "Accent color",
+      "default": "#8b5cf6"
+    }
+  }
+}

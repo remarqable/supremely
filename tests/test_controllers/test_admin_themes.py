@@ -25,6 +25,24 @@ def test_builtin_themes_scanned(app):
     assert AVAILABLE_THEMES['origin']['source'] == 'builtin'
     assert 'midnight' in AVAILABLE_THEMES
     assert AVAILABLE_THEMES['midnight']['source'] == 'builtin'
+    assert 'supremely' in AVAILABLE_THEMES
+    assert AVAILABLE_THEMES['supremely']['source'] == 'builtin'
+
+
+def test_supremely_marketing_theme_renders(client, app, acme, globex):
+    """The Supremely marketing theme paints the bespoke landing page —
+    gradient headline, feature strip, and the product mockup — on the
+    bare-domain home, falling back to Origin for parts it doesn't override."""
+    acme.theme = 'supremely'
+    acme.save()
+    response = client.get('/', base_url='http://acme.example.test')
+    assert response.status_code == 200
+    body = response.data
+    assert b'The open-source' in body
+    assert b'sup-gradient' in body                      # gradient headline
+    assert b'themes/supremely/static/theme.css' in body  # ships its own CSS
+    assert b'Welcome to our new home' in body           # product mockup
+    assert b'Upcoming Event' in body
 
 
 def test_install_theme(admin_client, app):

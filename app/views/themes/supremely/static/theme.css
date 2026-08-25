@@ -1,0 +1,33 @@
+/* Supremely marketing theme.
+   Utility classes carry most of the design; this file holds only the few
+   things that read better as declarations: the warm page canvas, font
+   smoothing, and the [x-cloak] guard for the header dropdowns. */
+
+body.supremely {
+  background-color: #f6f5f1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.supremely [x-cloak] { display: none !important; }
+
+/* Gradient headline — kept here so the exact stops don't depend on the
+   Tailwind palette shipping violet-400/500 at these values. */
+.sup-gradient {
+  background-image: linear-gradient(90deg, #a78bfa 0%, #8b5cf6 55%, #7c5cf9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* The product mockup fades into the page at its bottom edge, as in the
+   marketing shot. */
+.sup-mockup-fade::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 6rem;
+  background: linear-gradient(to bottom, rgba(246, 245, 241, 0), #f6f5f1);
+  pointer-events: none;
+}

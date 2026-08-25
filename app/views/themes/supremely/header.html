@@ -1,0 +1,38 @@
+{# Supremely marketing header: brand mark, centered product nav, primary CTA.
+   The nav links are the theme's identity; swap them for nav_items('primary')
+   if this theme is ever reused for a nav-driven site. #}
+{% set get_started = url_for('orgs.dashboard') if (current_user.is_authenticated and is_org_member()) else url_for('auth.login') %}
+<header class="sticky top-0 z-40 border-b border-black/5 bg-[#f6f5f1]/85 backdrop-blur">
+  <div class="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4">
+    <a href="/" class="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+      {% set logo = g.org.logo() %}
+      {% if logo %}
+      <img src="{{ logo.url('thumb') }}" alt="" class="h-8 w-8 rounded-lg object-cover">
+      {% else %}
+      <span class="grid h-8 w-8 place-items-center rounded-lg bg-[#14161a] text-sm font-bold text-white">S</span>
+      {% endif %}
+      <span>{{ g.org.name or 'Supremely' }}</span>
+    </a>
+
+    <nav class="ms-auto hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex"
+         aria-label="{{ _('site.primary_nav') }}">
+      <a href="/features" class="transition-colors hover:text-[#14161a]">Features</a>
+      <a href="/pricing" class="transition-colors hover:text-[#14161a]">Pricing</a>
+      <a href="/docs" class="transition-colors hover:text-[#14161a]">Docs</a>
+      <a href="/blog" class="transition-colors hover:text-[#14161a]">Blog</a>
+      <a href="https://github.com/remarqable/supremely" rel="noopener"
+         class="inline-flex items-center gap-1 transition-colors hover:text-[#14161a]">
+        GitHub
+        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M7 17 17 7M8 7h9v9"/>
+        </svg>
+      </a>
+    </nav>
+
+    <a href="{{ get_started }}"
+       class="ms-auto rounded-lg bg-[#14161a] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black md:ms-0">
+      {{ _('site.get_started') }}
+    </a>
+  </div>
+</header>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ g.org.name }}{% endblock %}</title>
+  {% block meta %}
+  {% if g.org.description %}<meta name="description" content="{{ g.org.description }}">{% endif %}
+  {% endblock %}
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  <link href="{{ theme_asset('theme.css') }}" rel="stylesheet">
+  {% set favicon = g.org.favicon() %}
+  {% if favicon %}<link rel="icon" href="{{ favicon.url('original') }}">{% endif %}
+  <style>
+    :root {
+      {% if theme_settings.accent %}--sup-accent: {{ theme_settings.accent }};{% endif %}
+      {% if g.org.brand_primary %}
+      --color-brand-500: {{ g.org.brand_primary }};
+      --color-brand-600: {{ g.org.brand_primary }};
+      --color-brand-700: {{ g.org.brand_primary }};
+      {% endif %}
+    }
+  </style>
+  <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="supremely min-h-screen font-sans text-[#14161a]">
+
+{% include themed('header.html') %}
+
+{# Full-bleed pages (the front page) override `main`; ordinary content pages
+   define `content` and get a comfortable reading column. #}
+{% block main %}
+<main class="mx-auto max-w-3xl px-6 py-14">
+  {% include 'partials/_flash.html' %}
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}
+
+{% include themed('footer.html') %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

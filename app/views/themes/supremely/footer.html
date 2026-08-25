@@ -1,0 +1,65 @@
+{# Supremely marketing footer. Link columns come from the org's footer menu
+   when present; a tasteful brand block always anchors the start. #}
+<footer class="mt-24 border-t border-black/5">
+  <div class="mx-auto max-w-6xl px-6 py-12">
+    <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="max-w-xs">
+        <div class="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+          {% set logo = g.org.logo() %}
+          {% if logo %}
+          <img src="{{ logo.url('thumb') }}" alt="" class="h-7 w-7 rounded-lg object-cover">
+          {% else %}
+          <span class="grid h-7 w-7 place-items-center rounded-lg bg-[#14161a] text-xs font-bold text-white">S</span>
+          {% endif %}
+          {{ g.org.name or 'Supremely' }}
+        </div>
+        <p class="mt-3 text-sm leading-relaxed text-slate-500">
+          {{ g.org.description or _('site.tagline') }}.
+        </p>
+      </div>
+
+      {% set footer_groups = nav_items('footer') | selectattr('is_group') | list %}
+      {% if footer_groups %}
+        {% for group in footer_groups %}
+        <nav aria-label="{{ group.label }}">
+          <div class="mb-3 text-sm font-semibold text-[#14161a]">{{ group.label }}</div>
+          <ul class="space-y-2">
+            {% for child in group.children %}
+            <li><a href="{{ child.href }}" class="text-sm text-slate-500 transition-colors hover:text-[#14161a]">{{ child.label }}</a></li>
+            {% endfor %}
+          </ul>
+        </nav>
+        {% endfor %}
+      {% else %}
+        <nav aria-label="Product">
+          <div class="mb-3 text-sm font-semibold text-[#14161a]">Product</div>
+          <ul class="space-y-2 text-sm text-slate-500">
+            <li><a href="/features" class="transition-colors hover:text-[#14161a]">Features</a></li>
+            <li><a href="/pricing" class="transition-colors hover:text-[#14161a]">Pricing</a></li>
+            <li><a href="/discussions" class="transition-colors hover:text-[#14161a]">Community</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Resources">
+          <div class="mb-3 text-sm font-semibold text-[#14161a]">Resources</div>
+          <ul class="space-y-2 text-sm text-slate-500">
+            <li><a href="/docs" class="transition-colors hover:text-[#14161a]">Docs</a></li>
+            <li><a href="/blog" class="transition-colors hover:text-[#14161a]">Blog</a></li>
+            <li><a href="/subscribe" class="transition-colors hover:text-[#14161a]">Newsletter</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Company">
+          <div class="mb-3 text-sm font-semibold text-[#14161a]">Company</div>
+          <ul class="space-y-2 text-sm text-slate-500">
+            <li><a href="/about" class="transition-colors hover:text-[#14161a]">About</a></li>
+            <li><a href="https://github.com/remarqable/supremely" rel="noopener" class="transition-colors hover:text-[#14161a]">GitHub</a></li>
+          </ul>
+        </nav>
+      {% endif %}
+    </div>
+
+    <div class="mt-10 flex flex-wrap items-center gap-4 border-t border-black/5 pt-6 text-sm text-slate-500">
+      <span>&copy; {{ g.org.name or 'Supremely' }}</span>
+      <span class="ms-auto">Powered by {{ installation_name }}</span>
+    </div>
+  </div>
+</footer>
