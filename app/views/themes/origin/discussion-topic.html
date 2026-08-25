@@ -4,23 +4,7 @@
 
 {% macro reaction_bar(target_type, target_id) %}
 {% set counts = reactions[target_type].get(target_id, {}) if target_type == 'reply' else reactions['topic'] %}
-<div class="mt-2 flex items-center gap-1">
-  {% for emoji in emoji_set %}
-  {% if can('discuss') %}
-  <form method="POST" action="/discussions/react" class="inline">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="target_type" value="{{ target_type }}">
-    <input type="hidden" name="target_id" value="{{ target_id }}">
-    <input type="hidden" name="emoji" value="{{ emoji }}">
-    <button type="submit" class="rounded-full px-2 py-0.5 text-sm ring-1 ring-slate-200 hover:ring-brand-500">
-      {{ emoji }}{% if counts.get(emoji) %} {{ counts.get(emoji) }}{% endif %}
-    </button>
-  </form>
-  {% elif counts.get(emoji) %}
-  <span class="rounded-full px-2 py-0.5 text-sm ring-1 ring-slate-200">{{ emoji }} {{ counts.get(emoji) }}</span>
-  {% endif %}
-  {% endfor %}
-</div>
+{% include 'partials/_reaction_bar.html' %}
 {% endmacro %}
 
 {% macro reply_form(parent_id=None) %}
@@ -78,7 +62,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="target_type" value="reply">
       <input type="hidden" name="target_id" value="{{ reply.id }}">
-      <button type="submit" class="text-slate-400 hover:text-slate-600">{{ _('discussions.flag') }}</button>
+      <button type="submit" class="text-slate-600 hover:text-slate-900">{{ _('discussions.flag') }}</button>
     </form>
     {% endif %}
   </div>
@@ -149,7 +133,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="target_type" value="topic">
       <input type="hidden" name="target_id" value="{{ topic.id }}">
-      <button type="submit" class="text-slate-400 hover:text-slate-600">{{ _('discussions.flag') }}</button>
+      <button type="submit" class="text-slate-600 hover:text-slate-900">{{ _('discussions.flag') }}</button>
     </form>
     {% endif %}
   </div>

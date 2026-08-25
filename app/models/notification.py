@@ -42,13 +42,19 @@ class Notification(OrgScoped, BaseModel):
                 .order_by(cls.created_at.desc()).limit(limit).all())
 
     @classmethod
-    def mark_all_read(cls, user_id: int) -> None:
+    def mark_all_read(cls, user_id: int, org_id: int) -> None:
+        # Bulk UPDATE bypasses the do_orm_execute read filter, so scope by
+        # org_id explicitly. unscoped() signals to the tenant guard that
+        # scoping is handled here (both user_id AND org_id are pinned).
         import sqlalchemy as sa
-        db.session.execute(
-            sa.update(cls)
-            .where(cls.user_id == user_id, cls.read_at.is_(None))
-            .values(read_at=utcnow()))
-        db.session.commit()
+        from app.platform.tenant import unscoped
+        with unscoped():
+            db.session.execute(
+                sa.update(cls)
+                .where(cls.user_id == user_id, cls.org_id == org_id,
+                       cls.read_at.is_(None))
+                .values(read_at=utcnow()))
+            db.session.commit()
 
     @classmethod
     def notify(cls, *, user_id: int, org_id: int, type: str,

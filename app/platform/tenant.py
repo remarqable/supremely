@@ -138,14 +138,39 @@ def org_url(org, path: str = '/') -> str:
 
 # --- Safe-by-default scoping ------------------------------------------------
 
+def _targets_org_scoped(statement) -> bool:
+    """True if a bulk UPDATE/DELETE targets an OrgScoped model."""
+    entity = getattr(statement, 'entity_description', None)
+    if entity and isinstance(entity.get('entity'), type) \
+            and issubclass(entity['entity'], OrgScoped):
+        return True
+    table = getattr(statement, 'table', None)
+    if table is not None:
+        mapped = getattr(table, '_annotations', {}).get('parententity', None)
+        cls = getattr(mapped, 'class_', None)
+        if isinstance(cls, type) and issubclass(cls, OrgScoped):
+            return True
+    return False
+
+
 @event.listens_for(Session, 'do_orm_execute')
 def _apply_tenant_filter(state):
-    if not state.is_select or state.is_column_load or state.is_relationship_load:
-        return
     if state.session.info.get('unscoped'):
         return
     if not has_request_context():
         return                      # CLI, migrations, workers: use unscoped()
+
+    # Bulk UPDATE/DELETE cannot be transparently scoped by loader criteria and
+    # bypasses before_flush, so it must not be issued unscoped against an
+    # OrgScoped model from a request. Fail loudly rather than cross tenants.
+    if (state.is_update or state.is_delete) and not state.is_select \
+            and _targets_org_scoped(state.statement):
+        raise RuntimeError(
+            'Bulk UPDATE/DELETE on an OrgScoped model must filter org_id '
+            'explicitly (or run under unscoped()).')
+
+    if not state.is_select or state.is_column_load or state.is_relationship_load:
+        return
 
     org = getattr(g, 'org', None)
     if org is None:

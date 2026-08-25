@@ -1,8 +1,17 @@
 #!/bin/sh
 set -e
 mkdir -p "$DATA_DIR"
-flask db upgrade
+
 if [ "$1" = "worker" ]; then
+    # The web container owns migrations (single migrator). The worker waits
+    # until the schema is present rather than racing the same upgrade.
+    until flask db current >/dev/null 2>&1; do
+        echo "worker: waiting for database migrations..."
+        sleep 2
+    done
     exec flask jobs run
 fi
+
+# Web container: the one process that runs migrations, before Gunicorn starts.
+flask db upgrade
 exec gunicorn wsgi:app -w "${WEB_CONCURRENCY:-4}" -b "0.0.0.0:${PORT:-8000}"

@@ -53,6 +53,22 @@
       {% else %}
       <a href="{{ url_for('auth.login') }}" class="btn-primary">{{ _('nav.login') }}</a>
       {% endif %}
+
+      {% if g.org and (is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin)) %}
+      <button @click="mobile = !mobile" :aria-expanded="mobile"
+              aria-controls="mobile-menu" class="btn-secondary md:hidden">
+        <span class="sr-only">{{ _('nav.toggle_menu') }}</span>&#9776;
+      </button>
+      {% endif %}
     </div>
+  </div>
+
+  <div id="mobile-menu" x-show="mobile" x-cloak class="border-t border-slate-200 md:hidden">
+    {% if g.org and (is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin)) %}
+      <a href="{{ url_for('orgs.dashboard') }}" class="block px-4 py-3 text-sm hover:bg-slate-50">{{ _('nav.dashboard') }}</a>
+    {% endif %}
+    {% if g.org and can('content.write') %}
+      <a href="{{ url_for('manage.index') }}" class="block px-4 py-3 text-sm hover:bg-slate-50">{{ _('nav.manage') }}</a>
+    {% endif %}
   </div>
 </nav>

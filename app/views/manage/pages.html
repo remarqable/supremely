@@ -25,7 +25,7 @@
         <td>
           <form method="POST" action="{{ url_for('manage.set_homepage', page_id=page.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="text-sm {{ 'font-semibold text-brand-700' if homepage_id == page.id else 'text-slate-400 hover:text-slate-600' }}">
+            <button type="submit" class="text-sm {{ 'font-semibold text-brand-700' if homepage_id == page.id else 'text-slate-600 hover:text-slate-900' }}">
               {{ '★' if homepage_id == page.id else '☆' }}
               <span class="sr-only">{{ _('manage.homepage') }}</span>
             </button>

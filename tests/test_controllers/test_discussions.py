@@ -38,6 +38,30 @@ def create_topic(client, space_slug='general', title='First topic',
                        data={'title': title, 'body': body})
 
 
+def test_reaction_htmx_swaps_bar_only(app, client, acme, globex, user):
+    make_space(app, acme)
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_topic(owner_client)
+    topic = Topic.query.first()
+
+    # HTMX request gets the reaction-bar fragment, not a full page or redirect
+    response = owner_client.post('/discussions/react', base_url=ACME,
+                                 data={'target_type': 'topic',
+                                       'target_id': topic.id, 'emoji': '👍'},
+                                 headers={'HX-Request': 'true'})
+    assert response.status_code == 200
+    assert b'reaction-bar' in response.data
+    assert b'<!DOCTYPE html>' not in response.data
+    assert '👍 1'.encode() in response.data
+
+    # Non-HTMX still redirects (progressive enhancement)
+    plain = owner_client.post('/discussions/react', base_url=ACME,
+                              data={'target_type': 'topic',
+                                    'target_id': topic.id, 'emoji': '👍'})
+    assert plain.status_code == 302
+
+
 def test_full_discussion_flow(app, client, acme, globex, user):
     """Owner creates a space; two members hold a threaded conversation."""
     make_space(app, acme)

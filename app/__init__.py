@@ -17,8 +17,24 @@ def create_app(config_class=Config):
 
     Path(app.config['DATA_DIR']).mkdir(parents=True, exist_ok=True)
 
+    # A real production install must never run on the well-known dev key.
+    from .config import _DEV_SECRET
+    if (app.config['APP_ENV'] == 'production' and not app.testing
+            and app.config['SECRET_KEY'] == _DEV_SECRET):
+        raise RuntimeError(
+            'SECRET_KEY is unset in production. Set the SECRET_KEY env var, '
+            'or give the app a writable DATA_DIR so it can persist one.')
+
     init_logger(app.config['APP_ENV'])
     log = get_logger()
+
+    # Only honor X-Forwarded-* from the configured number of trusted proxies.
+    # Without this, clients spoof X-Forwarded-For to evade rate limiting.
+    hops = app.config.get('TRUSTED_PROXIES', 0)
+    if hops:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops,
+                                x_host=hops)
 
     db.init_app(app)
     migrate.init_app(app, db)

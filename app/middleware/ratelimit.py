@@ -27,9 +27,9 @@ def rate_limit(limit: int = 100, window: int = 60):
 
 
 def _get_client_ip() -> str:
-    forwarded = request.headers.get('X-Forwarded-For')
-    if forwarded:
-        return forwarded.split(',')[0].strip()
+    # request.remote_addr is already the real client IP when TRUSTED_PROXIES
+    # is set (ProxyFix rewrites it). Trusting X-Forwarded-For here directly
+    # would let any client spoof the header and get an unlimited keyspace.
     return request.remote_addr or '127.0.0.1'
 
 

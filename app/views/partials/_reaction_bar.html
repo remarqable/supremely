@@ -1,0 +1,23 @@
+{# Reaction bar, swapped in place by HTMX (hx-post on each button targets the
+   enclosing .reaction-bar). Full-page POST still works without JS. #}
+<div class="reaction-bar mt-2 flex items-center gap-1"
+     id="reactions-{{ target_type }}-{{ target_id }}">
+  {% for emoji in emoji_set %}
+  {% if can('discuss') %}
+  <form method="POST" action="/discussions/react" class="inline"
+        hx-post="/discussions/react"
+        hx-target="#reactions-{{ target_type }}-{{ target_id }}"
+        hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="target_type" value="{{ target_type }}">
+    <input type="hidden" name="target_id" value="{{ target_id }}">
+    <input type="hidden" name="emoji" value="{{ emoji }}">
+    <button type="submit" class="rounded-full px-2 py-0.5 text-sm ring-1 ring-slate-200 hover:ring-brand-500">
+      {{ emoji }}{% if counts.get(emoji) %} {{ counts.get(emoji) }}{% endif %}
+    </button>
+  </form>
+  {% elif counts.get(emoji) %}
+  <span class="rounded-full px-2 py-0.5 text-sm ring-1 ring-slate-200">{{ emoji }} {{ counts.get(emoji) }}</span>
+  {% endif %}
+  {% endfor %}
+</div>

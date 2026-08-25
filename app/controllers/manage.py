@@ -801,14 +801,18 @@ def settings():
                     updates[field] = int(raw) if raw.isdigit() and int(raw) else None
                 org.update_settings(**updates)
             elif section == 'theme':
-                theme = request.form.get('theme', 'default')
+                from app.platform.theming import clean_theme_config
+                theme = request.form.get('theme', 'origin')
                 if theme not in AVAILABLE_THEMES:
                     raise ValidationError('Unknown theme')
+                # Validate settings BEFORE persisting the theme choice; the
+                # values are interpolated into a <style> block. See
+                # theming.clean_theme_config.
+                config = clean_theme_config(theme, {
+                    key: request.form.get(f'theme_{key}', '')
+                    for key in AVAILABLE_THEMES[theme].get('settings', {})})
                 org.theme = theme
                 org.save()
-                schema = AVAILABLE_THEMES[theme].get('settings', {})
-                config = {key: request.form.get(f'theme_{key}', '')
-                          for key in schema}
                 org.update_settings(theme_config=config)
             flash(t('common.saved'), 'success')
         except ValidationError as e:

@@ -299,6 +299,13 @@ def react():
     except ValidationError as e:
         flash(e.message, 'error')
     topic = target if target_type == 'topic' else target.topic
+
+    # HTMX: swap just the reaction bar in place; full-page fallback otherwise.
+    if request.headers.get('HX-Request') == 'true':
+        counts = Reaction.counts_for(target_type, [target_id]).get(target_id, {})
+        return render_template('partials/_reaction_bar.html',
+                               target_type=target_type, target_id=target_id,
+                               counts=counts, emoji_set=REACTION_EMOJI)
     return redirect(topic.url)
 
 

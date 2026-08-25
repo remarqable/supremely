@@ -7,10 +7,13 @@ migrates the new database, seeds it, and asks for a restart. Nothing here
 requires outbound email.
 """
 
+import json
+import os
 import re
 import secrets
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -40,13 +43,44 @@ COMMON_TIMEZONES = (
 )
 
 
+# Wizard state (admin password, DB password, SMTP password) is kept
+# SERVER-SIDE in a scratch file on the data volume, never in the signed-but-
+# unencrypted session cookie. The session holds only an opaque handle.
+def _scratch_path(handle: str) -> Path:
+    safe = re.sub(r'[^a-f0-9]', '', handle)[:64]
+    return Path(current_app.config['DATA_DIR']) / f'.wizard-{safe}.json'
+
+
 def _state() -> dict:
-    return session.setdefault('setup', {})
+    handle = session.get('setup_handle')
+    if not handle:
+        return {}
+    path = _scratch_path(handle)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, OSError):
+        return {}
 
 
 def _save_state(state: dict) -> None:
-    session['setup'] = state
-    session.modified = True
+    handle = session.get('setup_handle')
+    if not handle:
+        handle = secrets.token_hex(16)
+        session['setup_handle'] = handle
+    path = _scratch_path(handle)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix='.wizard.')
+    with os.fdopen(fd, 'w') as fh:
+        json.dump(state, fh)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+def _clear_state() -> None:
+    handle = session.pop('setup_handle', None)
+    if handle:
+        _scratch_path(handle).unlink(missing_ok=True)
 
 
 @bp.route('/')
@@ -100,8 +134,16 @@ def database():
 
         if not (host and dbname and username):
             flash(t('setup.postgres_fields_required'), 'error')
+        elif not port.isdigit():
+            flash(t('setup.postgres_fields_required'), 'error')
         else:
-            url = f'postgresql+psycopg://{username}:{password}@{host}:{port}/{dbname}'
+            # URL.create percent-encodes every component, so special
+            # characters in the password/username cannot re-point the host or
+            # inject libpq connection parameters. Never f-string a DSN.
+            url = sa.engine.URL.create(
+                'postgresql+psycopg', username=username, password=password,
+                host=host, port=int(port), database=dbname,
+            ).render_as_string(hide_password=False)
             ok, error = _test_connection(url)
             if ok:
                 state['database'] = {'engine': 'postgres', 'url': url}
@@ -211,11 +253,11 @@ def _apply(state: dict):
     database = state['database']
     postgres = database.get('engine') == 'postgres'
 
+    # SECRET_KEY is self-managed by config._resolve_secret_key (persisted on
+    # the data volume); the wizard no longer touches it.
     config_updates = {
         'BASE_DOMAIN': env['base_domain'],
     }
-    if app.config['SECRET_KEY'] == 'dev-secret-change-in-production':
-        config_updates['SECRET_KEY'] = secrets.token_hex(32)
 
     if postgres:
         config_updates['DATABASE_URL'] = database['url']
@@ -225,7 +267,7 @@ def _apply(state: dict):
             flash(t('setup.postgres_apply_failed', error=error), 'error')
             return redirect(url_for('setup.database'))
         mark_installed(app)
-        session.pop('setup', None)
+        _clear_state()
         log.info('installation_complete', database='postgres')
         return render_template('setup/done.html', restart_required=True)
 
@@ -233,7 +275,7 @@ def _apply(state: dict):
     write_runtime_config(app, config_updates)
     admin_user = _seed(db.session, state)
     mark_installed(app)
-    session.pop('setup', None)
+    _clear_state()
 
     session.clear()
     login_user(admin_user, remember=True)

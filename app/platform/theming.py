@@ -107,6 +107,38 @@ def theme_config() -> dict:
     return values
 
 
+_COLOR_RE = re.compile(r'#[0-9a-fA-F]{6}')
+
+
+def clean_theme_config(theme: str, submitted: dict) -> dict:
+    """Validate submitted theme settings against the theme's manifest schema.
+
+    Theme settings are interpolated into a <style> block, where Jinja's HTML
+    autoescaping does NOT neutralise CSS metacharacters ({ } ; : ( )). So the
+    value must be validated on write, exactly as brand_primary is. Unknown
+    keys are dropped; a bad value raises ValidationError.
+    """
+    schema = AVAILABLE_THEMES.get(theme, {}).get('settings', {})
+    cleaned = {}
+    for key, spec in schema.items():
+        raw = (submitted.get(key) or '').strip()
+        if not raw:
+            continue
+        kind = spec.get('type', 'string')
+        label = spec.get('label', key)
+        if kind == 'color':
+            if not _COLOR_RE.fullmatch(raw):
+                raise ValidationError(f'{label} must be a #RRGGBB colour')
+        elif kind == 'number':
+            if not re.fullmatch(r'-?\d+(\.\d+)?', raw):
+                raise ValidationError(f'{label} must be a number')
+        else:                           # string: forbid CSS/HTML-breaking chars
+            if any(ch in raw for ch in '{}<>;'):
+                raise ValidationError(f'{label} contains invalid characters')
+        cleaned[key] = raw
+    return cleaned
+
+
 def render_site(candidates: list[str], **context) -> str:
     """Render through the WordPress-style template hierarchy: for each
     candidate in specificity order, try the active theme, then Origin (the
@@ -191,18 +223,27 @@ def install_theme_zip(file) -> str:
         if not THEME_SLUG_RE.fullmatch(slug) or slug in ('default', 'origin'):
             raise ValidationError('Theme manifest needs a valid slug')
 
-        target = target_root / slug
-        for member in names:
-            if not member.startswith(prefix) or member.endswith('/'):
-                continue
+        target = (target_root / slug).resolve()
+        members = [m for m in names
+                   if m.startswith(prefix) and not m.endswith('/')]
+
+        # Cap entry count and total uncompressed size (zip-bomb guard).
+        MAX_ENTRIES, MAX_TOTAL = 2000, 50 * 1024 * 1024
+        if len(members) > MAX_ENTRIES:
+            raise ValidationError('Theme package has too many files')
+        if sum(zf.getinfo(m).file_size for m in members) > MAX_TOTAL:
+            raise ValidationError('Theme package is too large')
+
+        for member in members:
             relative = member[len(prefix):]
+            # Confine each member to THIS theme's directory (not just the
+            # themes root) so `../other/layout.html` can't overwrite a
+            # sibling theme's templates.
             dest = (target / relative).resolve()
-            if not dest.is_relative_to(target_root.resolve()):
+            if dest != target and not dest.is_relative_to(target):
                 raise ValidationError(f'Unsafe path in theme package: {member}')
 
-        for member in names:
-            if not member.startswith(prefix) or member.endswith('/'):
-                continue
+        for member in members:
             relative = member[len(prefix):]
             dest = target / relative
             dest.parent.mkdir(parents=True, exist_ok=True)

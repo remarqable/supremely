@@ -1,0 +1,25 @@
+# Never bake these into the image.
+.venv
+venv
+bin/
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.git
+.github
+.gitignore
+blueprint
+*-dev
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+.DS_Store
+config/local.env
+scripts/smoke-*.sh
+tests

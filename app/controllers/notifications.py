@@ -23,7 +23,7 @@ def index():
 @org_required
 @login_required
 def read_all():
-    Notification.mark_all_read(current_user.id)
+    Notification.mark_all_read(current_user.id, g.org.id)
     return redirect(url_for('notifications.index'))
 
 
