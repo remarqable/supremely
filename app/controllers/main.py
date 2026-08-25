@@ -9,7 +9,8 @@ bp = Blueprint('main', __name__)
 @bp.route('/')
 def index():
     if g.org is not None:
-        return render_template('orgs/home.html', org=g.org)
+        from .site import render_org_home
+        return render_org_home()
 
     # Bare installation domain with zero or multiple organizations.
     if current_user.is_authenticated:

@@ -1,0 +1,47 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="mb-4 flex justify-end">
+  <a href="{{ url_for('manage.new_page') }}" class="btn-primary">{{ _('manage.new_page') }}</a>
+</div>
+
+<div class="card">
+  <table class="table-plain">
+    <thead><tr>
+      <th>{{ _('manage.page_title') }}</th><th>{{ _('orgs.slug_label') }}</th>
+      <th>{{ _('common.status') }}</th><th>{{ _('manage.visibility') }}</th>
+      <th>{{ _('manage.homepage') }}</th><th>{{ _('common.actions') }}</th>
+    </tr></thead>
+    <tbody>
+      {% for page in pages %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('manage.edit_page', page_id=page.id) }}">{{ page.title }}</a></td>
+        <td>/{{ page.slug }}</td>
+        <td>
+          {% if page.is_published %}<span class="badge-green">{{ _('manage.published') }}</span>
+          {% else %}<span class="badge-slate">{{ _('manage.draft') }}</span>{% endif %}
+        </td>
+        <td><span class="badge-slate">{{ _('manage.visibility_' + page.visibility) }}</span></td>
+        <td>
+          <form method="POST" action="{{ url_for('manage.set_homepage', page_id=page.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm {{ 'font-semibold text-brand-700' if homepage_id == page.id else 'text-slate-400 hover:text-slate-600' }}">
+              {{ '★' if homepage_id == page.id else '☆' }}
+              <span class="sr-only">{{ _('manage.homepage') }}</span>
+            </button>
+          </form>
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('manage.delete_page', page_id=page.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('common.delete') }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-slate-500">{{ _('manage.no_pages') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

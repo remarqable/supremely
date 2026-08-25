@@ -15,6 +15,7 @@ class Organization(BaseModel):
     slug = db.Column(db.String(63), unique=True, nullable=False, index=True)
     description = db.Column(db.Text, nullable=True)
     theme = db.Column(db.String(50), nullable=False, default='default')
+    brand_primary = db.Column(db.String(7), nullable=True)      # #RRGGBB
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     archived_at = db.Column(db.DateTime(timezone=True), nullable=True)
     settings = db.Column(JSONColumn, nullable=False, default=dict)
@@ -40,6 +41,11 @@ class Organization(BaseModel):
             raise ValidationError('Slug must be 3-63 chars: a-z, 0-9 and hyphens')
         if self.slug in self.RESERVED_SLUGS:
             raise ValidationError('That slug is reserved')
+        # Unvalidated tenant input inside a <style> block is CSS injection;
+        # Jinja's HTML autoescaping does not protect inside <style>.
+        if self.brand_primary and not re.fullmatch(r'#[0-9a-fA-F]{6}',
+                                                   self.brand_primary):
+            raise ValidationError('Brand colour must be #RRGGBB')
 
         existing = Organization.query.filter_by(slug=self.slug).first()
         if existing and existing.id != self.id:
@@ -79,3 +85,28 @@ class Organization(BaseModel):
     def member_count(self) -> int:
         from .membership import Membership
         return Membership.query.filter_by(org_id=self.id).count()
+
+    def setting(self, key: str, default=None):
+        return (self.settings or {}).get(key, default)
+
+    def update_settings(self, **updates) -> 'Organization':
+        self.settings = {**(self.settings or {}), **updates}
+        return self.save()
+
+    def logo(self):
+        from .upload import Upload
+        upload_id = self.setting('logo_upload_id')
+        return Upload.get_by_id(upload_id) if upload_id else None
+
+    def favicon(self):
+        from .upload import Upload
+        upload_id = self.setting('favicon_upload_id')
+        return Upload.get_by_id(upload_id) if upload_id else None
+
+    def homepage(self):
+        from .page import Page
+        page_id = self.setting('homepage_page_id')
+        if not page_id:
+            return None
+        page = Page.get_by_id(page_id)
+        return page if page and page.is_published else None

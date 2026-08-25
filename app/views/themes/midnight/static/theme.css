@@ -1,0 +1,24 @@
+/* Midnight theme: variable overrides and a handful of rules.
+   Not a second Tailwind build. */
+:root {
+  --midnight-accent: #8b5cf6;
+}
+
+.midnight .midnight-cta {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.375rem;
+  padding: 0.375rem 1rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: var(--midnight-accent);
+}
+.midnight .midnight-cta:hover { filter: brightness(1.15); }
+
+.midnight .prose-supremely { color: rgb(226 232 240); }
+.midnight .prose-supremely a { color: var(--midnight-accent); }
+.midnight .prose-supremely code { background-color: rgb(30 41 59); }
+.midnight .prose-supremely blockquote { border-color: rgb(51 65 85); color: rgb(148 163 184); }
+.midnight .prose-supremely th { border-color: rgb(51 65 85); }
+.midnight .prose-supremely td { border-color: rgb(30 41 59); }
+.midnight .prose-supremely hr { border-color: rgb(30 41 59); }

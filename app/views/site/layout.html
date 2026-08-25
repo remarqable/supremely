@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ g.org.name }}{% endblock %}</title>
+  {% block meta %}
+  {% if g.org.description %}<meta name="description" content="{{ g.org.description }}">{% endif %}
+  {% endblock %}
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  {% set favicon = g.org.favicon() %}
+  {% if favicon %}<link rel="icon" href="{{ favicon.url('original') }}">{% endif %}
+  {% if g.org.brand_primary %}
+  <style>
+    :root {
+      --color-brand-500: {{ g.org.brand_primary }};
+      --color-brand-600: {{ g.org.brand_primary }};
+      --color-brand-700: {{ g.org.brand_primary }};
+    }
+  </style>
+  {% endif %}
+  <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}min-h-screen bg-white font-sans text-slate-900{% endblock %}">
+
+<header class="border-b border-slate-200">
+  <div class="mx-auto flex max-w-4xl items-center gap-6 px-4 py-4">
+    <a href="/" class="flex items-center gap-3 font-semibold">
+      {% set logo = g.org.logo() %}
+      {% if logo %}<img src="{{ logo.url('thumb') }}" alt="" class="h-8 w-8 rounded object-cover">{% endif %}
+      {{ g.org.name }}
+    </a>
+    <nav class="ms-auto flex flex-wrap items-center gap-4 text-sm" aria-label="{{ _('site.primary_nav') }}">
+      {% for item in nav_items('primary') %}
+      <a href="{{ item.href }}" class="hover:text-brand-600">{{ item.label }}</a>
+      {% endfor %}
+      {% if current_user.is_authenticated and is_org_member() %}
+      <a href="{{ url_for('orgs.dashboard') }}" class="btn-secondary">{{ _('orgs.home_member_area') }}</a>
+      {% elif not current_user.is_authenticated %}
+      <a href="{{ url_for('auth.login') }}" class="hover:text-brand-600">{{ _('nav.login') }}</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<main class="mx-auto max-w-4xl px-4 py-10">
+  {% include 'partials/_flash.html' %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="border-t border-slate-200">
+  <div class="mx-auto flex max-w-4xl flex-wrap items-center gap-4 px-4 py-6 text-sm text-slate-600">
+    <span>&copy; {{ g.org.name }}</span>
+    <nav class="ms-auto flex flex-wrap gap-4" aria-label="{{ _('site.footer_nav') }}">
+      {% for item in nav_items('footer') %}
+      <a href="{{ item.href }}" class="hover:text-brand-600">{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

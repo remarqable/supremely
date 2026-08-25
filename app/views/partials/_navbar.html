@@ -9,6 +9,9 @@
       {% if g.org and (is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin)) %}
         <a href="{{ url_for('orgs.dashboard') }}" class="text-sm hover:text-brand-600">{{ _('nav.dashboard') }}</a>
       {% endif %}
+      {% if g.org and can('content.write') %}
+        <a href="{{ url_for('manage.index') }}" class="text-sm hover:text-brand-600">{{ _('nav.manage') }}</a>
+      {% endif %}
     </div>
 
     <div class="ms-auto flex items-center gap-2">

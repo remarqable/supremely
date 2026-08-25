@@ -1,0 +1,28 @@
+{% extends site_layout %}
+
+{% block title %}{{ page.seo_title if page and page.seo_title else g.org.name }}{% endblock %}
+
+{% block meta %}
+{% if page and page.seo_description %}
+<meta name="description" content="{{ page.seo_description }}">
+<meta property="og:title" content="{{ page.seo_title or page.title }}">
+<meta property="og:description" content="{{ page.seo_description }}">
+{% elif g.org.description %}
+<meta name="description" content="{{ g.org.description }}">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if page %}
+<article class="prose-supremely">
+  {{ page.html | safe }}
+</article>
+{% else %}
+<div class="py-16 text-center">
+  <h1 class="text-4xl font-bold">{{ g.org.name }}</h1>
+  {% if g.org.description %}
+  <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">{{ g.org.description }}</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{{ _('manage.title') }} — {{ g.org.name }}{% endblock %}
+
+{% set manage_nav = [
+  ('manage.pages', _('manage.pages')),
+  ('manage.navigation', _('manage.navigation')),
+  ('manage.media', _('manage.media')),
+  ('manage.settings', _('manage.settings')),
+] %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center gap-1 border-b border-slate-200 pb-3">
+  <span class="me-3 text-lg font-bold">{{ _('manage.title') }}</span>
+  {% for endpoint, label in manage_nav %}
+  <a href="{{ url_for(endpoint) }}"
+     class="rounded-md px-3 py-1.5 text-sm {{ 'bg-brand-50 font-medium text-brand-700' if request.endpoint == endpoint else 'text-slate-600 hover:bg-slate-100' }}">
+    {{ label }}</a>
+  {% endfor %}
+</div>
+{% block manage_content %}{% endblock %}
+{% endblock %}

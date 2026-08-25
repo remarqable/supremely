@@ -45,8 +45,11 @@ def create_app(config_class=Config):
     from .platform.i18n import init_i18n
     init_i18n(app)
 
-    from .controllers import main, auth, setup, admin, orgs, cli
-    for module in (main, auth, setup, admin, orgs):
+    from .platform.theming import init_theming
+    init_theming(app)
+
+    from .controllers import main, auth, setup, admin, orgs, cli, manage, site
+    for module in (main, auth, setup, admin, orgs, manage, site):
         app.register_blueprint(module.bp)
     for cli_bp in cli.CLI_BLUEPRINTS:
         app.register_blueprint(cli_bp)
@@ -88,11 +91,13 @@ def _init_context(app):
                     'installation.name', 'Supremely') or 'Supremely'
             except Exception:       # pre-migration states must still render
                 pass
+        from .models import NavigationItem
         return {
             'installation_name': installation_name,
             'can': can,
             'is_org_member': is_org_member,
             'app_version': APP_VERSION,
+            'nav_items': NavigationItem.items_for,
         }
 
     @app.template_filter('localdate')

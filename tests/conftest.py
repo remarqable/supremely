@@ -13,10 +13,15 @@ from tests.scoped_probe import ScopedProbe  # noqa: F401
 
 
 @pytest.fixture
-def app():
+def app(tmp_path):
     """Application for testing. Config is passed INTO create_app, never
-    assigned afterwards: Flask-SQLAlchemy binds its engine during init_app."""
-    app = create_app(TestConfig)
+    assigned afterwards: Flask-SQLAlchemy binds its engine during init_app.
+    DATA_DIR is a tmp dir so uploads and installed themes never touch the
+    real data volume."""
+    class Cfg(TestConfig):
+        DATA_DIR = str(tmp_path)
+
+    app = create_app(Cfg)
     with app.app_context():
         db.create_all()
         yield app
@@ -73,3 +78,11 @@ def login_as(client, user):
 @pytest.fixture
 def admin_client(client, platform_admin):
     return login_as(client, platform_admin)
+
+
+def make_png(width=600, height=400, color=(120, 90, 200)) -> bytes:
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new('RGB', (width, height), color).save(buf, 'PNG')
+    return buf.getvalue()

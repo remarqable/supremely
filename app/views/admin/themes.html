@@ -1,0 +1,47 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="card mb-6">
+  <h3 class="mb-1 text-lg font-semibold">{{ _('admin.install_theme') }}</h3>
+  <p class="mb-4 text-sm text-slate-600">{{ _('admin.install_theme_warning') }}</p>
+  <form method="POST" action="{{ url_for('admin.install_theme') }}"
+        enctype="multipart/form-data" class="flex items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex-1">
+      <label for="package" class="label">{{ _('admin.theme_package') }}</label>
+      <input type="file" id="package" name="package" class="input mt-1"
+             accept=".zip" required>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('admin.install') }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <table class="table-plain">
+    <thead><tr>
+      <th>{{ _('common.name') }}</th><th>{{ _('orgs.slug_label') }}</th>
+      <th>{{ _('admin.theme_version') }}</th><th>{{ _('admin.theme_source') }}</th>
+      <th>{{ _('admin.theme_orgs_using') }}</th><th>{{ _('common.actions') }}</th>
+    </tr></thead>
+    <tbody>
+      {% for slug, info in themes.items() %}
+      <tr>
+        <td class="font-medium">{{ info.name }}</td>
+        <td>{{ slug }}</td>
+        <td>{{ info.version }}</td>
+        <td><span class="badge-slate">{{ info.source }}</span></td>
+        <td>{{ usage.get(slug, 0) }}</td>
+        <td>
+          {% if info.source == 'installed' %}
+          <form method="POST" action="{{ url_for('admin.uninstall_theme', slug=slug) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('admin.uninstall') }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

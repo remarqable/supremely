@@ -1,0 +1,97 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="grid gap-6 lg:grid-cols-2">
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.branding') }}</h3>
+    <form method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="section" value="branding">
+      <div>
+        <label for="name" class="label">{{ _('orgs.name_label') }}</label>
+        <input type="text" id="name" name="name" class="input mt-1" required
+               maxlength="100" value="{{ org.name }}">
+      </div>
+      <div>
+        <label for="description" class="label">{{ _('manage.description') }}</label>
+        <textarea id="description" name="description" class="textarea mt-1">{{ org.description or '' }}</textarea>
+      </div>
+      <div>
+        <label for="brand_primary" class="label">{{ _('manage.brand_color') }}</label>
+        <div class="mt-1 flex items-center gap-2">
+          <input type="color" id="brand_primary_picker"
+                 value="{{ org.brand_primary or '#6366f1' }}"
+                 oninput="document.getElementById('brand_primary').value = this.value">
+          <input type="text" id="brand_primary" name="brand_primary" class="input"
+                 pattern="#[0-9a-fA-F]{6}" placeholder="#RRGGBB"
+                 value="{{ org.brand_primary or '' }}">
+        </div>
+      </div>
+      <div>
+        <label for="logo_upload_id" class="label">{{ _('manage.logo') }}</label>
+        <select id="logo_upload_id" name="logo_upload_id" class="select mt-1">
+          <option value="">{{ _('common.none') }}</option>
+          {% for upload in uploads %}
+          <option value="{{ upload.id }}" {{ 'selected' if org.setting('logo_upload_id') == upload.id }}>{{ upload.filename }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="favicon_upload_id" class="label">{{ _('manage.favicon') }}</label>
+        <select id="favicon_upload_id" name="favicon_upload_id" class="select mt-1">
+          <option value="">{{ _('common.none') }}</option>
+          {% for upload in uploads %}
+          <option value="{{ upload.id }}" {{ 'selected' if org.setting('favicon_upload_id') == upload.id }}>{{ upload.filename }}</option>
+          {% endfor %}
+        </select>
+        <p class="mt-1 text-xs text-slate-500">{{ _('manage.media_hint') }}</p>
+      </div>
+      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.theme') }}</h3>
+    <form method="POST" class="space-y-4" x-data="{ theme: '{{ org.theme }}' }">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="section" value="theme">
+      <div class="space-y-2">
+        {% for slug, info in themes.items() %}
+        <label class="flex items-center gap-3 rounded-md ring-1 ring-slate-200 px-3 py-2">
+          <input type="radio" name="theme" value="{{ slug }}" x-model="theme">
+          <span class="flex-1">
+            <span class="font-medium">{{ info.name }}</span>
+            <span class="ms-2 text-xs text-slate-500">v{{ info.version }}{% if info.author %} · {{ info.author }}{% endif %}</span>
+          </span>
+          {% if slug == org.theme %}<span class="badge-brand">{{ _('common.active') }}</span>{% endif %}
+        </label>
+        {% endfor %}
+      </div>
+
+      {% for slug, info in themes.items() %}
+      {% if info.settings %}
+      <div x-show="theme === '{{ slug }}'" x-cloak class="space-y-3 border-t border-slate-100 pt-3">
+        <h4 class="text-sm font-semibold">{{ info.name }} — {{ _('manage.theme_settings') }}</h4>
+        {% set config = org.setting('theme_config', {}) if slug == org.theme else {} %}
+        {% for key, spec in info.settings.items() %}
+        <div>
+          <label for="theme_{{ key }}" class="label">{{ spec.label or key }}</label>
+          {% if spec.type == 'color' %}
+          <input type="color" id="theme_{{ key }}" name="theme_{{ key }}"
+                 value="{{ config.get(key, spec.default or '#000000') }}" class="mt-1">
+          {% else %}
+          <input type="text" id="theme_{{ key }}" name="theme_{{ key }}" class="input mt-1"
+                 value="{{ config.get(key, spec.default or '') }}">
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endfor %}
+
+      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+    </form>
+    <p class="mt-3 text-xs text-slate-500">{{ _('manage.theme_hint') }}</p>
+  </div>
+</div>
+{% endblock %}

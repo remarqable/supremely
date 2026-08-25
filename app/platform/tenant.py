@@ -17,7 +17,8 @@ from app.extensions import db
 from app.models.base import OrgScoped
 
 # Paths that belong to the installation, not to any organization.
-INSTALLATION_PREFIXES = ('/static/', '/setup', '/admin', '/auth/', '/launcher', '/files/')
+# /files is NOT here: uploads are tenant data and must resolve the org.
+INSTALLATION_PREFIXES = ('/static/', '/setup', '/admin', '/auth/', '/launcher')
 INSTALLATION_EXACT = ('/health', '/favicon.ico')
 
 
@@ -146,6 +147,12 @@ def _stamp_org(session, _ctx, _instances):
                 obj.org_id = org.id
             elif org is not None and obj.org_id != org.id:
                 raise RuntimeError('Refusing to write across tenants')
+    # Updates too: the read filter makes cross-tenant rows unreachable, but
+    # an object smuggled in via the identity map must still not be written.
+    for obj in session.dirty:
+        if isinstance(obj, OrgScoped) and org is not None \
+                and obj.org_id is not None and obj.org_id != org.id:
+            raise RuntimeError('Refusing to write across tenants')
 
 
 @contextmanager

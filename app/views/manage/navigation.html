@@ -1,0 +1,69 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="grid gap-6 lg:grid-cols-2">
+  {% for menu, items in menus.items() %}
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.menu_' + menu) }}</h3>
+    <ul class="space-y-2">
+      {% for item in items %}
+      <li class="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+        <span class="font-medium">{{ item.label }}</span>
+        <span class="text-slate-500">{{ item.href }}</span>
+        <span class="ms-auto flex gap-1">
+          <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="direction" value="up">
+            <button type="submit" class="px-1 text-slate-500 hover:text-slate-900">↑<span class="sr-only">{{ _('manage.move_up') }}</span></button>
+          </form>
+          <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="direction" value="down">
+            <button type="submit" class="px-1 text-slate-500 hover:text-slate-900">↓<span class="sr-only">{{ _('manage.move_down') }}</span></button>
+          </form>
+          <form method="POST" action="{{ url_for('manage.delete_navigation', item_id=item.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="px-1 text-red-600 hover:text-red-800">✕<span class="sr-only">{{ _('common.delete') }}</span></button>
+          </form>
+        </span>
+      </li>
+      {% else %}
+      <li class="text-sm text-slate-500">{{ _('common.none') }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card mt-6">
+  <h3 class="mb-4 text-lg font-semibold">{{ _('manage.add_link') }}</h3>
+  <form method="POST" class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="menu" class="label">{{ _('manage.menu') }}</label>
+      <select id="menu" name="menu" class="select mt-1">
+        <option value="primary">{{ _('manage.menu_primary') }}</option>
+        <option value="footer">{{ _('manage.menu_footer') }}</option>
+      </select>
+    </div>
+    <div>
+      <label for="label" class="label">{{ _('manage.link_label') }}</label>
+      <input type="text" id="label" name="label" class="input mt-1" required maxlength="100">
+    </div>
+    <div>
+      <label for="page_id" class="label">{{ _('manage.link_page') }}</label>
+      <select id="page_id" name="page_id" class="select mt-1">
+        <option value="">—</option>
+        {% for page in pages %}
+        <option value="{{ page.id }}">{{ page.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="flex-1">
+      <label for="url" class="label">{{ _('manage.link_url') }}</label>
+      <input type="text" id="url" name="url" class="input mt-1" placeholder="https://">
+    </div>
+    <button type="submit" class="btn-primary">{{ _('manage.add_link') }}</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends site_layout %}
+
+{% block title %}{{ page.seo_title or page.title }} — {{ g.org.name }}{% endblock %}
+
+{% block meta %}
+{% if page.seo_description %}<meta name="description" content="{{ page.seo_description }}">{% endif %}
+<meta property="og:title" content="{{ page.seo_title or page.title }}">
+{% if page.seo_description %}<meta property="og:description" content="{{ page.seo_description }}">{% endif %}
+<meta property="og:type" content="article">
+{% endblock %}
+
+{% block content %}
+<article>
+  <h1 class="mb-6 text-3xl font-bold">{{ page.title }}</h1>
+  <div class="prose-supremely">
+    {{ page.html | safe }}
+  </div>
+</article>
+{% endblock %}

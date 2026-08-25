@@ -1,0 +1,39 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="card mb-6">
+  <form method="POST" enctype="multipart/form-data" class="flex items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex-1">
+      <label for="file" class="label">{{ _('manage.upload_file') }}</label>
+      <input type="file" id="file" name="file" class="input mt-1"
+             accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,application/pdf" required>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('manage.upload') }}</button>
+  </form>
+  <p class="mt-2 text-xs text-slate-500">{{ _('manage.upload_hint') }}</p>
+</div>
+
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  {% for upload in uploads %}
+  <div class="card p-3">
+    {% if upload.is_image %}
+    <img src="{{ upload.url('thumb' if upload.has_variants else 'original') }}"
+         alt="{{ upload.filename }}" class="mb-2 h-32 w-full rounded object-cover">
+    {% else %}
+    <div class="mb-2 flex h-32 items-center justify-center rounded bg-slate-100 text-slate-400">{{ upload.content_type }}</div>
+    {% endif %}
+    <div class="truncate text-xs font-medium" title="{{ upload.filename }}">{{ upload.filename }}</div>
+    <div class="mt-1 flex items-center justify-between text-xs text-slate-500">
+      <span>{{ (upload.size / 1024) | round(1) }} KB</span>
+      <form method="POST" action="{{ url_for('manage.delete_media', upload_id=upload.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="text-red-600 hover:underline">{{ _('common.delete') }}</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500">{{ _('common.none') }}</p>
+  {% endfor %}
+</div>
+{% endblock %}

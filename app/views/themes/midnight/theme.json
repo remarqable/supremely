@@ -1,0 +1,15 @@
+{
+  "slug": "midnight",
+  "name": "Midnight",
+  "version": "1.0.0",
+  "author": "Supremely",
+  "extends": "default",
+  "overrides": ["site/layout.html"],
+  "settings": {
+    "accent": {
+      "type": "color",
+      "label": "Accent color",
+      "default": "#8b5cf6"
+    }
+  }
+}

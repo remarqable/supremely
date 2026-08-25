@@ -98,8 +98,9 @@ def org_edit(org_id):
         org.save()
         flash(t('common.saved'), 'success')
     except ValidationError as e:
+        db.session.rollback()
         flash(e.message, 'error')
-    return redirect(url_for('admin.org_detail', org_id=org.id))
+    return redirect(url_for('admin.org_detail', org_id=org_id))
 
 
 @bp.route('/orgs/<int:org_id>/suspend', methods=['POST'])
@@ -155,6 +156,7 @@ def membership_role(membership_id):
         membership.change_role(request.form.get('role', 'member'))
         flash(t('common.saved'), 'success')
     except ValidationError as e:
+        db.session.rollback()
         flash(e.message, 'error')
     return redirect(url_for('admin.org_detail', org_id=org_id))
 
@@ -310,6 +312,45 @@ def test_email():
     except Exception as e:      # noqa: BLE001 -- report any SMTP failure to the admin
         flash(t('admin.test_email_failed', error=str(e)), 'error')
     return redirect(url_for('admin.settings'))
+
+
+# --- Themes ------------------------------------------------------------------
+
+@bp.route('/themes')
+def themes():
+    from app.platform.theming import AVAILABLE_THEMES
+    usage = dict(db.session.execute(
+        sa.select(Organization.theme, sa.func.count())
+        .group_by(Organization.theme)).all())
+    return render_template('admin/themes.html', themes=AVAILABLE_THEMES,
+                           usage=usage)
+
+
+@bp.route('/themes/install', methods=['POST'])
+def install_theme():
+    from app.platform.theming import install_theme_zip
+    file = request.files.get('package')
+    if file is None or not file.filename:
+        flash(t('manage.no_file'), 'error')
+        return redirect(url_for('admin.themes'))
+    try:
+        slug = install_theme_zip(file)
+        log.info('theme_installed_by_admin', slug=slug, user_id=current_user.id)
+        flash(t('admin.theme_installed', slug=slug), 'success')
+    except ValidationError as e:
+        flash(e.message, 'error')
+    return redirect(url_for('admin.themes'))
+
+
+@bp.route('/themes/<slug>/uninstall', methods=['POST'])
+def uninstall_theme(slug):
+    from app.platform.theming import uninstall_theme as _uninstall
+    try:
+        _uninstall(slug)
+        flash(t('admin.theme_uninstalled', slug=slug), 'success')
+    except ValidationError as e:
+        flash(e.message, 'error')
+    return redirect(url_for('admin.themes'))
 
 
 # --- System ------------------------------------------------------------------
