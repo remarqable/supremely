@@ -16,8 +16,9 @@ users_bp = Blueprint('users_cli', __name__, cli_group='users')
 jobs_bp = Blueprint('jobs_cli', __name__, cli_group='jobs')
 setup_bp = Blueprint('setup_cli', __name__, cli_group='setup')
 seed_bp = Blueprint('seed_cli', __name__, cli_group='seed')
+dev_bp = Blueprint('dev_cli', __name__, cli_group='dev')
 
-CLI_BLUEPRINTS = (users_bp, jobs_bp, setup_bp, seed_bp)
+CLI_BLUEPRINTS = (users_bp, jobs_bp, setup_bp, seed_bp, dev_bp)
 
 
 @users_bp.cli.command('reset-password')
@@ -83,6 +84,26 @@ def reset_wizard():
     write_runtime_config(current_app, {'SETUP_COMPLETE': 'false'})
     current_app.config['SETUP_COMPLETE'] = False
     click.echo('Setup wizard re-enabled. Restart the app if it is running.')
+
+
+@dev_bp.cli.command('sync-db')
+def sync_db():
+    """Dev only: build the schema directly from the models (db.create_all) and
+    stamp Alembic at head, so heavy iteration needs no migrations. Adds missing
+    tables/indexes; it does NOT alter or drop existing ones — run `make reset`
+    for an incompatible model change. Migrations remain the source of truth for
+    prod/CI/smoke (`flask db upgrade`); regenerate the baseline at a milestone.
+    """
+    import app.models  # noqa: F401  (populate db.metadata for create_all)
+    from flask_migrate import stamp
+
+    db.create_all()
+    try:
+        stamp()                 # so a later `flask db upgrade` is a clean no-op
+    except Exception as exc:    # a missing migrations dir shouldn't block dev
+        click.echo(f'(schema built; alembic stamp skipped: {exc})')
+        return
+    click.echo('Schema synced from models (create_all) and stamped at head.')
 
 
 @seed_bp.cli.command('getsupremely')

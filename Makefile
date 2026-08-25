@@ -26,10 +26,16 @@ css: $(TAILWIND_BIN)
 css-watch: $(TAILWIND_BIN)
 	$(TAILWIND_BIN) -i app/static/css/input.css -o app/static/css/app.css --watch
 
+# Heavy-dev schema: build straight from the models (no migration authoring).
+# Adds missing tables; run `make reset` for an incompatible model change.
+db:
+	uv run flask dev sync-db
+
+# The migration path — for prod/CI/smoke, and to verify the deploy story.
 migrate:
 	uv run flask db upgrade
 
-run: migrate
+run: db
 	uv run python run.py
 
 worker:
@@ -42,5 +48,5 @@ test:
 # setup wizard runs again. Stop the server first.
 reset:
 	rm -rf $(DATA_DIR)
-	uv run flask db upgrade
+	uv run flask dev sync-db
 	@echo "Installation reset. Run 'make run' and open /setup."
