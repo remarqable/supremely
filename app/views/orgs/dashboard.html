@@ -56,30 +56,30 @@
     <div class="mb-4 flex items-center justify-between">
       <h1 class="text-xl font-bold">{{ _('community.recent_activity') }}</h1>
       {% if spaces and can('discuss') %}
-      <a href="/discussions/{{ spaces[0].slug }}" class="btn-primary">{{ _('discussions.new_topic') }}</a>
+      <a href="/discussions/{{ spaces[0].slug }}" class="btn-primary">{{ _('discussions.new_post') }}</a>
       {% endif %}
     </div>
 
     <div class="space-y-3">
-      {% for topic in recent_topics %}
-      <a href="{{ topic.url }}" class="card block p-4 transition hover:ring-brand-500">
+      {% for post in recent_posts %}
+      <a href="{{ post.url }}" class="card block p-4 transition hover:ring-brand-500">
         <div class="flex items-center gap-2">
-          {% if topic.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
-          {% if topic.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
-          <span class="font-medium">{{ topic.title }}</span>
-          <span class="badge-slate ms-auto shrink-0">{{ topic.space.name }}</span>
+          {% if post.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
+          {% if post.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
+          <span class="font-medium">{{ post.title }}</span>
+          <span class="badge-slate ms-auto shrink-0">{{ post.space.name }}</span>
         </div>
         <p class="mt-1 text-xs text-slate-500">
-          {{ topic.reply_count }} {{ _('discussions.replies') }}
-          · {{ topic.last_activity_at|localdatetime }}
-          {% if topic.author %} · {{ topic.author.name }}{% endif %}
+          {{ post.comment_count }} {{ _('discussions.comments') }}
+          · {{ post.last_activity_at|localdatetime }}
+          {% if post.author %} · {{ post.author.name }}{% endif %}
         </p>
       </a>
       {% else %}
       <div class="card p-8 text-center text-slate-500">
         <p>{{ _('community.empty_feed') }}</p>
         {% if spaces and can('discuss') %}
-        <a href="/discussions/{{ spaces[0].slug }}" class="btn-primary mt-4">{{ _('community.start_first_topic') }}</a>
+        <a href="/discussions/{{ spaces[0].slug }}" class="btn-primary mt-4">{{ _('community.start_first_post') }}</a>
         {% endif %}
       </div>
       {% endfor %}

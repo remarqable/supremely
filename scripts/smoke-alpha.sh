@@ -86,14 +86,14 @@ curl -s -c "$OWNER" -b "$OWNER" -X POST "$BASE/discussions/lounge/new" \
   --data-urlencode "csrf_token=$T" --data-urlencode "title=Introductions" \
   --data-urlencode "body=Say hello!" >/dev/null
 T=$(csrf "$FRIEND" "$BASE/discussions/lounge/1")
-curl -s -c "$FRIEND" -b "$FRIEND" -X POST "$BASE/discussions/lounge/1/reply" \
+curl -s -c "$FRIEND" -b "$FRIEND" -X POST "$BASE/discussions/lounge/1/comment" \
   --data-urlencode "csrf_token=$T" --data-urlencode "body=Hello from the friend!" >/dev/null
 curl -s -b "$OWNER" "$BASE/discussions/lounge/1" | grep -q "Hello from the friend!" \
   && pass "discussion started, member replied" || fail "discussion"
 
 # Owner got notified of the reply
 curl -s -b "$OWNER" "$BASE/notifications/" | grep -q "Introductions" \
-  && pass "reply notification received" || fail "notification"
+  && pass "comment notification received" || fail "notification"
 
 # --- dogfood: getsupremely.org seeded on the same install ----------------------------------
 uv run flask seed getsupremely >/dev/null 2>&1 && pass "getsupremely org seeded (dogfood)" || fail "seed"

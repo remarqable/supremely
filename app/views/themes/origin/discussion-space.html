@@ -22,40 +22,40 @@
 
 {% if can('discuss') %}
 <details class="card mb-6">
-  <summary class="cursor-pointer font-medium text-brand-700">{{ _('discussions.new_topic') }}</summary>
+  <summary class="cursor-pointer font-medium text-brand-700">{{ _('discussions.new_post') }}</summary>
   <form method="POST" action="/discussions/{{ space.slug }}/new" class="mt-4 space-y-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div>
-      <label for="title" class="label">{{ _('discussions.topic_title') }}</label>
+      <label for="title" class="label">{{ _('discussions.post_title') }}</label>
       <input type="text" id="title" name="title" class="input mt-1" required maxlength="200">
     </div>
     <div>
       <label for="body" class="label">{{ _('manage.body_markdown') }}</label>
       <textarea id="body" name="body" class="textarea mt-1 min-h-32" required></textarea>
     </div>
-    <button type="submit" class="btn-primary">{{ _('discussions.create_topic') }}</button>
+    <button type="submit" class="btn-primary">{{ _('discussions.create_post') }}</button>
   </form>
 </details>
 {% endif %}
 
 <div class="space-y-2">
-  {% for topic in topics %}
-  <a href="{{ topic.url }}"
-     class="card block p-4 transition hover:ring-brand-500 {{ 'opacity-50' if topic.is_hidden }}">
+  {% for post in posts %}
+  <a href="{{ post.url }}"
+     class="card block p-4 transition hover:ring-brand-500 {{ 'opacity-50' if post.is_hidden }}">
     <div class="flex items-center gap-2">
-      {% if topic.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
-      {% if topic.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
-      {% if topic.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
-      <span class="font-medium">{{ topic.title }}</span>
+      {% if post.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
+      {% if post.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
+      {% if post.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
+      <span class="font-medium">{{ post.title }}</span>
     </div>
     <p class="mt-1 text-xs text-slate-500">
-      {{ topic.reply_count }} {{ _('discussions.replies') }}
-      · {{ topic.last_activity_at|localdatetime }}
-      {% if topic.author %} · {{ topic.author.name }}{% endif %}
+      {{ post.comment_count }} {{ _('discussions.comments') }}
+      · {{ post.last_activity_at|localdatetime }}
+      {% if post.author %} · {{ post.author.name }}{% endif %}
     </p>
   </a>
   {% else %}
-  <p class="text-sm text-slate-500">{{ _('discussions.no_topics') }}</p>
+  <p class="text-sm text-slate-500">{{ _('discussions.no_posts') }}</p>
   {% endfor %}
 </div>
 {% endblock %}

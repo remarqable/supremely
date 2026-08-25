@@ -82,7 +82,7 @@ def new_org():
 
 @bp.route('/orgs/<int:org_id>')
 def org_detail(org_id):
-    from app.models import Page, Post, Subscriber, Topic, OrgPlugin
+    from app.models import Page, Post, Subscriber, DiscussionPost, OrgPlugin
     from app.models.domain import OrgDomain
     org = db.get_or_404(Organization, org_id)
     memberships = (Membership.query.filter_by(org_id=org.id)
@@ -91,7 +91,7 @@ def org_detail(org_id):
         'members': len(memberships),
         'pages': Page.query.filter_by(org_id=org.id).count(),
         'posts': Post.query.filter_by(org_id=org.id).count(),
-        'topics': Topic.query.filter_by(org_id=org.id).count(),
+        'topics': DiscussionPost.query.filter_by(org_id=org.id).count(),
         'subscribers': Subscriber.query.filter_by(org_id=org.id).count(),
     }
     plugins = OrgPlugin.query.filter_by(org_id=org.id).all()

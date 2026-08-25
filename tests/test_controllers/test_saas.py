@@ -150,5 +150,5 @@ def test_admin_org_detail_shows_state(admin_client, app, acme, globex, user):
     detail = admin_client.get(f'/admin/orgs/{acme.id}')
     assert detail.status_code == 200
     assert b'origin' in detail.data             # theme state
-    for label in (b'Members', b'Pages', b'Posts', b'Topics', b'Subscribers'):
+    for label in (b'Members', b'Pages', b'Posts', b'Discussions', b'Subscribers'):
         assert label in detail.data             # usage indicators

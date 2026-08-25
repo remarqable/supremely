@@ -20,7 +20,7 @@
       <a href="/discussions/{{ space.slug }}" class="card block p-4 transition hover:ring-brand-500">
         <div class="font-semibold">{{ space.name }}</div>
         {% if space.description %}<p class="mt-1 text-sm text-slate-600">{{ space.description }}</p>{% endif %}
-        <p class="mt-1 text-xs text-slate-500">{{ _('discussions.topic_count', n=space.topic_count()) }}</p>
+        <p class="mt-1 text-xs text-slate-500">{{ _('discussions.post_count', n=space.post_count()) }}</p>
       </a>
       {% else %}
       <p class="text-sm text-slate-500">{{ _('discussions.no_spaces') }}</p>
@@ -32,21 +32,21 @@
     <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
       {{ _('discussions.search_results') if q else _('discussions.recent') }}</h2>
     <div class="space-y-2">
-      {% for topic in recent_topics %}
-      <a href="{{ topic.url }}" class="card block p-4 transition hover:ring-brand-500">
+      {% for post in recent_posts %}
+      <a href="{{ post.url }}" class="card block p-4 transition hover:ring-brand-500">
         <div class="flex items-center gap-2">
-          {% if topic.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
-          {% if topic.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
-          <span class="font-medium">{{ topic.title }}</span>
+          {% if post.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
+          {% if post.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
+          <span class="font-medium">{{ post.title }}</span>
         </div>
         <p class="mt-1 text-xs text-slate-500">
-          {{ topic.space.name }} · {{ topic.reply_count }} {{ _('discussions.replies') }}
-          · {{ topic.last_activity_at|localdatetime }}
-          {% if topic.author %} · {{ topic.author.name }}{% endif %}
+          {{ post.space.name }} · {{ post.comment_count }} {{ _('discussions.comments') }}
+          · {{ post.last_activity_at|localdatetime }}
+          {% if post.author %} · {{ post.author.name }}{% endif %}
         </p>
       </a>
       {% else %}
-      <p class="text-sm text-slate-500">{{ _('discussions.no_topics') }}</p>
+      <p class="text-sm text-slate-500">{{ _('discussions.no_posts') }}</p>
       {% endfor %}
     </div>
   </div>
