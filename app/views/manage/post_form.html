@@ -1,0 +1,121 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="mb-4 flex items-center gap-2">
+  <span class="badge-brand">{{ post_type.name }}</span>
+  {% if post_type.description %}<span class="text-sm text-slate-500">{{ post_type.description }}</span>{% endif %}
+</div>
+
+<form method="POST" class="grid gap-6 lg:grid-cols-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="type" value="{{ post_type.slug }}">
+
+  <div class="card space-y-4 lg:col-span-2">
+    <div>
+      <label for="title" class="label">{{ _('manage.page_title') }}</label>
+      <input type="text" id="title" name="title" class="input mt-1" required
+             maxlength="200" value="{{ post.title if post else '' }}">
+    </div>
+    <div>
+      <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
+      <input type="text" id="slug" name="slug" class="input mt-1" required
+             value="{{ post.slug if post else '' }}">
+    </div>
+
+    {% for spec in post_type.fields %}
+    <div>
+      <label for="field_{{ spec.key }}" class="label">{{ spec.label or spec.key }}{% if spec.required %} *{% endif %}</label>
+      {% set value = post.fields.get(spec.key, '') if post and post.fields else '' %}
+      {% if spec.type == 'text' %}
+      <textarea id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="textarea mt-1">{{ value }}</textarea>
+      {% elif spec.type == 'boolean' %}
+      <input type="checkbox" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="mt-1" {{ 'checked' if value }}>
+      {% elif spec.type == 'number' %}
+      <input type="number" step="any" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}">
+      {% elif spec.type == 'date' %}
+      <input type="date" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}">
+      {% else %}
+      <input type="text" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}"
+             {% if spec.type == 'url' %}placeholder="https://"{% endif %}>
+      {% endif %}
+      {% if spec.help %}<p class="mt-1 text-xs text-slate-500">{{ spec.help }}</p>{% endif %}
+    </div>
+    {% endfor %}
+
+    <div>
+      <label for="body" class="label">{{ _('manage.body_markdown') }}</label>
+      <textarea id="body" name="body" class="textarea mt-1 min-h-96 font-mono text-sm">{{ post.body if post else '' }}</textarea>
+    </div>
+    <div>
+      <label for="excerpt" class="label">{{ _('manage.excerpt') }}</label>
+      <textarea id="excerpt" name="excerpt" class="textarea mt-1" maxlength="500">{{ post.excerpt or '' if post else '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="space-y-6">
+    <div class="card space-y-4">
+      <div>
+        <label for="visibility" class="label">{{ _('manage.visibility') }}</label>
+        <select id="visibility" name="visibility" class="select mt-1">
+          <option value="public" {{ 'selected' if post and post.visibility == 'public' }}>{{ _('manage.visibility_public') }}</option>
+          <option value="members" {{ 'selected' if post and post.visibility == 'members' }}>{{ _('manage.visibility_members') }}</option>
+        </select>
+      </div>
+      <div>
+        <span class="label">{{ _('manage.categories') }}</span>
+        <div class="mt-1 space-y-1">
+          {% for category in categories %}
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="category_ids" value="{{ category.id }}"
+                   {{ 'checked' if post and category in post.categories }}>
+            {{ category.name }}
+          </label>
+          {% else %}
+          <p class="text-xs text-slate-500">{{ _('manage.no_categories') }}</p>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <label for="tags" class="label">{{ _('manage.tags') }}</label>
+        <input type="text" id="tags" name="tags" class="input mt-1"
+               value="{{ post.tags|join(', ') if post and post.tags else '' }}">
+        <p class="mt-1 text-xs text-slate-500">{{ _('manage.tags_hint') }}</p>
+      </div>
+      <div>
+        <label for="featured_upload_id" class="label">{{ _('manage.featured_image') }}</label>
+        <input type="number" id="featured_upload_id" name="featured_upload_id" class="input mt-1"
+               value="{{ post.featured_upload_id or '' if post else '' }}">
+        <p class="mt-1 text-xs text-slate-500">{{ _('manage.featured_image_hint') }}</p>
+      </div>
+      <div>
+        <label for="seo_title" class="label">{{ _('manage.seo_title') }}</label>
+        <input type="text" id="seo_title" name="seo_title" class="input mt-1"
+               maxlength="200" value="{{ post.seo_title or '' if post else '' }}">
+      </div>
+      <div>
+        <label for="seo_description" class="label">{{ _('manage.seo_description') }}</label>
+        <textarea id="seo_description" name="seo_description" class="textarea mt-1"
+                  maxlength="300">{{ post.seo_description or '' if post else '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="card space-y-2">
+      {% if post and post.status == 'published' %}
+      <p class="text-sm text-slate-600">{{ _('manage.published_at', date=post.published_at|localdate) }}</p>
+      <button type="submit" name="action" value="save" class="btn-primary w-full">{{ _('common.save') }}</button>
+      <button type="submit" name="action" value="unpublish" class="btn-secondary w-full">{{ _('manage.unpublish') }}</button>
+      <a href="{{ post.permalink }}" class="btn-secondary w-full">{{ _('manage.view_page') }}</a>
+      {% else %}
+      <button type="submit" name="action" value="save" class="btn-secondary w-full">{{ _('manage.save_draft') }}</button>
+      <button type="submit" name="action" value="publish" class="btn-primary w-full">{{ _('manage.publish') }}</button>
+      {% endif %}
+      {% if post and post.id %}
+      <a href="{{ url_for('manage.preview_post', post_id=post.id) }}" class="btn-secondary w-full">{{ _('manage.preview') }}</a>
+      {% if post.status != 'archived' %}
+      <button type="submit" name="action" value="archive" class="btn-danger w-full">{{ _('manage.archive_post') }}</button>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</form>
+{% endblock %}

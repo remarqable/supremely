@@ -128,6 +128,165 @@ def set_homepage(page_id):
     return redirect(url_for('manage.pages'))
 
 
+# --- Posts ---------------------------------------------------------------------
+
+@bp.route('/posts')
+@org_required
+@require('content.write')
+def posts():
+    from app.models.post import Post
+    post_list = Post.query.order_by(Post.created_at.desc()).all()
+    return render_template('manage/posts.html', posts=post_list)
+
+
+def _post_from_form(post):
+    from app.models.post import Category
+    post.title = request.form.get('title', '')
+    post.slug = request.form.get('slug', '')
+    post.body = request.form.get('body', '')
+    post.excerpt = request.form.get('excerpt', '').strip() or None
+    post.visibility = request.form.get('visibility', 'public')
+    post.seo_title = request.form.get('seo_title', '').strip() or None
+    post.seo_description = request.form.get('seo_description', '').strip() or None
+    raw = request.form.get('featured_upload_id', '')
+    post.featured_upload_id = int(raw) if raw.isdigit() and int(raw) else None
+    post.tags = [tag.strip() for tag in
+                 request.form.get('tags', '').split(',') if tag.strip()]
+    category_ids = request.form.getlist('category_ids', type=int)
+    post.categories = (Category.query.filter(Category.id.in_(category_ids)).all()
+                       if category_ids else [])
+    post.set_structured_fields({
+        key[len('field_'):]: value for key, value in request.form.items()
+        if key.startswith('field_')
+    })
+    return post
+
+
+@bp.route('/posts/new', methods=['GET', 'POST'])
+@org_required
+@require('content.write')
+def new_post():
+    from app.models.post import Category, Post
+    from app.platform.post_types import POST_TYPES, get_post_type
+    type_slug = request.values.get('type', 'article')
+    post_type = get_post_type(type_slug)
+
+    if request.method == 'POST':
+        post = Post(type=post_type.slug)
+        try:
+            _post_from_form(post)
+            post.stamp_audit()
+            if request.form.get('action') == 'publish':
+                post.validate()
+                db.session.add(post)
+                db.session.commit()
+                post.publish()
+            else:
+                post.save()
+            flash(t('common.saved'), 'success')
+            return redirect(url_for('manage.edit_post', post_id=post.id))
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+            return render_template('manage/post_form.html', post=post,
+                                   post_type=post_type,
+                                   post_types=POST_TYPES,
+                                   categories=Category.query.order_by(Category.name).all())
+    return render_template('manage/post_form.html', post=None,
+                           post_type=post_type, post_types=POST_TYPES,
+                           categories=Category.query.order_by(Category.name).all())
+
+
+@bp.route('/posts/<int:post_id>/edit', methods=['GET', 'POST'])
+@org_required
+@require('content.write')
+def edit_post(post_id):
+    from app.models.post import Category, Post
+    from app.platform.post_types import POST_TYPES
+    post = db.session.get(Post, post_id)
+    if post is None:
+        abort(404)
+    if request.method == 'POST':
+        try:
+            _post_from_form(post)
+            post.stamp_audit()
+            action = request.form.get('action', 'save')
+            if action == 'publish':
+                post.publish()
+            elif action == 'unpublish':
+                post.unpublish()
+            elif action == 'archive':
+                post.archive()
+            else:
+                post.save()
+            flash(t('common.saved'), 'success')
+            return redirect(url_for('manage.edit_post', post_id=post.id))
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+    return render_template('manage/post_form.html', post=post,
+                           post_type=post.post_type, post_types=POST_TYPES,
+                           categories=Category.query.order_by(Category.name).all())
+
+
+@bp.route('/posts/<int:post_id>/delete', methods=['POST'])
+@org_required
+@require('content.write')
+def delete_post(post_id):
+    from app.models.post import Post
+    post = db.session.get(Post, post_id)
+    if post is None:
+        abort(404)
+    post.delete()
+    flash(t('manage.post_deleted'), 'success')
+    return redirect(url_for('manage.posts'))
+
+
+@bp.route('/posts/<int:post_id>/preview')
+@org_required
+@require('content.write')
+def preview_post(post_id):
+    from app.models.post import Post
+    from app.platform.theming import render_site
+    post = db.session.get(Post, post_id)
+    if post is None:
+        abort(404)
+    post_type = post.post_type
+    return render_site(
+        [f'site/{post_type.template}.html', 'site/post.html'],
+        post=post, post_type=post_type, preview=True)
+
+
+@bp.route('/categories', methods=['GET', 'POST'])
+@org_required
+@require('content.write')
+def categories():
+    from app.models.post import Category
+    if request.method == 'POST':
+        category = Category(name=request.form.get('name', ''),
+                            slug=request.form.get('slug', ''))
+        try:
+            category.save()
+            flash(t('common.saved'), 'success')
+        except ValidationError as e:
+            flash(e.message, 'error')
+        return redirect(url_for('manage.categories'))
+    category_list = Category.query.order_by(Category.name).all()
+    return render_template('manage/categories.html', categories=category_list)
+
+
+@bp.route('/categories/<int:category_id>/delete', methods=['POST'])
+@org_required
+@require('content.write')
+def delete_category(category_id):
+    from app.models.post import Category
+    category = db.session.get(Category, category_id)
+    if category is None:
+        abort(404)
+    category.delete()
+    return redirect(url_for('manage.categories'))
+
+
 # --- Navigation ----------------------------------------------------------------
 
 @bp.route('/navigation', methods=['GET', 'POST'])

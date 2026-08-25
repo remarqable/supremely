@@ -9,9 +9,10 @@ from .job import Job
 from .page import Page
 from .navigation import NavigationItem
 from .upload import Upload
+from .post import Post, Category
 
 __all__ = [
     'BaseModel', 'OrgScoped', 'AuditMixin', 'utcnow', 'transaction',
     'User', 'Organization', 'Membership', 'ROLES', 'InstallationSetting',
-    'Job', 'Page', 'NavigationItem', 'Upload',
+    'Job', 'Page', 'NavigationItem', 'Upload', 'Post', 'Category',
 ]

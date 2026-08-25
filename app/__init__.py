@@ -48,8 +48,11 @@ def create_app(config_class=Config):
     from .platform.theming import init_theming
     init_theming(app)
 
-    from .controllers import main, auth, setup, admin, orgs, cli, manage, site
-    for module in (main, auth, setup, admin, orgs, manage, site):
+    from .platform.post_types import register_core_types
+    register_core_types()
+
+    from .controllers import main, auth, setup, admin, orgs, cli, manage, site, posts
+    for module in (main, auth, setup, admin, orgs, manage, posts, site):
         app.register_blueprint(module.bp)
     for cli_bp in cli.CLI_BLUEPRINTS:
         app.register_blueprint(cli_bp)

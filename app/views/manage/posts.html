@@ -1,0 +1,47 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="mb-4 flex items-center justify-between">
+  <div class="flex gap-2">
+    <a href="{{ url_for('manage.categories') }}" class="btn-secondary">{{ _('manage.categories') }}</a>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('manage.new_post') }}" class="btn-primary">{{ _('manage.new_post') }}</a>
+    <a href="{{ url_for('manage.new_post', type='link') }}" class="btn-secondary">{{ _('manage.new_link_post') }}</a>
+  </div>
+</div>
+
+<div class="card">
+  <table class="table-plain">
+    <thead><tr>
+      <th>{{ _('manage.page_title') }}</th><th>{{ _('manage.post_type') }}</th>
+      <th>{{ _('common.status') }}</th><th>{{ _('manage.visibility') }}</th>
+      <th>{{ _('manage.published') }}</th><th>{{ _('common.actions') }}</th>
+    </tr></thead>
+    <tbody>
+      {% for post in posts %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('manage.edit_post', post_id=post.id) }}">{{ post.title }}</a></td>
+        <td><span class="badge-slate">{{ post.post_type.name }}</span></td>
+        <td>
+          {% if post.status == 'published' %}<span class="badge-green">{{ _('manage.published') }}</span>
+          {% elif post.status == 'archived' %}<span class="badge-red">{{ _('manage.archived') }}</span>
+          {% else %}<span class="badge-slate">{{ _('manage.draft') }}</span>{% endif %}
+        </td>
+        <td><span class="badge-slate">{{ _('manage.visibility_' + post.visibility) }}</span></td>
+        <td>{{ post.published_at|localdate }}</td>
+        <td class="flex gap-3">
+          <a href="{{ url_for('manage.preview_post', post_id=post.id) }}" class="text-sm text-slate-600 hover:underline">{{ _('manage.preview') }}</a>
+          <form method="POST" action="{{ url_for('manage.delete_post', post_id=post.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('common.delete') }}</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-slate-500">{{ _('manage.no_posts') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

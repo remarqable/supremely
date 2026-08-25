@@ -1,0 +1,36 @@
+{% extends 'manage/_layout.html' %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-xl">
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.categories') }}</h3>
+    <ul class="space-y-2">
+      {% for category in categories %}
+      <li class="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+        <span class="font-medium">{{ category.name }}</span>
+        <span class="text-slate-500">/posts/category/{{ category.slug }}</span>
+        <form method="POST" action="{{ url_for('manage.delete_category', category_id=category.id) }}" class="ms-auto">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="text-red-600 hover:underline">{{ _('common.delete') }}</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="text-sm text-slate-500">{{ _('common.none') }}</li>
+      {% endfor %}
+    </ul>
+
+    <form method="POST" class="mt-6 flex items-end gap-3 border-t border-slate-100 pt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="flex-1">
+        <label for="name" class="label">{{ _('common.name') }}</label>
+        <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
+      </div>
+      <div class="flex-1">
+        <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
+        <input type="text" id="slug" name="slug" class="input mt-1" required>
+      </div>
+      <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
