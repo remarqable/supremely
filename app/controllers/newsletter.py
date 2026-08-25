@@ -48,22 +48,28 @@ def _do_subscribe():
                        pending=subscriber.status == 'pending')
 
 
-@bp.route('/subscribe/confirm/<token>')
+@bp.route('/subscribe/confirm/<token>', methods=['GET', 'POST'])
 @org_required
 def confirm(token):
     subscriber = Subscriber.by_token(token)
     if subscriber is None:
         abort(404)
-    subscriber.confirm()
-    flash(t('newsletter.confirmed'), 'success')
-    return redirect('/')
+    # Mutate only on POST so email/link prefetchers can't confirm on GET.
+    if request.method == 'POST':
+        subscriber.confirm()
+        flash(t('newsletter.confirmed'), 'success')
+        return redirect('/')
+    return render_site(['confirm.html'], token=token)
 
 
-@bp.route('/unsubscribe/<token>')
+@bp.route('/unsubscribe/<token>', methods=['GET', 'POST'])
 @org_required
 def unsubscribe(token):
     subscriber = Subscriber.by_token(token)
     if subscriber is None:
         abort(404)
-    subscriber.unsubscribe()
-    return render_site(['unsubscribed.html'])
+    # Mutate only on POST so scanners/prefetchers can't unsubscribe on GET.
+    if request.method == 'POST':
+        subscriber.unsubscribe()
+        return render_site(['unsubscribed.html'])
+    return render_site(['unsubscribe.html'], token=token, email=subscriber.email)

@@ -226,3 +226,7 @@ config/local.env
 *.db-wal
 *.db-shm
 .DS_Store
+
+# Belt-and-suspenders: never commit any env file
+*.env
+!config/local.env.example

@@ -52,7 +52,7 @@ def test_register_duplicate_email(app, client, user):
     response = client.post('/auth/register', base_url=BARE, data={
         'name': 'X', 'email': user.email, 'password': 'whatever-123'})
     assert response.status_code == 400
-    assert b'already exists' in response.data
+    assert b'create that account' in response.data
 
 
 def test_login_page_links_register_only_when_enabled(app, client):

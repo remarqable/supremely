@@ -61,8 +61,10 @@
       </div>
       <div>
         <label for="smtp_password" class="label">{{ _('admin.smtp_password') }}</label>
+        {# Never echo the stored secret back into HTML. Blank = keep existing. #}
         <input type="password" id="smtp_password" name="smtp_password" class="input mt-1"
-               value="{{ values.get('email.smtp_password', '') }}">
+               autocomplete="new-password"
+               placeholder="{{ '••••••••' if values.get('email.smtp_password') else '' }}">
       </div>
       <div>
         <label for="from_address" class="label">{{ _('admin.from_address') }}</label>

@@ -28,6 +28,26 @@ VARIANTS = {'thumb': 200, 'medium': 800, 'full': 1600}   # max long edge, px
 MAX_SIZE = 10 * 1024 * 1024
 
 
+def _sanitize_raster(data: bytes, content_type: str) -> bytes:
+    """Decode and re-encode a raster image, dropping EXIF and any smuggled
+    payload. Returns original bytes if Pillow can't process it."""
+    import io as _io
+    try:
+        from PIL import Image, ImageOps
+        Image.MAX_IMAGE_PIXELS = 30_000_000
+        img = Image.open(_io.BytesIO(data))
+        img = ImageOps.exif_transpose(img)
+        fmt = {'image/png': 'PNG', 'image/jpeg': 'JPEG',
+               'image/webp': 'WEBP'}[content_type]
+        if fmt == 'JPEG' and img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        out = _io.BytesIO()
+        img.save(out, fmt)
+        return out.getvalue()
+    except Exception:       # noqa: BLE001 -- non-decodable: keep original bytes
+        return data
+
+
 def sniff(head: bytes) -> tuple[str, str] | None:
     for magic, content_type, ext in MAGIC:
         if head.startswith(magic):
@@ -76,6 +96,13 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
         if sniffed is None:
             raise ValidationError('File type not allowed')
         content_type, ext = sniffed
+
+        # Re-encode raster images so the STORED ORIGINAL is sanitized too:
+        # strips EXIF (GPS) and drops anything hiding in the container. The
+        # /files/<id>/original route is public, so this must not be
+        # variant-only.
+        if content_type in ('image/png', 'image/jpeg', 'image/webp'):
+            head = _sanitize_raster(head, content_type)
 
         key = f'org/{g.org.id}/{secrets.token_hex(16)}{ext}'
         storage().save(key, io.BytesIO(head))

@@ -174,7 +174,7 @@ class Post(OrgScoped, AuditMixin, BaseModel):
         # Portable tag filtering: tags are stored as a JSON array of strings.
         needle = json.dumps(tag)[1:-1]
         return (cls.published_query()
-                .filter(sa_cast_tags().like(f'%"{needle}"%')))
+                .filter(sa_cast_tags().ilike(f'%"{needle}"%')))
 
 
 def sa_cast_tags():

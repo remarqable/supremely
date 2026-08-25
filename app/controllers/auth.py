@@ -20,7 +20,11 @@ log = get_logger()
 
 def _safe_next(default: str) -> str:
     nxt = request.args.get('next') or request.form.get('next') or ''
-    if nxt.startswith('/') and not nxt.startswith('//'):
+    # Must be a site-relative path. Reject scheme-relative (//host) and
+    # backslash variants (/\host, browsers normalise \ to /), which are
+    # open-redirect vectors.
+    normalized = nxt.replace('\\', '/')
+    if normalized.startswith('/') and not normalized.startswith('//'):
         return nxt
     return default
 

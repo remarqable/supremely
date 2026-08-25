@@ -39,5 +39,5 @@ class InstallationSetting(BaseModel):
     def get_map(cls, prefix: str = '') -> dict:
         query = cls.query
         if prefix:
-            query = query.filter(cls.key.like(f'{prefix}%'))
+            query = query.filter(cls.key.ilike(f'{prefix}%'))
         return {s.key: s.value for s in query.all()}

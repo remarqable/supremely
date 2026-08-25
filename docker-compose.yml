@@ -31,7 +31,8 @@ services:
     environment:
       POSTGRES_DB: supremely
       POSTGRES_USER: supremely
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supremely}
+      # No baked-in default: the operator must set POSTGRES_PASSWORD.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
 
 volumes:
   supremely_data:

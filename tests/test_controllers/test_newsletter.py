@@ -47,9 +47,13 @@ def test_subscribe_with_email_requires_confirmation(app, client, acme, globex):
     assert len(mailer._outbox) == 1
     assert 'Confirm' in mailer._outbox[0]['Subject']
 
-    # Click the confirmation link
-    response = client.get(f'/subscribe/confirm/{subscriber.token}',
-                          base_url=ACME)
+    # GET shows a confirm page and does NOT mutate (prefetch-safe)
+    page = client.get(f'/subscribe/confirm/{subscriber.token}', base_url=ACME)
+    assert page.status_code == 200
+    assert db.session.get(Subscriber, subscriber.id).status == 'pending'
+    # POST performs the confirmation
+    response = client.post(f'/subscribe/confirm/{subscriber.token}',
+                           base_url=ACME)
     assert response.status_code == 302
     assert db.session.get(Subscriber, subscriber.id).status == 'subscribed'
 
@@ -70,7 +74,12 @@ def test_duplicate_subscribe_dedupes(app, client, acme, globex):
 def test_unsubscribe(app, client, acme, globex):
     client.post('/subscribe', base_url=ACME, data={'email': 'r@example.com'})
     subscriber = Subscriber.query.first()
-    response = client.get(f'/unsubscribe/{subscriber.token}', base_url=ACME)
+    # GET shows a confirmation page and does NOT unsubscribe (prefetch-safe)
+    page = client.get(f'/unsubscribe/{subscriber.token}', base_url=ACME)
+    assert page.status_code == 200
+    assert db.session.get(Subscriber, subscriber.id).status == 'subscribed'
+    # POST performs the unsubscribe
+    response = client.post(f'/unsubscribe/{subscriber.token}', base_url=ACME)
     assert response.status_code == 200
     assert db.session.get(Subscriber, subscriber.id).status == 'unsubscribed'
 

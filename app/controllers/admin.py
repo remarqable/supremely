@@ -320,9 +320,14 @@ def settings():
                                     request.form.get('language', 'en').strip())
         elif section == 'email':
             for field in ('smtp_host', 'smtp_port', 'smtp_username',
-                          'smtp_password', 'from_address'):
+                          'from_address'):
                 InstallationSetting.set(f'email.{field}',
                                         request.form.get(field, '').strip())
+            # Blank password field = keep the stored one (it is never echoed
+            # back into the form), so admins can edit other fields safely.
+            smtp_password = request.form.get('smtp_password', '')
+            if smtp_password:
+                InstallationSetting.set('email.smtp_password', smtp_password)
             InstallationSetting.set('email.use_tls',
                                     'true' if request.form.get('use_tls') == 'on'
                                     else 'false')

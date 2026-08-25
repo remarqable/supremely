@@ -1,0 +1,16 @@
+{% extends site_layout %}
+
+{% block title %}{{ _('newsletter.confirm_title') }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md py-10">
+  <div class="card text-center">
+    <h1 class="text-xl font-semibold">{{ _('newsletter.confirm_title') }}</h1>
+    <p class="mt-2 text-slate-600">{{ _('newsletter.confirm_body', org=g.org.name) }}</p>
+    <form method="POST" action="/subscribe/confirm/{{ token }}" class="mt-6">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-primary w-full">{{ _('newsletter.confirm_button') }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
