@@ -1,24 +1,32 @@
 {% extends 'layouts/base.html' %}
+{% from 'partials/_sidenav.html' import sidenav with context %}
 
 {% block title %}{{ _('admin.title') }} — {{ installation_name }}{% endblock %}
 
-{% set admin_nav = [
-  ('admin.dashboard', _('admin.dashboard')),
-  ('admin.orgs', _('admin.organizations')),
-  ('admin.users', _('admin.users')),
-  ('admin.themes', _('admin.themes')),
-  ('admin.settings', _('admin.settings')),
-  ('admin.system', _('admin.system')),
+{% block main_class %}mx-auto max-w-7xl px-4 py-8{% endblock %}
+
+{% set admin_groups = [
+  ('', [
+    {'endpoint': 'admin.dashboard', 'label': _('admin.dashboard')},
+  ]),
+  (_('admin.group_tenants'), [
+    {'endpoint': 'admin.orgs', 'label': _('admin.organizations'),
+     'also': ['admin.new_org', 'admin.org_detail']},
+    {'endpoint': 'admin.users', 'label': _('admin.users'),
+     'also': ['admin.new_user', 'admin.user_detail']},
+  ]),
+  (_('admin.group_platform'), [
+    {'endpoint': 'admin.themes', 'label': _('admin.themes')},
+    {'endpoint': 'admin.settings', 'label': _('admin.settings')},
+    {'endpoint': 'admin.system', 'label': _('admin.system')},
+  ]),
 ] %}
 
 {% block content %}
-<div class="mb-6 flex flex-wrap items-center gap-1 border-b border-slate-200 pb-3">
-  <span class="me-3 text-lg font-bold">{{ _('admin.title') }}</span>
-  {% for endpoint, label in admin_nav %}
-  <a href="{{ url_for(endpoint) }}"
-     class="rounded-md px-3 py-1.5 text-sm {{ 'bg-brand-50 font-medium text-brand-700' if request.endpoint == endpoint else 'text-slate-600 hover:bg-slate-100' }}">
-    {{ label }}</a>
-  {% endfor %}
+<div class="flex flex-col gap-6 md:flex-row md:gap-10">
+  {{ sidenav(_('admin.title'), admin_groups) }}
+  <div class="min-w-0 flex-1">
+    {% block admin_content %}{% endblock %}
+  </div>
 </div>
-{% block admin_content %}{% endblock %}
 {% endblock %}

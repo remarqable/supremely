@@ -21,7 +21,7 @@
 
   {% include 'partials/_navbar.html' %}
 
-  <main id="main" class="mx-auto max-w-5xl px-4 py-8">
+  <main id="main" class="{% block main_class %}mx-auto max-w-5xl px-4 py-8{% endblock %}">
     {% include 'partials/_flash.html' %}
     {% block content %}{% endblock %}
   </main>

@@ -1,0 +1,38 @@
+{% macro nav_groups(groups, current) %}
+<nav class="space-y-5" aria-label="{{ _('nav.section_nav') }}">
+  {% for group_label, items in groups %}
+  <div>
+    {% if group_label %}
+    <div class="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{{ group_label }}</div>
+    {% endif %}
+    <ul class="space-y-0.5">
+      {% for item in items %}
+      {% set active = current == item.endpoint or current in item.get('also', []) %}
+      <li>
+        <a href="{{ url_for(item.endpoint) }}"
+           class="block rounded-md px-3 py-1.5 text-sm {{ 'bg-brand-50 font-medium text-brand-700' if active else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}"
+           {{ 'aria-current=page' if active }}>
+          {{ item.label }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+{% macro sidenav(title, groups) %}
+{% set current = request.endpoint %}
+<aside class="md:w-52 md:shrink-0">
+  {# Mobile: a collapsible section menu #}
+  <details class="card mb-2 p-3 md:hidden">
+    <summary class="cursor-pointer text-sm font-semibold">{{ title }}</summary>
+    <div class="mt-3">{{ nav_groups(groups, current) }}</div>
+  </details>
+  {# Desktop: a sticky left column #}
+  <div class="sticky top-6 hidden md:block">
+    <div class="mb-3 px-3 text-lg font-bold">{{ title }}</div>
+    {{ nav_groups(groups, current) }}
+  </div>
+</aside>
+{% endmacro %}

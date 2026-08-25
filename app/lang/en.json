@@ -9,6 +9,13 @@
   "nav.logout": "Log out",
   "nav.change_password": "Change password",
   "nav.skip_to_content": "Skip to content",
+  "nav.section_nav": "Section navigation",
+
+  "manage.group_content": "Content",
+  "manage.group_community": "Community",
+  "manage.group_site": "Site",
+  "admin.group_tenants": "Tenants",
+  "admin.group_platform": "Platform",
   "nav.toggle_menu": "Toggle menu",
   "nav.switch_org": "Switch organization",
   "nav.manage": "Manage",

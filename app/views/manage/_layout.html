@@ -1,28 +1,38 @@
 {% extends 'layouts/base.html' %}
+{% from 'partials/_sidenav.html' import sidenav with context %}
 
 {% block title %}{{ _('manage.title') }} — {{ g.org.name }}{% endblock %}
 
-{% set manage_nav = [
-  ('manage.pages', _('manage.pages')),
-  ('manage.posts', _('manage.posts')),
-  ('manage.navigation', _('manage.navigation')),
-  ('manage.discussions', _('manage.discussions')),
-  ('manage.newsletter', _('manage.newsletter')),
-  ('manage.media', _('manage.media')),
-  ('manage.members', _('manage.members')),
-  ('manage.plugins', _('manage.plugins')),
-  ('manage.domains', _('manage.domains')),
-  ('manage.settings', _('manage.settings')),
+{% block main_class %}mx-auto max-w-7xl px-4 py-8{% endblock %}
+
+{% set manage_groups = [
+  (_('manage.group_content'), [
+    {'endpoint': 'manage.pages', 'label': _('manage.pages'),
+     'also': ['manage.new_page', 'manage.edit_page']},
+    {'endpoint': 'manage.posts', 'label': _('manage.posts'),
+     'also': ['manage.new_post', 'manage.edit_post', 'manage.preview_post',
+              'manage.categories']},
+    {'endpoint': 'manage.media', 'label': _('manage.media')},
+    {'endpoint': 'manage.navigation', 'label': _('manage.navigation')},
+  ]),
+  (_('manage.group_community'), [
+    {'endpoint': 'manage.members', 'label': _('manage.members')},
+    {'endpoint': 'manage.discussions', 'label': _('manage.discussions'),
+     'also': ['manage.flags']},
+    {'endpoint': 'manage.newsletter', 'label': _('manage.newsletter')},
+  ]),
+  (_('manage.group_site'), [
+    {'endpoint': 'manage.settings', 'label': _('manage.settings')},
+    {'endpoint': 'manage.plugins', 'label': _('manage.plugins')},
+    {'endpoint': 'manage.domains', 'label': _('manage.domains')},
+  ]),
 ] %}
 
 {% block content %}
-<div class="mb-6 flex flex-wrap items-center gap-1 border-b border-slate-200 pb-3">
-  <span class="me-3 text-lg font-bold">{{ _('manage.title') }}</span>
-  {% for endpoint, label in manage_nav %}
-  <a href="{{ url_for(endpoint) }}"
-     class="rounded-md px-3 py-1.5 text-sm {{ 'bg-brand-50 font-medium text-brand-700' if request.endpoint == endpoint else 'text-slate-600 hover:bg-slate-100' }}">
-    {{ label }}</a>
-  {% endfor %}
+<div class="flex flex-col gap-6 md:flex-row md:gap-10">
+  {{ sidenav(_('manage.title'), manage_groups) }}
+  <div class="min-w-0 flex-1">
+    {% block manage_content %}{% endblock %}
+  </div>
 </div>
-{% block manage_content %}{% endblock %}
 {% endblock %}
