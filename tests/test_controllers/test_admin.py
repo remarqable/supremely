@@ -73,7 +73,8 @@ def test_cannot_demote_self(admin_client, platform_admin):
     assert User.get_by_id(platform_admin.id).is_platform_admin
 
 
-def test_system_page(admin_client):
+def test_system_page(admin_client, app):
     response = admin_client.get('/admin/system')
     assert response.status_code == 200
-    assert b'sqlite' in response.data.lower()
+    engine = b'postgresql' if app.config['IS_POSTGRES'] else b'sqlite'
+    assert engine in response.data.lower()

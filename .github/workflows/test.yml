@@ -1,0 +1,46 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: sqlite
+            test_database_url: ''
+          - name: postgres
+            test_database_url: postgresql+psycopg://postgres:postgres@localhost:5432/test
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run tests (${{ matrix.name }})
+        env:
+          TEST_DATABASE_URL: ${{ matrix.test_database_url }}
+        run: uv run pytest -q
+
+      - name: CSS is committed and current
+        if: matrix.name == 'sqlite'
+        run: make css && git diff --exit-code app/static/css/app.css
