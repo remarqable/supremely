@@ -1,0 +1,36 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{{ _('orgs.launcher_title') }} — {{ installation_name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-2xl">
+  <div class="mb-6 flex items-center justify-between">
+    <h1 class="text-2xl font-bold">{{ _('orgs.launcher_title') }}</h1>
+    {% if may_create %}
+    <a href="{{ url_for('orgs.create') }}" class="btn-primary">{{ _('orgs.create_org') }}</a>
+    {% endif %}
+  </div>
+
+  {% if memberships %}
+  <div class="space-y-3">
+    {% for membership in memberships %}
+    <a href="{{ org_url(membership.organization) }}"
+       class="card flex items-center justify-between transition hover:ring-brand-500">
+      <div>
+        <div class="font-semibold">{{ membership.organization.name }}</div>
+        <div class="text-sm text-slate-600">{{ membership.organization.slug }}</div>
+      </div>
+      <span class="badge-brand">{{ _('roles.' + membership.role) }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card text-center">
+    <p class="text-slate-700">{{ _('orgs.launcher_empty') }}</p>
+    {% if not may_create %}
+    <p class="mt-1 text-sm text-slate-600">{{ _('orgs.launcher_empty_hint') }}</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

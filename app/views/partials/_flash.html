@@ -1,0 +1,14 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div x-data="{ show: true }" x-show="show" x-transition role="alert"
+       class="mb-4 flex items-start gap-3 rounded-md p-4 text-sm ring-1
+              {{ 'bg-red-50 text-red-800 ring-red-200' if category in ('error','danger')
+                 else ('bg-amber-50 text-amber-800 ring-amber-200' if category == 'warning'
+                 else 'bg-green-50 text-green-800 ring-green-200') }}">
+    <span class="flex-1">{{ message }}</span>
+    <button @click="show = false" class="opacity-60 hover:opacity-100">
+      <span class="sr-only">{{ _('common.dismiss') }}</span>&#10005;
+    </button>
+  </div>
+  {% endfor %}
+{% endwith %}

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ installation_name }}{% endblock %}</title>
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-900">
+  <main class="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-4 py-10">
+    {% include 'partials/_flash.html' %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

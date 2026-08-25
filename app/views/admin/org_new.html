@@ -1,0 +1,31 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="mx-auto max-w-md">
+  <div class="card">
+    <h2 class="text-lg font-semibold">{{ _('admin.new_org') }}</h2>
+    <form method="POST" class="mt-6 space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div>
+        <label for="name" class="label">{{ _('orgs.name_label') }}</label>
+        <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
+      </div>
+      <div>
+        <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
+        <input type="text" id="slug" name="slug" class="input mt-1" required
+               pattern="[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?">
+        <p class="mt-1 text-sm text-slate-600">{{ _('orgs.slug_hint') }}</p>
+      </div>
+      <div>
+        <label for="owner_id" class="label">{{ _('admin.owner') }}</label>
+        <select id="owner_id" name="owner_id" class="select mt-1">
+          {% for user in users %}
+          <option value="{{ user.id }}" {{ 'selected' if user.id == current_user.id }}>{{ user.email }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

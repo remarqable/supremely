@@ -1,0 +1,31 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="mb-4 flex items-center justify-between gap-4">
+  <form method="GET" class="flex flex-1 gap-2">
+    <input type="search" name="q" value="{{ q }}" class="input max-w-xs"
+           placeholder="{{ _('common.search') }}" aria-label="{{ _('common.search') }}">
+    <button type="submit" class="btn-secondary">{{ _('common.search') }}</button>
+  </form>
+  <a href="{{ url_for('admin.new_user') }}" class="btn-primary">{{ _('admin.new_user') }}</a>
+</div>
+
+<div class="card">
+  <table class="table-plain">
+    <thead><tr><th>{{ _('common.email') }}</th><th>{{ _('common.name') }}</th><th>{{ _('common.status') }}</th><th>{{ _('admin.platform_admin') }}</th><th>{{ _('common.created') }}</th></tr></thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('admin.user_detail', user_id=user.id) }}">{{ user.email }}</a></td>
+        <td>{{ user.name }}</td>
+        <td>{% if user.is_active %}<span class="badge-green">{{ _('common.active') }}</span>{% else %}<span class="badge-red">{{ _('common.inactive') }}</span>{% endif %}</td>
+        <td>{% if user.is_platform_admin %}<span class="badge-brand">{{ _('common.yes') }}</span>{% endif %}</td>
+        <td>{{ user.created_at|localdate }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-slate-500">{{ _('common.none') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

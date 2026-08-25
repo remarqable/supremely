@@ -1,0 +1,31 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="mb-4 flex items-center justify-between gap-4">
+  <form method="GET" class="flex flex-1 gap-2">
+    <input type="search" name="q" value="{{ q }}" class="input max-w-xs"
+           placeholder="{{ _('common.search') }}" aria-label="{{ _('common.search') }}">
+    <button type="submit" class="btn-secondary">{{ _('common.search') }}</button>
+  </form>
+  <a href="{{ url_for('admin.new_org') }}" class="btn-primary">{{ _('admin.new_org') }}</a>
+</div>
+
+<div class="card">
+  <table class="table-plain">
+    <thead><tr><th>{{ _('common.name') }}</th><th>{{ _('orgs.slug_label') }}</th><th>{{ _('orgs.members') }}</th><th>{{ _('common.status') }}</th><th>{{ _('common.created') }}</th></tr></thead>
+    <tbody>
+      {% for org in organizations %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('admin.org_detail', org_id=org.id) }}">{{ org.name }}</a></td>
+        <td>{{ org.slug }}</td>
+        <td>{{ org.member_count() }}</td>
+        <td>{% if org.is_active %}<span class="badge-green">{{ _('common.active') }}</span>{% else %}<span class="badge-red">{{ _('common.suspended') }}</span>{% endif %}</td>
+        <td>{{ org.created_at|localdate }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-slate-500">{{ _('common.none') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

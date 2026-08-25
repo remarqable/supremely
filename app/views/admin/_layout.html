@@ -1,0 +1,23 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{{ _('admin.title') }} — {{ installation_name }}{% endblock %}
+
+{% set admin_nav = [
+  ('admin.dashboard', _('admin.dashboard')),
+  ('admin.orgs', _('admin.organizations')),
+  ('admin.users', _('admin.users')),
+  ('admin.settings', _('admin.settings')),
+  ('admin.system', _('admin.system')),
+] %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center gap-1 border-b border-slate-200 pb-3">
+  <span class="me-3 text-lg font-bold">{{ _('admin.title') }}</span>
+  {% for endpoint, label in admin_nav %}
+  <a href="{{ url_for(endpoint) }}"
+     class="rounded-md px-3 py-1.5 text-sm {{ 'bg-brand-50 font-medium text-brand-700' if request.endpoint == endpoint else 'text-slate-600 hover:bg-slate-100' }}">
+    {{ label }}</a>
+  {% endfor %}
+</div>
+{% block admin_content %}{% endblock %}
+{% endblock %}

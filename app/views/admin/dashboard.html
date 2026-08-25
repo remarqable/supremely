@@ -1,0 +1,40 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {% for key, value in stats.items() %}
+  <div class="card">
+    <div class="text-sm text-slate-600">{{ _('admin.stat_' + key) }}</div>
+    <div class="mt-1 text-3xl font-bold">{{ value }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if not email_configured %}
+<div class="mt-6 rounded-md bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+  {{ _('admin.email_not_configured') }}
+</div>
+{% endif %}
+
+<div class="card mt-6">
+  <div class="mb-4 flex items-center justify-between">
+    <h2 class="text-lg font-semibold">{{ _('admin.recent_orgs') }}</h2>
+    <a href="{{ url_for('admin.new_org') }}" class="btn-primary">{{ _('admin.new_org') }}</a>
+  </div>
+  <table class="table-plain">
+    <thead><tr><th>{{ _('common.name') }}</th><th>{{ _('orgs.slug_label') }}</th><th>{{ _('common.status') }}</th><th>{{ _('common.created') }}</th></tr></thead>
+    <tbody>
+      {% for org in recent_orgs %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('admin.org_detail', org_id=org.id) }}">{{ org.name }}</a></td>
+        <td>{{ org.slug }}</td>
+        <td>{% if org.is_active %}<span class="badge-green">{{ _('common.active') }}</span>{% else %}<span class="badge-red">{{ _('common.suspended') }}</span>{% endif %}</td>
+        <td>{{ org.created_at|localdate }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-slate-500">{{ _('common.none') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

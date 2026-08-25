@@ -1,0 +1,42 @@
+{% extends 'setup/_layout.html' %}
+
+{% block setup_content %}
+<h1 class="text-xl font-semibold">{{ _('setup.step_environment') }}</h1>
+
+<form method="POST" class="mt-6 space-y-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div>
+    <label for="name" class="label">{{ _('setup.installation_name') }}</label>
+    <input type="text" id="name" name="name" class="input mt-1" required
+           value="{{ defaults.name }}">
+  </div>
+
+  <div>
+    <label for="base_url" class="label">{{ _('setup.base_url') }}</label>
+    <input type="text" id="base_url" name="base_url" class="input mt-1" required
+           value="{{ defaults.base_url }}">
+    <p class="mt-1 text-sm text-slate-600">{{ _('setup.base_url_hint') }}</p>
+  </div>
+
+  <div>
+    <label for="timezone" class="label">{{ _('setup.timezone') }}</label>
+    <input type="text" id="timezone" name="timezone" class="input mt-1"
+           list="timezones" value="{{ defaults.timezone }}">
+    <datalist id="timezones">
+      {% for tz in timezones %}<option value="{{ tz }}">{% endfor %}
+    </datalist>
+  </div>
+
+  <div>
+    <label for="language" class="label">{{ _('setup.language') }}</label>
+    <select id="language" name="language" class="select mt-1">
+      {% for code, label in AVAILABLE_LANGUAGES.items() %}
+      <option value="{{ code }}" {{ 'selected' if code == defaults.language }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <button type="submit" class="btn-primary w-full">{{ _('common.continue') }}</button>
+</form>
+{% endblock %}

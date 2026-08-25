@@ -1,0 +1,94 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="grid gap-6 lg:grid-cols-2">
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('admin.general_settings') }}</h3>
+    <form method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="section" value="general">
+      <div>
+        <label for="name" class="label">{{ _('admin.installation_name') }}</label>
+        <input type="text" id="name" name="name" class="input mt-1"
+               value="{{ values.get('installation.name', '') }}">
+      </div>
+      <div>
+        <label for="timezone" class="label">{{ _('admin.timezone') }}</label>
+        <input type="text" id="timezone" name="timezone" class="input mt-1"
+               value="{{ values.get('installation.timezone', 'UTC') }}">
+      </div>
+      <div>
+        <label for="language" class="label">{{ _('admin.language') }}</label>
+        <select id="language" name="language" class="select mt-1">
+          {% for code, label in AVAILABLE_LANGUAGES.items() %}
+          <option value="{{ code }}" {{ 'selected' if code == values.get('installation.language', 'en') }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="allow_signups"
+               {{ 'checked' if values.get('installation.allow_organization_signups') == 'true' }}>
+        {{ _('admin.allow_signups') }}
+      </label>
+      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="mb-1 text-lg font-semibold">{{ _('admin.email_settings') }}</h3>
+    <p class="mb-4 text-sm {{ 'text-green-700' if email_configured else 'text-slate-600' }}">
+      {{ _('admin.email_configured') if email_configured else _('admin.email_not_configured') }}
+    </p>
+    <form method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="section" value="email">
+      <div class="grid grid-cols-3 gap-3">
+        <div class="col-span-2">
+          <label for="smtp_host" class="label">{{ _('admin.smtp_host') }}</label>
+          <input type="text" id="smtp_host" name="smtp_host" class="input mt-1"
+                 value="{{ values.get('email.smtp_host', '') }}">
+        </div>
+        <div>
+          <label for="smtp_port" class="label">{{ _('admin.smtp_port') }}</label>
+          <input type="text" id="smtp_port" name="smtp_port" class="input mt-1"
+                 value="{{ values.get('email.smtp_port', '587') }}">
+        </div>
+      </div>
+      <div>
+        <label for="smtp_username" class="label">{{ _('admin.smtp_username') }}</label>
+        <input type="text" id="smtp_username" name="smtp_username" class="input mt-1"
+               value="{{ values.get('email.smtp_username', '') }}">
+      </div>
+      <div>
+        <label for="smtp_password" class="label">{{ _('admin.smtp_password') }}</label>
+        <input type="password" id="smtp_password" name="smtp_password" class="input mt-1"
+               value="{{ values.get('email.smtp_password', '') }}">
+      </div>
+      <div>
+        <label for="from_address" class="label">{{ _('admin.from_address') }}</label>
+        <input type="email" id="from_address" name="from_address" class="input mt-1"
+               value="{{ values.get('email.from_address', '') }}">
+      </div>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="use_tls"
+               {{ 'checked' if values.get('email.use_tls', 'true') != 'false' }}>
+        {{ _('admin.use_tls') }}
+      </label>
+      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+    </form>
+
+    {% if email_configured %}
+    <form method="POST" action="{{ url_for('admin.test_email') }}"
+          class="mt-4 flex items-end gap-3 border-t border-slate-100 pt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="flex-1">
+        <label for="to" class="label">{{ _('common.email') }}</label>
+        <input type="email" id="to" name="to" class="input mt-1"
+               value="{{ current_user.email }}">
+      </div>
+      <button type="submit" class="btn-secondary">{{ _('admin.send_test_email') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

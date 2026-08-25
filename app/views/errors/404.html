@@ -1,0 +1,10 @@
+{% extends 'layouts/minimal.html' %}
+{% block title %}{{ _('errors.404_title') }}{% endblock %}
+{% block content %}
+<div class="card text-center">
+  <div class="text-5xl font-bold text-slate-300">404</div>
+  <h1 class="mt-2 text-xl font-semibold">{{ _('errors.404_title') }}</h1>
+  <p class="mt-1 text-slate-600">{{ _('errors.404_body') }}</p>
+  <a href="/" class="btn-secondary mt-6">{{ _('errors.home') }}</a>
+</div>
+{% endblock %}

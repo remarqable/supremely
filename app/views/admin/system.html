@@ -1,0 +1,26 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="grid gap-6 lg:grid-cols-2">
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('admin.system') }}</h3>
+    <dl class="grid grid-cols-3 gap-2 text-sm">
+      {% for key, value in info.items() %}
+      <dt class="text-slate-500">{{ key }}</dt>
+      <dd class="col-span-2 break-all">{{ value }}</dd>
+      {% endfor %}
+    </dl>
+  </div>
+  <div class="card">
+    <h3 class="mb-4 text-lg font-semibold">{{ _('admin.jobs') }}</h3>
+    <dl class="grid grid-cols-3 gap-2 text-sm">
+      {% for status, count in job_stats.items() %}
+      <dt class="text-slate-500">{{ status }}</dt>
+      <dd class="col-span-2">{{ count }}</dd>
+      {% else %}
+      <dt class="col-span-3 text-slate-500">{{ _('common.none') }}</dt>
+      {% endfor %}
+    </dl>
+  </div>
+</div>
+{% endblock %}

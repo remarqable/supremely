@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ installation_name }}{% endblock %}</title>
+  {% block meta %}{% endblock %}
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/alpine-focus.min.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-900"
+      hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:m-3
+                         focus:rounded focus:bg-white focus:p-3">
+    {{ _('nav.skip_to_content') }}
+  </a>
+
+  {% include 'partials/_navbar.html' %}
+
+  <main id="main" class="mx-auto max-w-5xl px-4 py-8">
+    {% include 'partials/_flash.html' %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

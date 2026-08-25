@@ -1,0 +1,9 @@
+{% extends 'layouts/minimal.html' %}
+{% block title %}{{ code }}{% endblock %}
+{% block content %}
+<div class="card text-center">
+  <div class="text-5xl font-bold text-slate-300">{{ code }}</div>
+  <p class="mt-2 text-slate-600">{{ message }}</p>
+  <a href="/" class="btn-secondary mt-6">{{ _('errors.home') }}</a>
+</div>
+{% endblock %}

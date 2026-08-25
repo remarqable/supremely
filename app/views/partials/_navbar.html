@@ -1,0 +1,45 @@
+<nav x-data="{ mobile: false }"
+     class="border-b border-slate-200 bg-white">
+  <div class="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
+    <a href="/" class="font-semibold">
+      {% if g.org %}{{ g.org.name }}{% else %}{{ installation_name }}{% endif %}
+    </a>
+
+    <div class="hidden gap-4 md:flex">
+      {% if g.org and (is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin)) %}
+        <a href="{{ url_for('orgs.dashboard') }}" class="text-sm hover:text-brand-600">{{ _('nav.dashboard') }}</a>
+      {% endif %}
+    </div>
+
+    <div class="ms-auto flex items-center gap-2">
+      {% if current_user.is_authenticated %}
+      <div x-data="{ open: false }" class="relative">
+        <button @click="open = !open" @keydown.escape="open = false"
+                :aria-expanded="open" aria-haspopup="menu"
+                class="btn-secondary">{{ current_user.name }}</button>
+
+        <div x-show="open" @click.outside="open = false" x-cloak x-transition
+             role="menu"
+             class="absolute end-0 z-20 mt-2 w-56 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5">
+          <a href="{{ url_for('orgs.launcher') }}" role="menuitem"
+             class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.launcher') }}</a>
+          <a href="{{ url_for('auth.change_password') }}" role="menuitem"
+             class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.change_password') }}</a>
+          {% if current_user.is_platform_admin %}
+          <a href="{{ url_for('admin.dashboard') }}" role="menuitem"
+             class="block px-4 py-2 text-sm font-medium text-brand-700 hover:bg-slate-50">{{ _('nav.administration') }}</a>
+          {% endif %}
+          <form action="{{ url_for('auth.logout') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" role="menuitem"
+                    class="block w-full px-4 py-2 text-start text-sm hover:bg-slate-50">
+              {{ _('nav.logout') }}</button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <a href="{{ url_for('auth.login') }}" class="btn-primary">{{ _('nav.login') }}</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>

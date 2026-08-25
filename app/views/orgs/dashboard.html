@@ -1,0 +1,44 @@
+{% extends 'layouts/base.html' %}
+
+{% block title %}{{ _('orgs.dashboard_title') }} — {{ org.name }}{% endblock %}
+
+{% block content %}
+<h1 class="mb-6 text-2xl font-bold">{{ org.name }}</h1>
+
+<div class="grid gap-6 md:grid-cols-3">
+  <div class="card">
+    <div class="text-sm text-slate-600">{{ _('orgs.members') }}</div>
+    <div class="mt-1 text-3xl font-bold">{{ members|length }}</div>
+  </div>
+  <div class="card">
+    <div class="text-sm text-slate-600">{{ _('orgs.your_role') }}</div>
+    <div class="mt-1 text-3xl font-bold">
+      {% if g.membership %}{{ _('roles.' + g.membership.role) }}{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="text-sm text-slate-600">{{ _('common.status') }}</div>
+    <div class="mt-1 text-3xl font-bold">
+      {{ _('common.active') if org.is_active else _('common.suspended') }}
+    </div>
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h2 class="mb-4 text-lg font-semibold">{{ _('orgs.members') }}</h2>
+  <table class="table-plain">
+    <thead>
+      <tr><th>{{ _('common.name') }}</th><th>{{ _('common.email') }}</th><th>{{ _('common.role') }}</th></tr>
+    </thead>
+    <tbody>
+      {% for membership in members %}
+      <tr>
+        <td>{{ membership.user.name }}</td>
+        <td>{{ membership.user.email }}</td>
+        <td><span class="badge-slate">{{ _('roles.' + membership.role) }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="mx-auto max-w-md">
+  <div class="card">
+    <h2 class="text-lg font-semibold">{{ _('admin.new_user') }}</h2>
+    <form method="POST" class="mt-6 space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div>
+        <label for="email" class="label">{{ _('common.email') }}</label>
+        <input type="email" id="email" name="email" class="input mt-1" required>
+      </div>
+      <div>
+        <label for="name" class="label">{{ _('common.name') }}</label>
+        <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
+      </div>
+      <div>
+        <label for="password" class="label">{{ _('auth.password_label') }}</label>
+        <input type="password" id="password" name="password" class="input mt-1" required minlength="8">
+      </div>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_platform_admin">
+        {{ _('admin.platform_admin') }}
+      </label>
+      <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

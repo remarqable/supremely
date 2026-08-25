@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Supremely
+bin/
+data/
+config/local.env
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.DS_Store

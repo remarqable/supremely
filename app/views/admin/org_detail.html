@@ -1,0 +1,93 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="mb-4 flex items-center justify-between">
+  <div>
+    <h2 class="text-xl font-bold">{{ org.name }}</h2>
+    <p class="text-sm text-slate-600">{{ org.slug }} ·
+      {% if org.is_active %}<span class="badge-green">{{ _('common.active') }}</span>
+      {% else %}<span class="badge-red">{{ _('common.suspended') }}</span>{% endif %}
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ org_url(org) }}" class="btn-secondary">{{ _('orgs.visit') }}</a>
+    {% if org.is_active %}
+    <form method="POST" action="{{ url_for('admin.org_suspend', org_id=org.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-danger">{{ _('admin.suspend') }}</button>
+    </form>
+    {% else %}
+    <form method="POST" action="{{ url_for('admin.org_reactivate', org_id=org.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-primary">{{ _('admin.reactivate') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mb-6">
+  <h3 class="mb-4 text-lg font-semibold">{{ _('common.name') }}</h3>
+  <form method="POST" action="{{ url_for('admin.org_edit', org_id=org.id) }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="name" class="label">{{ _('orgs.name_label') }}</label>
+      <input type="text" id="name" name="name" class="input mt-1" value="{{ org.name }}" required>
+    </div>
+    <div>
+      <label for="description" class="label">Description</label>
+      <textarea id="description" name="description" class="textarea mt-1">{{ org.description or '' }}</textarea>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 class="mb-4 text-lg font-semibold">{{ _('admin.memberships') }}</h3>
+  <table class="table-plain">
+    <thead><tr><th>{{ _('common.email') }}</th><th>{{ _('common.name') }}</th><th>{{ _('common.role') }}</th><th>{{ _('common.actions') }}</th></tr></thead>
+    <tbody>
+      {% for membership in memberships %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('admin.user_detail', user_id=membership.user.id) }}">{{ membership.user.email }}</a></td>
+        <td>{{ membership.user.name }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('admin.membership_role', membership_id=membership.id) }}" class="flex items-center gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="role" class="select w-32" aria-label="{{ _('common.role') }}">
+              {% for role in ('owner', 'admin', 'member') %}
+              <option value="{{ role }}" {{ 'selected' if membership.role == role }}>{{ _('roles.' + role) }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+          </form>
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('admin.membership_delete', membership_id=membership.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-danger">{{ _('common.remove') }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="POST" action="{{ url_for('admin.org_add_member', org_id=org.id) }}"
+        class="mt-6 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex-1">
+      <label for="email" class="label">{{ _('common.email') }}</label>
+      <input type="email" id="email" name="email" class="input mt-1" required>
+    </div>
+    <div>
+      <label for="role" class="label">{{ _('common.role') }}</label>
+      <select id="role" name="role" class="select mt-1">
+        {% for role in ('member', 'admin', 'owner') %}
+        <option value="{{ role }}">{{ _('roles.' + role) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('admin.add_member') }}</button>
+  </form>
+</div>
+{% endblock %}

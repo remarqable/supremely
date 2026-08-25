@@ -1,0 +1,38 @@
+services:
+  web:
+    image: supremely:latest
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - supremely_data:/data
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-}
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+
+  worker:
+    image: supremely:latest
+    build: .
+    command: ["worker"]
+    volumes:
+      - supremely_data:/data
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-}
+      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+    depends_on:
+      - web
+
+  # Optional: `docker compose --profile postgres up`
+  postgres:
+    image: postgres:16
+    profiles: ["postgres"]
+    volumes:
+      - supremely_pg:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: supremely
+      POSTGRES_USER: supremely
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supremely}
+
+volumes:
+  supremely_data:
+  supremely_pg:

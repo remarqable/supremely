@@ -1,0 +1,80 @@
+{% extends 'admin/_layout.html' %}
+
+{% block admin_content %}
+<div class="mb-4 flex items-center justify-between">
+  <div>
+    <h2 class="text-xl font-bold">{{ user.name }}</h2>
+    <p class="text-sm text-slate-600">{{ user.email }}
+      {% if user.is_platform_admin %}<span class="badge-brand">{{ _('admin.platform_admin') }}</span>{% endif %}
+      {% if not user.is_active %}<span class="badge-red">{{ _('common.inactive') }}</span>{% endif %}
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <form method="POST" action="{{ url_for('admin.user_toggle_admin', user_id=user.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary">
+        {{ _('admin.revoke_platform_admin') if user.is_platform_admin else _('admin.make_platform_admin') }}
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('admin.user_toggle_active', user_id=user.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="{{ 'btn-danger' if user.is_active else 'btn-primary' }}">
+        {{ _('admin.deactivate') if user.is_active else _('admin.activate') }}
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <h3 class="mb-4 text-lg font-semibold">{{ _('admin.memberships') }}</h3>
+  <table class="table-plain">
+    <thead><tr><th>{{ _('admin.organizations') }}</th><th>{{ _('common.role') }}</th></tr></thead>
+    <tbody>
+      {% for membership in memberships %}
+      <tr>
+        <td><a class="text-brand-700 hover:underline" href="{{ url_for('admin.org_detail', org_id=membership.organization.id) }}">{{ membership.organization.name }}</a></td>
+        <td><span class="badge-slate">{{ _('roles.' + membership.role) }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2" class="text-slate-500">{{ _('common.none') }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="POST" action="{{ url_for('admin.user_add_membership', user_id=user.id) }}"
+        class="mt-6 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex-1">
+      <label for="org_id" class="label">{{ _('admin.organizations') }}</label>
+      <select id="org_id" name="org_id" class="select mt-1" required>
+        {% for org in organizations %}
+        <option value="{{ org.id }}">{{ org.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="role" class="label">{{ _('common.role') }}</label>
+      <select id="role" name="role" class="select mt-1">
+        {% for role in ('member', 'admin', 'owner') %}
+        <option value="{{ role }}">{{ _('roles.' + role) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('admin.add_to_org') }}</button>
+  </form>
+</div>
+
+<div class="card max-w-md">
+  <h3 class="mb-4 text-lg font-semibold">{{ _('admin.set_password') }}</h3>
+  <form method="POST" action="{{ url_for('admin.user_set_password', user_id=user.id) }}"
+        class="flex items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex-1">
+      <label for="password" class="label">{{ _('auth.new_password') }}</label>
+      <input type="password" id="password" name="password" class="input mt-1"
+             required minlength="8" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+  </form>
+</div>
+{% endblock %}
