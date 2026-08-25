@@ -177,8 +177,10 @@ def test_avatar_rejects_non_image(client, acme, globex, user):
     assert b'must be a PNG' in response.data
 
 
-def test_directory_off_by_default(client, acme, globex, user):
+def test_directory_on_by_default_and_can_be_disabled(client, acme, globex, user):
     login_as(client, user)
+    assert client.get('/members', base_url=ACME).status_code == 200
+    acme.update_settings(member_directory=False)
     assert client.get('/members', base_url=ACME).status_code == 404
 
 

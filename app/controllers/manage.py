@@ -294,17 +294,20 @@ def delete_category(category_id):
 @require('content.write')
 def navigation():
     if request.method == 'POST':
+        parent_id = request.form.get('parent_id', type=int) or None
         item = NavigationItem(
             menu=request.form.get('menu', 'primary'),
             label=request.form.get('label', ''),
             url=request.form.get('url', '').strip() or None,
             page_id=request.form.get('page_id', type=int) or None,
+            parent_id=parent_id,
         )
-        item.position = NavigationItem.next_position(item.menu)
+        item.position = NavigationItem.next_position(item.menu, parent_id)
         try:
             item.save()
             flash(t('common.saved'), 'success')
         except ValidationError as e:
+            db.session.rollback()
             flash(e.message, 'error')
         return redirect(url_for('manage.navigation'))
 

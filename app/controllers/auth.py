@@ -87,7 +87,15 @@ def login():
         login_user(user, remember=True)
         log.info('user_logged_in', user_id=user.id)
 
-        if g.org is not None:
+        # /auth is an installation path, so resolve the host's org explicitly.
+        from app.platform.tenant import org_for_request_host
+        org = org_for_request_host()
+        if org is not None and org.is_active:
+            from app.models import Membership
+            membership = Membership.get(user.id, org.id)
+            if membership is not None and membership.is_active:
+                # Members land in the community, not on the marketing site.
+                return redirect(_safe_next(url_for('orgs.dashboard')))
             return redirect(_safe_next(url_for('main.index')))
         return redirect(_safe_next(url_for('orgs.launcher')))
 

@@ -27,23 +27,42 @@
 <body class="midnight min-h-screen bg-slate-950 font-sans text-slate-100">
 
 <header class="border-b border-slate-800">
-  <div class="mx-auto flex max-w-4xl items-center gap-6 px-4 py-4">
-    <a href="/" class="flex items-center gap-3 font-semibold text-white">
+  <div class="mx-auto flex max-w-5xl items-center gap-6 px-4 py-4">
+    <a href="/" class="flex items-center gap-3 text-lg font-semibold text-white">
       {% set logo = g.org.logo() %}
       {% if logo %}<img src="{{ logo.url('thumb') }}" alt="" class="h-8 w-8 rounded object-cover">{% endif %}
       {{ g.org.name }}
     </a>
-    <nav class="ms-auto flex flex-wrap items-center gap-4 text-sm" aria-label="{{ _('site.primary_nav') }}">
+    <nav class="ms-auto flex flex-wrap items-center gap-5 text-sm" aria-label="{{ _('site.primary_nav') }}">
       {% for item in nav_items('primary') %}
-      <a href="{{ item.href }}" class="text-slate-300 hover:text-white">{{ item.label }}</a>
+        {% if item.is_group %}
+        <div x-data="{ open: false }" class="relative">
+          <button @click="open = !open" @keydown.escape="open = false"
+                  :aria-expanded="open" aria-haspopup="menu"
+                  class="flex items-center gap-1 text-slate-300 hover:text-white">
+            {{ item.label }}<span aria-hidden="true" class="text-xs">▾</span>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak x-transition
+               role="menu"
+               class="absolute start-0 z-30 mt-2 w-48 rounded-md bg-slate-900 py-1 shadow-lg ring-1 ring-slate-700">
+            {% for child in item.children %}
+            <a href="{{ child.href }}" role="menuitem"
+               class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">{{ child.label }}</a>
+            {% endfor %}
+          </div>
+        </div>
+        {% else %}
+        <a href="{{ item.href }}" class="text-slate-300 hover:text-white">{{ item.label }}</a>
+        {% endif %}
       {% endfor %}
       {% for item in plugin_nav %}
       <a href="{{ item.href }}" class="text-slate-300 hover:text-white">{{ _(item.label) }}</a>
       {% endfor %}
       {% if current_user.is_authenticated and is_org_member() %}
-      <a href="{{ url_for('orgs.dashboard') }}" class="midnight-cta">{{ _('orgs.home_member_area') }}</a>
+      <a href="{{ url_for('orgs.dashboard') }}" class="midnight-cta">{{ _('site.community_cta') }}</a>
       {% elif not current_user.is_authenticated %}
       <a href="{{ url_for('auth.login') }}" class="text-slate-300 hover:text-white">{{ _('nav.login') }}</a>
+      <a href="/subscribe" class="midnight-cta">{{ _('newsletter.subscribe_button') }}</a>
       {% endif %}
     </nav>
   </div>
@@ -54,14 +73,39 @@
   {% block content %}{% endblock %}
 </main>
 
-<footer class="border-t border-slate-800">
-  <div class="mx-auto flex max-w-4xl flex-wrap items-center gap-4 px-4 py-6 text-sm text-slate-400">
-    <span>&copy; {{ g.org.name }}</span>
-    <nav class="ms-auto flex flex-wrap gap-4" aria-label="{{ _('site.footer_nav') }}">
-      {% for item in nav_items('footer') %}
-      <a href="{{ item.href }}" class="hover:text-white">{{ item.label }}</a>
+<footer class="mt-16 border-t border-slate-800">
+  {% set footer_items = nav_items('footer') %}
+  {% set footer_groups = footer_items | selectattr('is_group') | list %}
+  {% set footer_links = footer_items | rejectattr('is_group') | list %}
+  <div class="mx-auto max-w-5xl px-4 py-10">
+    {% if footer_groups %}
+    <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <div class="font-semibold text-white">{{ g.org.name }}</div>
+        {% if g.org.description %}
+        <p class="mt-2 text-sm text-slate-400">{{ g.org.description }}</p>
+        {% endif %}
+      </div>
+      {% for group in footer_groups %}
+      <nav aria-label="{{ group.label }}">
+        <div class="mb-2 text-sm font-semibold text-white">{{ group.label }}</div>
+        <ul class="space-y-1.5">
+          {% for child in group.children %}
+          <li><a href="{{ child.href }}" class="text-sm text-slate-400 hover:text-white">{{ child.label }}</a></li>
+          {% endfor %}
+        </ul>
+      </nav>
       {% endfor %}
-    </nav>
+    </div>
+    {% endif %}
+    <div class="mt-8 flex flex-wrap items-center gap-4 border-t border-slate-800 pt-6 text-sm text-slate-500">
+      <span>&copy; {{ g.org.name }}</span>
+      <nav class="ms-auto flex flex-wrap gap-4" aria-label="{{ _('site.footer_nav') }}">
+        {% for item in footer_links %}
+        <a href="{{ item.href }}" class="hover:text-white">{{ item.label }}</a>
+        {% endfor %}
+      </nav>
+    </div>
   </div>
 </footer>
 

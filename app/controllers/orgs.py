@@ -60,8 +60,27 @@ def create():
 @org_required
 @login_required
 def dashboard():
+    """Community home: where members land inside the organization."""
     if g.membership is None and not current_user.is_platform_admin:
         abort(404)
-    members = (Membership.query.filter_by(org_id=g.org.id)
-               .join(Membership.user).order_by(Membership.created_at).all())
-    return render_template('orgs/dashboard.html', org=g.org, members=members)
+    from app.models import Post
+    from app.models.discussion import Space, Topic
+
+    spaces = [space for space in
+              Space.query.order_by(Space.position, Space.name).all()
+              if space.readable_by_current_visitor()]
+    space_ids = [space.id for space in spaces]
+    recent_topics = []
+    if space_ids:
+        recent_topics = (Topic.query
+                         .filter(Topic.space_id.in_(space_ids),
+                                 Topic.is_hidden.is_(False))
+                         .order_by(Topic.last_activity_at.desc())
+                         .limit(15).all())
+    announcements = Post.published_query().limit(3).all()
+    member_count = Membership.query.filter_by(org_id=g.org.id,
+                                              is_active=True).count()
+    return render_template('orgs/dashboard.html', org=g.org, spaces=spaces,
+                           recent_topics=recent_topics,
+                           announcements=announcements,
+                           member_count=member_count)

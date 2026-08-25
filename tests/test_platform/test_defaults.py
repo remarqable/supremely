@@ -19,9 +19,23 @@ def test_provision_seeds_starter_content(app, acme, user):
         assert acme.setting('homepage_page_id') == home.id
         assert home.created_by_id == user.id
 
-        labels = [i.label for i in NavigationItem.items_for('primary')]
-        assert labels == ['Home', 'About', 'Posts', 'Discussions']
-        assert [i.label for i in NavigationItem.items_for('footer')] == ['Subscribe']
+        primary = NavigationItem.items_for('primary')
+        assert [i.label for i in primary] == ['Home', 'Community',
+                                              'Resources', 'About']
+        community = primary[1]
+        assert community.is_group
+        assert [c.label for c in community.children] == ['Discussions', 'Members']
+        assert [c.href for c in primary[2].children] == ['/posts', '/subscribe']
+        about_group = primary[3]
+        assert [c.label for c in about_group.children] == ['About', 'FAQ', 'Contact']
+
+        footer = NavigationItem.items_for('footer')
+        assert [i.label for i in footer] == ['Community', 'Resources', 'About']
+        assert all(i.is_group for i in footer)
+
+        assert Page.query.filter_by(slug='faq').first().is_published
+        assert Page.query.filter_by(slug='contact').first().is_published
+        assert acme.setting('member_directory') is True
 
         post = Post.published_by_slug('hello-world')
         assert post is not None
@@ -36,10 +50,13 @@ def test_starter_site_renders_for_anonymous(client, acme, globex):
     home = client.get('/', base_url=ACME)
     assert b'Welcome to Acme' in home.data
     assert b'href="/posts"' in home.data            # seeded navigation
+    assert b'aria-haspopup="menu"' in home.data     # dropdown groups render
+    assert home.data.count(b'href="/discussions"') >= 2   # header + footer
     listing = client.get('/posts', base_url=ACME)
     assert b'Hello, World!' in listing.data
     assert client.get('/posts/hello-world', base_url=ACME).status_code == 200
-    assert client.get('/about', base_url=ACME).status_code == 200
+    for slug in ('about', 'faq', 'contact'):
+        assert client.get(f'/{slug}', base_url=ACME).status_code == 200
 
 
 def test_starter_content_is_per_org(app, client, acme, globex):

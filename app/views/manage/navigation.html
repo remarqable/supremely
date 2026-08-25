@@ -1,5 +1,29 @@
 {% extends 'manage/_layout.html' %}
 
+{% macro item_row(item, nested=False) %}
+<li class="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm {{ 'ms-8' if nested }}">
+  {% if item.is_group and not nested %}<span aria-hidden="true">▾</span>{% endif %}
+  <span class="font-medium">{{ item.label }}</span>
+  <span class="text-slate-500">{{ item.href if not item.is_group or item.url or item.page_id else _('manage.nav_group_hint') }}</span>
+  <span class="ms-auto flex gap-1">
+    <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="direction" value="up">
+      <button type="submit" class="px-1 text-slate-500 hover:text-slate-900">↑<span class="sr-only">{{ _('manage.move_up') }}</span></button>
+    </form>
+    <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="direction" value="down">
+      <button type="submit" class="px-1 text-slate-500 hover:text-slate-900">↓<span class="sr-only">{{ _('manage.move_down') }}</span></button>
+    </form>
+    <form method="POST" action="{{ url_for('manage.delete_navigation', item_id=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="px-1 text-red-600 hover:text-red-800">✕<span class="sr-only">{{ _('common.delete') }}</span></button>
+    </form>
+  </span>
+</li>
+{% endmacro %}
+
 {% block manage_content %}
 <div class="grid gap-6 lg:grid-cols-2">
   {% for menu, items in menus.items() %}
@@ -7,26 +31,10 @@
     <h3 class="mb-4 text-lg font-semibold">{{ _('manage.menu_' + menu) }}</h3>
     <ul class="space-y-2">
       {% for item in items %}
-      <li class="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-        <span class="font-medium">{{ item.label }}</span>
-        <span class="text-slate-500">{{ item.href }}</span>
-        <span class="ms-auto flex gap-1">
-          <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="direction" value="up">
-            <button type="submit" class="px-1 text-slate-500 hover:text-slate-900">↑<span class="sr-only">{{ _('manage.move_up') }}</span></button>
-          </form>
-          <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="direction" value="down">
-            <button type="submit" class="px-1 text-slate-500 hover:text-slate-900">↓<span class="sr-only">{{ _('manage.move_down') }}</span></button>
-          </form>
-          <form method="POST" action="{{ url_for('manage.delete_navigation', item_id=item.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="px-1 text-red-600 hover:text-red-800">✕<span class="sr-only">{{ _('common.delete') }}</span></button>
-          </form>
-        </span>
-      </li>
+        {{ item_row(item) }}
+        {% for child in item.children %}
+          {{ item_row(child, nested=True) }}
+        {% endfor %}
       {% else %}
       <li class="text-sm text-slate-500">{{ _('common.none') }}</li>
       {% endfor %}
@@ -36,7 +44,8 @@
 </div>
 
 <div class="card mt-6">
-  <h3 class="mb-4 text-lg font-semibold">{{ _('manage.add_link') }}</h3>
+  <h3 class="mb-1 text-lg font-semibold">{{ _('manage.add_link') }}</h3>
+  <p class="mb-4 text-sm text-slate-600">{{ _('manage.nav_help') }}</p>
   <form method="POST" class="flex flex-wrap items-end gap-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div>
@@ -51,6 +60,19 @@
       <input type="text" id="label" name="label" class="input mt-1" required maxlength="100">
     </div>
     <div>
+      <label for="parent_id" class="label">{{ _('manage.nav_group') }}</label>
+      <select id="parent_id" name="parent_id" class="select mt-1">
+        <option value="">{{ _('manage.nav_top_level') }}</option>
+        {% for menu, items in menus.items() %}
+        <optgroup label="{{ _('manage.menu_' + menu) }}">
+          {% for item in items %}
+          <option value="{{ item.id }}">{{ item.label }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
       <label for="page_id" class="label">{{ _('manage.link_page') }}</label>
       <select id="page_id" name="page_id" class="select mt-1">
         <option value="">—</option>
@@ -61,7 +83,7 @@
     </div>
     <div class="flex-1">
       <label for="url" class="label">{{ _('manage.link_url') }}</label>
-      <input type="text" id="url" name="url" class="input mt-1" placeholder="https://">
+      <input type="text" id="url" name="url" class="input mt-1" placeholder="https:// or /path">
     </div>
     <button type="submit" class="btn-primary">{{ _('manage.add_link') }}</button>
   </form>

@@ -22,6 +22,23 @@
 
   "site.primary_nav": "Primary navigation",
   "site.footer_nav": "Footer navigation",
+  "site.community_cta": "Community",
+
+  "community.home": "Community",
+  "community.nav": "Community navigation",
+  "community.public_site": "Public site",
+  "community.all_discussions": "All discussions",
+  "community.all_posts": "All posts",
+  "community.recent_activity": "Recent activity",
+  "community.announcements": "Announcements",
+  "community.admin": "Administration",
+  "community.empty_feed": "It's quiet in here. Start the first conversation!",
+  "community.start_first_topic": "Start the first topic",
+
+  "manage.nav_group": "Inside group",
+  "manage.nav_top_level": "— top level —",
+  "manage.nav_group_hint": "dropdown group",
+  "manage.nav_help": "Leave both Page and URL empty to create a dropdown group, then add links inside it. One level of nesting.",
 
   "manage.title": "Manage",
   "manage.pages": "Pages",

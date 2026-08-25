@@ -107,6 +107,20 @@ def _default_org():
     return orgs[0] if len(orgs) == 1 else None
 
 
+def org_for_request_host():
+    """Resolve the organization the current host serves, without aborting.
+    For installation paths (like /auth) where resolve_tenant skips."""
+    from app.models import Organization
+    from app.models.domain import OrgDomain
+    host = _request_host()
+    base = _base_domain()
+    if host.endswith('.' + base):
+        return _from_subdomain()
+    if host == base:
+        return _default_org()
+    return OrgDomain.resolve(host)
+
+
 def org_url(org, path: str = '/') -> str:
     """Absolute URL for an organization, honoring default-org mode."""
     from app.models import Organization
