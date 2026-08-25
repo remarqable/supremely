@@ -1,6 +1,39 @@
 # Supremely
 
-**Supremely is an open-source project being built in public.**
+**Supremely is an open-source, multi-tenant platform for publishing,
+memberships, newsletters, and community — being built in public.**
+
+One codebase serves self-hosted installations, third-party SaaS providers,
+and the official hosted service. The tenant is the **Organization**: a
+website and community with pages, posts (typed structured content),
+discussions, a newsletter audience, themes, and plugins. Email is optional
+infrastructure everywhere — installing, publishing, and onboarding members
+never require it.
+
+## Quick start
+
+```bash
+git clone https://github.com/remarqable/supremely
+cd supremely
+docker compose up
+```
+
+Open http://localhost:8000 and complete the setup wizard (environment,
+SQLite or PostgreSQL, your Platform Admin, optional email, first
+Organization).
+
+For local development without Docker:
+
+```bash
+make install   # uv sync
+make css       # build Tailwind (downloads the standalone binary once)
+make run       # migrate + dev server on :8000
+make test      # pytest
+```
+
+Useful commands: `flask users reset-password EMAIL` (recovery without
+email), `flask jobs run` (background worker), `flask setup reset`
+(re-enable the wizard), `flask seed getsupremely` (dogfood site).
 
 We are starting with the problem, the principles, and the roadmap — and letting the product emerge through shipping, learning, and iteration.
 

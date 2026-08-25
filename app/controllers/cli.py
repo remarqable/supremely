@@ -15,8 +15,9 @@ from app.models import User
 users_bp = Blueprint('users_cli', __name__, cli_group='users')
 jobs_bp = Blueprint('jobs_cli', __name__, cli_group='jobs')
 setup_bp = Blueprint('setup_cli', __name__, cli_group='setup')
+seed_bp = Blueprint('seed_cli', __name__, cli_group='seed')
 
-CLI_BLUEPRINTS = (users_bp, jobs_bp, setup_bp)
+CLI_BLUEPRINTS = (users_bp, jobs_bp, setup_bp, seed_bp)
 
 
 @users_bp.cli.command('reset-password')
@@ -82,3 +83,13 @@ def reset_wizard():
     write_runtime_config(current_app, {'SETUP_COMPLETE': 'false'})
     current_app.config['SETUP_COMPLETE'] = False
     click.echo('Setup wizard re-enabled. Restart the app if it is running.')
+
+
+@seed_bp.cli.command('getsupremely')
+def seed_getsupremely():
+    """Dogfood: build the Supremely project website as an Organization on
+    this installation (spec Phase 9). Idempotent."""
+    from app.platform.seed import seed_getsupremely_org
+    org = seed_getsupremely_org()
+    click.echo(f'Seeded organization "{org.name}" ({org.slug}).')
+    click.echo('Visit it on the bare domain (single org) or its subdomain.')
