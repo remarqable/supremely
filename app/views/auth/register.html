@@ -1,0 +1,33 @@
+{% extends 'layouts/minimal.html' %}
+
+{% block title %}{{ _('auth.register_title') }} — {{ installation_name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1 class="text-xl font-semibold">{{ _('auth.register_title') }}</h1>
+  <p class="mt-1 text-sm text-slate-600">{{ _('auth.register_body') }}</p>
+
+  <form method="POST" class="mt-6 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="name" class="label">{{ _('common.name') }}</label>
+      <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
+    </div>
+    <div>
+      <label for="email" class="label">{{ _('auth.email_label') }}</label>
+      <input type="email" id="email" name="email" class="input mt-1" required autocomplete="email">
+    </div>
+    <div>
+      <label for="password" class="label">{{ _('auth.password_label') }}</label>
+      <input type="password" id="password" name="password" class="input mt-1"
+             required minlength="8" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn-primary w-full">{{ _('auth.register_button') }}</button>
+  </form>
+
+  <p class="mt-4 text-center text-sm text-slate-600">
+    {{ _('members.have_account') }}
+    <a href="{{ url_for('auth.login') }}" class="text-brand-600 hover:underline">{{ _('nav.login') }}</a>
+  </p>
+</div>
+{% endblock %}

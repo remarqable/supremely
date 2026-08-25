@@ -25,6 +25,59 @@
   </div>
 </div>
 
+<div class="mb-6 grid gap-4 sm:grid-cols-5">
+  {% for key, value in usage.items() %}
+  <div class="card p-4">
+    <div class="text-xs text-slate-600">{{ _('admin.usage_' + key) }}</div>
+    <div class="mt-1 text-2xl font-bold">{{ value }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="mb-6 grid gap-6 lg:grid-cols-2">
+  <div class="card">
+    <h3 class="mb-3 text-lg font-semibold">{{ _('admin.org_state') }}</h3>
+    <dl class="grid grid-cols-3 gap-2 text-sm">
+      <dt class="text-slate-500">{{ _('manage.theme') }}</dt>
+      <dd class="col-span-2">{{ org.theme }}</dd>
+      <dt class="text-slate-500">{{ _('manage.plugins') }}</dt>
+      <dd class="col-span-2">
+        {% for plugin in plugins %}
+        <span class="badge-slate">{{ plugin.plugin_slug }} v{{ plugin.version }}{{ '' if plugin.is_enabled else ' (off)' }}</span>
+        {% else %}{{ _('common.none') }}{% endfor %}
+      </dd>
+      <dt class="text-slate-500">{{ _('common.created') }}</dt>
+      <dd class="col-span-2">{{ org.created_at|localdate }}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3 class="mb-3 text-lg font-semibold">{{ _('domains.title') }}</h3>
+    <ul class="space-y-2 text-sm">
+      {% for domain in domains %}
+      <li class="flex items-center gap-2">
+        <span class="font-mono">{{ domain.domain }}</span>
+        {% if domain.status == 'active' %}
+        <span class="badge-green">{{ _('domains.active') }}</span>
+        {% else %}
+        <span class="badge-slate">{{ _('domains.pending') }}</span>
+        <form method="POST" action="{{ url_for('admin.activate_domain', domain_id=domain.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn-secondary">{{ _('domains.activate') }}</button>
+        </form>
+        {% endif %}
+        <form method="POST" action="{{ url_for('admin.delete_domain', domain_id=domain.id) }}" class="ms-auto">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="text-red-600 hover:underline">{{ _('common.remove') }}</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="text-slate-500">{{ _('common.none') }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
 <div class="card mb-6">
   <h3 class="mb-4 text-lg font-semibold">{{ _('common.name') }}</h3>
   <form method="POST" action="{{ url_for('admin.org_edit', org_id=org.id) }}" class="space-y-4">

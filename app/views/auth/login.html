@@ -25,5 +25,12 @@
 
     <button type="submit" class="btn-primary w-full">{{ _('auth.login_button') }}</button>
   </form>
+
+  {% if signups_enabled %}
+  <p class="mt-4 text-center text-sm text-slate-600">
+    {{ _('auth.no_account') }}
+    <a href="{{ url_for('auth.register') }}" class="text-brand-600 hover:underline">{{ _('auth.register_title') }}</a>
+  </p>
+  {% endif %}
 </div>
 {% endblock %}

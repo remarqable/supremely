@@ -82,11 +82,43 @@ def new_org():
 
 @bp.route('/orgs/<int:org_id>')
 def org_detail(org_id):
+    from app.models import Page, Post, Subscriber, Topic, OrgPlugin
+    from app.models.domain import OrgDomain
     org = db.get_or_404(Organization, org_id)
     memberships = (Membership.query.filter_by(org_id=org.id)
                    .join(Membership.user).order_by(User.email).all())
+    usage = {
+        'members': len(memberships),
+        'pages': Page.query.filter_by(org_id=org.id).count(),
+        'posts': Post.query.filter_by(org_id=org.id).count(),
+        'topics': Topic.query.filter_by(org_id=org.id).count(),
+        'subscribers': Subscriber.query.filter_by(org_id=org.id).count(),
+    }
+    plugins = OrgPlugin.query.filter_by(org_id=org.id).all()
+    domains = OrgDomain.query.filter_by(org_id=org.id).all()
     return render_template('admin/org_detail.html', org=org,
-                           memberships=memberships)
+                           memberships=memberships, usage=usage,
+                           plugins=plugins, domains=domains)
+
+
+@bp.route('/domains/<int:domain_id>/activate', methods=['POST'])
+def activate_domain(domain_id):
+    from app.models.domain import OrgDomain
+    domain = db.get_or_404(OrgDomain, domain_id)
+    domain.activate()
+    log.info('domain_activated', domain=domain.domain, org_id=domain.org_id)
+    flash(t('domains.activated', domain=domain.domain), 'success')
+    return redirect(url_for('admin.org_detail', org_id=domain.org_id))
+
+
+@bp.route('/domains/<int:domain_id>/delete', methods=['POST'])
+def delete_domain(domain_id):
+    from app.models.domain import OrgDomain
+    domain = db.get_or_404(OrgDomain, domain_id)
+    org_id = domain.org_id
+    domain.delete()
+    flash(t('domains.removed'), 'success')
+    return redirect(url_for('admin.org_detail', org_id=org_id))
 
 
 @bp.route('/orgs/<int:org_id>/edit', methods=['POST'])

@@ -42,8 +42,13 @@ def init_tenant(app):
             org = _from_subdomain()
             if org is None:
                 abort(404)              # subdomain that maps to no organization
-        else:
+        elif host == base:
             org = _default_org()
+        else:
+            from app.models.domain import OrgDomain
+            org = OrgDomain.resolve(host)
+            if org is None:
+                abort(404)              # foreign host with no active custom domain
         if org is None:
             return                      # bare domain, zero/multiple orgs: launcher/login
 

@@ -535,6 +535,41 @@ def delete_media(upload_id):
     return redirect(url_for('manage.media'))
 
 
+# --- Custom domains ---------------------------------------------------------------------
+
+@bp.route('/domains', methods=['GET', 'POST'])
+@org_required
+@require('org.settings')
+def domains():
+    from app.models.domain import OrgDomain
+    if request.method == 'POST':
+        domain = OrgDomain(org_id=g.org.id,
+                           domain=request.form.get('domain', ''))
+        try:
+            domain.save()
+            flash(t('domains.added'), 'success')
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+        return redirect(url_for('manage.domains'))
+    domain_list = OrgDomain.query.filter_by(org_id=g.org.id) \
+        .order_by(OrgDomain.created_at).all()
+    return render_template('manage/domains.html', domains=domain_list)
+
+
+@bp.route('/domains/<int:domain_id>/delete', methods=['POST'])
+@org_required
+@require('org.settings')
+def delete_domain(domain_id):
+    from app.models.domain import OrgDomain
+    domain = db.session.get(OrgDomain, domain_id)
+    if domain is None or domain.org_id != g.org.id:
+        abort(404)
+    domain.delete()
+    flash(t('domains.removed'), 'success')
+    return redirect(url_for('manage.domains'))
+
+
 # --- Plugins --------------------------------------------------------------------------
 
 @bp.route('/plugins')
