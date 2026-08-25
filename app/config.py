@@ -71,6 +71,15 @@ def _resolve_secret_key() -> str:
         return _DEV_SECRET
 
 
+def _normalise_db_url(url: str) -> str:
+    """Point PostgreSQL URLs at psycopg 3, the driver this project installs."""
+    if url.startswith('postgres://'):
+        url = 'postgresql://' + url[len('postgres://'):]
+    if url.startswith('postgresql://'):
+        url = 'postgresql+psycopg://' + url[len('postgresql://'):]
+    return url
+
+
 class Config:
     APP_ENV = os.environ.get('APP_ENV', 'dev')
     SECRET_KEY = _resolve_secret_key()
@@ -78,7 +87,12 @@ class Config:
     BASE_DOMAIN = os.environ.get('BASE_DOMAIN', 'localhost')
     DATA_DIR = str(_DATA_DIR)
 
-    DATABASE_URL = os.environ.get('DATABASE_URL', _DEFAULT_DB)
+    # Managed providers (DigitalOcean, Neon, Supabase, RDS, Heroku) hand out
+    # postgres:// or postgresql:// connection strings. SQLAlchemy maps both to
+    # psycopg2, which this project does not ship -- it uses psycopg 3 -- so a
+    # pasted string fails at boot with ModuleNotFoundError. Normalise the
+    # scheme rather than making every operator know the difference.
+    DATABASE_URL = _normalise_db_url(os.environ.get('DATABASE_URL', _DEFAULT_DB))
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     IS_SQLITE = DATABASE_URL.startswith('sqlite')
@@ -151,8 +165,8 @@ class TestConfig(Config):
     TESTING = True
     # Empty (CI's sqlite matrix leg passes TEST_DATABASE_URL='') falls back
     # to in-memory SQLite rather than an invalid empty URI.
-    SQLALCHEMY_DATABASE_URI = (os.environ.get('TEST_DATABASE_URL')
-                               or 'sqlite:///:memory:')
+    SQLALCHEMY_DATABASE_URI = _normalise_db_url(
+        os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:')
     IS_SQLITE = SQLALCHEMY_DATABASE_URI.startswith('sqlite')
     IS_POSTGRES = SQLALCHEMY_DATABASE_URI.startswith('postgresql')
     SQLALCHEMY_ENGINE_OPTIONS = {}

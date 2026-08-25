@@ -301,6 +301,34 @@ require_ubuntu() {
   fi
 }
 
+# Resolve a hostname in PUBLIC DNS.
+#
+# NOT getent/host-file lookups: /etc/hosts is consulted first, and cloud
+# images write "127.0.1.1 <hostname>" there. A droplet named after its own
+# domain then resolves to the loopback alias, which reads as a DNS mismatch
+# when the record may be perfectly correct.
+resolve_public_a() {
+  local name="$1" ip=""
+
+  if command -v dig >/dev/null 2>&1; then
+    ip=$(dig +short +time=3 +tries=1 A "$name" @1.1.1.1 2>/dev/null \
+         | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+    [ -z "$ip" ] && ip=$(dig +short +time=3 +tries=1 A "$name" @8.8.8.8 2>/dev/null \
+         | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+  fi
+
+  # No dig: ask Cloudflare over DNS-over-HTTPS with curl, which is always
+  # present because this script is delivered by it.
+  if [ -z "$ip" ]; then
+    ip=$(curl -fsS --max-time 5 \
+           -H 'accept: application/dns-json' \
+           "https://cloudflare-dns.com/dns-query?name=${name}&type=A" 2>/dev/null \
+         | tr ',' '\n' | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 | head -1)
+  fi
+
+  echo "$ip"
+}
+
 get_public_ip() {
   local ip
   ip=$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)
@@ -503,8 +531,9 @@ install_caddy() {
 }
 
 install_extras() {
-  if ! command -v zip >/dev/null 2>&1 || ! command -v sqlite3 >/dev/null 2>&1; then
-    run_step "Installing utilities" bash -c "apt-get update -y && apt-get install -y zip unzip sqlite3"
+  if ! command -v zip >/dev/null 2>&1 || ! command -v sqlite3 >/dev/null 2>&1 \
+     || ! command -v dig >/dev/null 2>&1; then
+    run_step "Installing utilities" bash -c "apt-get update -y && apt-get install -y zip unzip sqlite3 dnsutils"
   fi
 }
 
@@ -603,12 +632,13 @@ prompt_for_domain() {
     # Validate DNS if a domain was entered
     if [ -n "$DOMAIN" ]; then
       local resolved_ip
-      resolved_ip=$(getent hosts "$DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
+      resolved_ip=$(resolve_public_a "$DOMAIN")
 
       if [ -z "$resolved_ip" ]; then
         echo ""
         echo "  ${RED}No DNS record found for ${DOMAIN}${NC}"
-        echo "  HTTPS requires an A record pointing to ${ip}"
+        echo "  HTTPS requires an A record for this domain. Point it at"
+        echo "  ${ip}, or at the reserved IP that routes to this server."
         echo ""
         echo "  [1] Use http://${ip} for now (default)"
         echo "  [2] Continue with ${DOMAIN} anyway"
@@ -622,18 +652,28 @@ prompt_for_domain() {
           echo "  Using: http://${ip}"
         fi
       elif [ "$resolved_ip" != "$ip" ]; then
+        # A differing address is NOT proof of misconfiguration. Comparing IPs
+        # cannot establish reachability: a DigitalOcean Reserved IP routes to
+        # the droplet without being bound to its interface, and load
+        # balancers and proxied DNS (Cloudflare's orange cloud) legitimately
+        # publish an address that is not this host. Default to proceeding --
+        # the certificate request is the real test.
         echo ""
-        echo "  ${RED}DNS mismatch for ${DOMAIN}${NC}"
-        echo "  Resolves to: ${resolved_ip} (this server: ${ip})"
+        echo "  ${YELLOW}Note:${NC} ${DOMAIN} resolves to ${resolved_ip},"
+        echo "  which is not this server's own address (${ip})."
         echo ""
-        echo "  [1] Use http://${ip} for now (default)"
-        echo "  [2] Continue with ${DOMAIN} anyway"
+        echo "  That is expected with a reserved/floating IP, a load"
+        echo "  balancer, or proxied DNS. It is a problem only if the record"
+        echo "  points at a different machine entirely."
+        echo ""
+        echo "  [1] Continue with ${DOMAIN} (default)"
+        echo "  [2] Use http://${ip} instead"
         echo "  [3] Re-enter domain"
         echo ""
         read -p "  Choice [1]: " dns_choice </dev/tty
 
         if [ "$dns_choice" = "3" ]; then continue; fi
-        if [ "$dns_choice" != "2" ]; then
+        if [ "$dns_choice" = "2" ]; then
           DOMAIN=""
           echo "  Using: http://${ip}"
         fi
