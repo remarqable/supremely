@@ -20,9 +20,9 @@ def render_org_home():
     page = g.org.homepage()
     if page is not None and page.visible_to_current_visitor():
         return render_site(
-            ['site/home.html', f'site/{page.template}.html', 'site/page.html'],
+            ['front-page.html', f'{page.template}.html', 'page.html'],
             org=g.org, page=page)
-    return render_site(['site/home.html'], org=g.org, page=None)
+    return render_site(['front-page.html'], org=g.org, page=None)
 
 
 @bp.route('/<slug>')
@@ -36,8 +36,7 @@ def page(slug):
             return redirect(url_for('auth.login', next=request.path))
         abort(404)
     return render_site(
-        [f'site/page-{page.slug}.html', f'site/{page.template}.html',
-         'site/page.html'],
+        [f'page-{page.slug}.html', f'{page.template}.html', 'page.html'],
         org=g.org, page=page)
 
 

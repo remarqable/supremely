@@ -253,7 +253,7 @@ def preview_post(post_id):
         abort(404)
     post_type = post.post_type
     return render_site(
-        [f'site/{post_type.template}.html', 'site/post.html'],
+        [f'{post_type.template}.html', 'single.html'],
         post=post, post_type=post_type, preview=True)
 
 

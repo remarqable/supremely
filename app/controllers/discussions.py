@@ -63,7 +63,7 @@ def index():
                                         Topic.body.ilike(f'%{q}%')))
         recent = (query.order_by(Topic.last_activity_at.desc())
                   .limit(20).all())
-    return render_site(['site/discussions.html'], spaces=spaces,
+    return render_site(['discussions.html'], spaces=spaces,
                        recent_topics=recent, q=q)
 
 
@@ -79,7 +79,7 @@ def space(slug):
     topics = (query.order_by(Topic.is_pinned.desc(),
                              Topic.last_activity_at.desc())
               .limit(100).all())
-    return render_site(['site/discussion_space.html'], space=space,
+    return render_site(['discussion-space.html'], space=space,
                        topics=topics, q=q)
 
 
@@ -128,7 +128,7 @@ def topic(slug, topic_id):
     }
     following = (current_user.is_authenticated and
                  TopicFollow.is_following(current_user.id, topic.id))
-    return render_site(['site/discussion_topic.html'], space=space,
+    return render_site(['discussion-topic.html'], space=space,
                        topic=topic, top_level=top_level, children=children,
                        reactions=reactions, following=following,
                        emoji_set=REACTION_EMOJI)

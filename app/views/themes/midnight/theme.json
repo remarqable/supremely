@@ -3,8 +3,8 @@
   "name": "Midnight",
   "version": "1.0.0",
   "author": "Supremely",
-  "extends": "default",
-  "overrides": ["site/layout.html"],
+  "extends": "origin",
+  "overrides": ["layout.html"],
   "settings": {
     "accent": {
       "type": "color",

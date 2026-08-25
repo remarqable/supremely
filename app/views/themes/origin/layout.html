@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ g.org.name }}{% endblock %}</title>
+  {% block meta %}
+  {% if g.org.description %}<meta name="description" content="{{ g.org.description }}">{% endif %}
+  {% endblock %}
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  {% set favicon = g.org.favicon() %}
+  {% if favicon %}<link rel="icon" href="{{ favicon.url('original') }}">{% endif %}
+  {% if g.org.brand_primary %}
+  <style>
+    :root {
+      --color-brand-500: {{ g.org.brand_primary }};
+      --color-brand-600: {{ g.org.brand_primary }};
+      --color-brand-700: {{ g.org.brand_primary }};
+    }
+  </style>
+  {% endif %}
+  <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}min-h-screen bg-white font-sans text-slate-900{% endblock %}">
+
+{# WordPress-style parts: a theme may override just header.html or just
+   footer.html; themed() resolves active theme -> origin. #}
+{% include themed('header.html') %}
+
+<main class="mx-auto max-w-4xl px-4 py-10">
+  {% include 'partials/_flash.html' %}
+  {% block content %}{% endblock %}
+</main>
+
+{% include themed('footer.html') %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

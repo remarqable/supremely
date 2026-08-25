@@ -14,7 +14,7 @@ class Organization(BaseModel):
     name = db.Column(db.String(100), nullable=False)
     slug = db.Column(db.String(63), unique=True, nullable=False, index=True)
     description = db.Column(db.Text, nullable=True)
-    theme = db.Column(db.String(50), nullable=False, default='default')
+    theme = db.Column(db.String(50), nullable=False, default='origin')
     brand_primary = db.Column(db.String(7), nullable=True)      # #RRGGBB
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     archived_at = db.Column(TZDateTime, nullable=True)

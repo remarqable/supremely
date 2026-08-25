@@ -11,7 +11,7 @@ def make_theme_zip(slug='sunrise', extra_files=None) -> io.BytesIO:
         zf.writestr('theme.json', json.dumps({
             'slug': slug, 'name': slug.title(), 'version': '1.0.0',
         }))
-        zf.writestr('site/layout.html',
+        zf.writestr('layout.html',
                     '<!DOCTYPE html><html><body class="sunrise">'
                     '{% block content %}{% endblock %}</body></html>')
         for name, content in (extra_files or {}).items():
@@ -21,7 +21,8 @@ def make_theme_zip(slug='sunrise', extra_files=None) -> io.BytesIO:
 
 
 def test_builtin_themes_scanned(app):
-    assert 'default' in AVAILABLE_THEMES
+    assert 'origin' in AVAILABLE_THEMES
+    assert AVAILABLE_THEMES['origin']['source'] == 'builtin'
     assert 'midnight' in AVAILABLE_THEMES
     assert AVAILABLE_THEMES['midnight']['source'] == 'builtin'
 
@@ -61,7 +62,7 @@ def test_uninstall_refused_while_in_use(admin_client, app, acme):
     assert b'still use this theme' in response.data
     assert 'inuse' in AVAILABLE_THEMES
 
-    acme.theme = 'default'
+    acme.theme = 'origin'
     acme.save()
     admin_client.post('/admin/themes/inuse/uninstall')
     assert 'inuse' not in AVAILABLE_THEMES

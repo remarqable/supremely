@@ -26,7 +26,7 @@ def index():
     page_number = request.args.get('page', 1, type=int)
     pagination = _visible(Post.published_query()).paginate(
         page=page_number, per_page=PER_PAGE, error_out=False)
-    return render_site(['site/posts.html'], posts=pagination.items,
+    return render_site(['archive.html'], posts=pagination.items,
                        pagination=pagination, archive_title=None)
 
 
@@ -42,8 +42,7 @@ def show(slug):
         abort(404)
     post_type = post.post_type
     return render_site(
-        [f'site/post-{post.slug}.html', f'site/{post_type.template}.html',
-         'site/post.html'],
+        [f'single-{post.slug}.html', f'{post_type.template}.html', 'single.html'],
         post=post, post_type=post_type)
 
 
@@ -57,7 +56,7 @@ def category(slug):
     pagination = _visible(
         Post.published_query().filter(Post.categories.contains(cat))
     ).paginate(page=page_number, per_page=PER_PAGE, error_out=False)
-    return render_site(['site/posts.html'], posts=pagination.items,
+    return render_site(['archive.html'], posts=pagination.items,
                        pagination=pagination, archive_title=cat.name)
 
 
@@ -67,5 +66,5 @@ def tag(tag):
     page_number = request.args.get('page', 1, type=int)
     pagination = _visible(Post.with_tag(tag)).paginate(
         page=page_number, per_page=PER_PAGE, error_out=False)
-    return render_site(['site/posts.html'], posts=pagination.items,
+    return render_site(['archive.html'], posts=pagination.items,
                        pagination=pagination, archive_title=f'#{tag}')

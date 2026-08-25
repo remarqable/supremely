@@ -1,0 +1,39 @@
+<footer class="mt-16 border-t border-slate-200 bg-slate-50">
+  {% set footer_items = nav_items('footer') %}
+  {% set footer_groups = footer_items | selectattr('is_group') | list %}
+  {% set footer_links = footer_items | rejectattr('is_group') | list %}
+  <div class="mx-auto max-w-5xl px-4 py-10">
+    {% if footer_groups %}
+    <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <div class="flex items-center gap-2 font-semibold">
+          {% set logo = g.org.logo() %}
+          {% if logo %}<img src="{{ logo.url('thumb') }}" alt="" class="h-6 w-6 rounded object-cover">{% endif %}
+          {{ g.org.name }}
+        </div>
+        {% if g.org.description %}
+        <p class="mt-2 text-sm text-slate-600">{{ g.org.description }}</p>
+        {% endif %}
+      </div>
+      {% for group in footer_groups %}
+      <nav aria-label="{{ group.label }}">
+        <div class="mb-2 text-sm font-semibold">{{ group.label }}</div>
+        <ul class="space-y-1.5">
+          {% for child in group.children %}
+          <li><a href="{{ child.href }}" class="text-sm text-slate-600 hover:text-brand-600">{{ child.label }}</a></li>
+          {% endfor %}
+        </ul>
+      </nav>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="mt-8 flex flex-wrap items-center gap-4 border-t border-slate-200 pt-6 text-sm text-slate-500">
+      <span>&copy; {{ g.org.name }}</span>
+      <nav class="ms-auto flex flex-wrap gap-4" aria-label="{{ _('site.footer_nav') }}">
+        {% for item in footer_links %}
+        <a href="{{ item.href }}" class="hover:text-brand-600">{{ item.label }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+  </div>
+</footer>

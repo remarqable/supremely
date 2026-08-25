@@ -25,7 +25,7 @@ log = get_logger()
 def subscribe():
     if request.method == 'POST':
         return _do_subscribe()
-    return render_site(['site/subscribe.html'], done=False)
+    return render_site(['subscribe.html'], done=False)
 
 
 @rate_limit(limit=10, window=300)
@@ -37,14 +37,14 @@ def _do_subscribe():
                                           require_confirmation)
     except ValidationError as e:
         flash(e.message, 'error')
-        return render_site(['site/subscribe.html'], done=False), 400
+        return render_site(['subscribe.html'], done=False), 400
 
     if subscriber.status == 'pending':
         from app.platform.jobs import enqueue
         enqueue('newsletter.confirmation_email', org_id=g.org.id,
                 subscriber_id=subscriber.id)
     log.info('subscriber_added', org_id=g.org.id, status=subscriber.status)
-    return render_site(['site/subscribe.html'], done=True,
+    return render_site(['subscribe.html'], done=True,
                        pending=subscriber.status == 'pending')
 
 
@@ -66,4 +66,4 @@ def unsubscribe(token):
     if subscriber is None:
         abort(404)
     subscriber.unsubscribe()
-    return render_site(['site/unsubscribed.html'])
+    return render_site(['unsubscribed.html'])

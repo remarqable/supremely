@@ -65,8 +65,9 @@ class PostType:
     name: str
     description: str = ''
     fields: tuple = ()
-    template: str = 'post'          # single template name (theme-resolvable)
-    list_template: str = 'posts'    # listing/card template name
+    # WordPress-style hierarchy names: single.html / single-{type}.html
+    template: str = 'single'        # single template name (theme-resolvable)
+    list_template: str = 'archive'  # listing/card template name
     plugin: str | None = None       # owning plugin slug, if any
 
     def validate_definition(self):
@@ -127,5 +128,5 @@ def register_core_types() -> None:
             FieldSpec(key='url', type='url', label='Link URL', required=True),
             FieldSpec(key='source', type='string', label='Source name'),
         ),
-        template='post-link',
+        template='single-link',
     ))

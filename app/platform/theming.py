@@ -50,19 +50,15 @@ def init_theming(app) -> None:
         scan_themes()
 
     app.jinja_env.globals['theme_asset'] = theme_asset
+    app.jinja_env.globals['themed'] = themed
     app.jinja_env.globals['available_themes'] = lambda: AVAILABLE_THEMES
 
 
 def scan_themes() -> None:
-    """Rebuild AVAILABLE_THEMES from both roots."""
+    """Rebuild AVAILABLE_THEMES from both roots. Origin ships with core and
+    is the terminal fallback for every other theme."""
     app = current_app
-    # 'default' is the internal fallback slug; Origin is its public name --
-    # the theme every organization starts from.
-    themes = {
-        'default': {'name': 'Origin', 'version': '1.0.0',
-                    'author': 'Supremely', 'source': 'builtin', 'path': None,
-                    'settings': {}},
-    }
+    themes = {}
     for source, root in (('builtin', builtin_themes_dir(app)),
                          ('installed', installed_themes_dir(app))):
         if not root.exists():
@@ -71,7 +67,7 @@ def scan_themes() -> None:
             try:
                 manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
                 slug = manifest.get('slug') or manifest_path.parent.name
-                if not THEME_SLUG_RE.fullmatch(slug) or slug == 'default':
+                if not THEME_SLUG_RE.fullmatch(slug):
                     continue
                 if slug in themes:
                     continue            # built-in wins over installed
@@ -86,14 +82,18 @@ def scan_themes() -> None:
             except (json.JSONDecodeError, OSError) as e:
                 log.error('theme_manifest_invalid', path=str(manifest_path),
                           error=str(e))
+    if 'origin' not in themes:
+        log.error('origin_theme_missing')
     AVAILABLE_THEMES.clear()
     AVAILABLE_THEMES.update(themes)
 
 
 def current_theme() -> str:
     org = getattr(g, 'org', None)
-    theme = org.theme if org else 'default'
-    return theme if theme in AVAILABLE_THEMES else 'default'
+    theme = org.theme if org else 'origin'
+    if theme == 'default':              # legacy alias for the fallback theme
+        theme = 'origin'
+    return theme if theme in AVAILABLE_THEMES else 'origin'
 
 
 def theme_config() -> dict:
@@ -108,24 +108,36 @@ def theme_config() -> dict:
 
 
 def render_site(candidates: list[str], **context) -> str:
-    """Render through the theme hierarchy: for each candidate in specificity
-    order, the active theme's override is tried before the app fallback."""
+    """Render through the WordPress-style template hierarchy: for each
+    candidate in specificity order, try the active theme, then Origin (the
+    fallback theme), then core/plugin templates by bare name."""
     from flask import render_template
     theme = current_theme()
     names = []
     for candidate in candidates:
-        if theme != 'default':
+        if theme != 'origin':
             names.append(f'themes/{theme}/{candidate}')
-        names.append(candidate)
+        names.append(f'themes/origin/{candidate}')
+        names.append(candidate)        # core partials and plugin templates
+    names = list(dict.fromkeys(names))
     context.setdefault('theme_settings', theme_config())
     # Site templates extend {{ site_layout }} so a theme's layout override
-    # applies even to pages the theme does not override itself. Jinja's
-    # extends needs a single name, so resolve the candidate here.
-    layout = 'site/layout.html'
-    if theme != 'default' and _template_exists(f'themes/{theme}/site/layout.html'):
-        layout = f'themes/{theme}/site/layout.html'
-    context.setdefault('site_layout', layout)
+    # applies even to pages the theme does not override itself.
+    context.setdefault('site_layout', themed('layout.html'))
     return render_template(names, **context)
+
+
+def themed(name: str) -> str:
+    """Resolve a template part through the theme chain: active theme ->
+    Origin -> bare name. The Jinja-native get_header()/get_footer():
+    layouts do `{% include themed('header.html') %}` so a theme can
+    override just one part."""
+    theme = current_theme()
+    if theme != 'origin' and _template_exists(f'themes/{theme}/{name}'):
+        return f'themes/{theme}/{name}'
+    if _template_exists(f'themes/origin/{name}'):
+        return f'themes/origin/{name}'
+    return name
 
 
 def _template_exists(name: str) -> bool:
@@ -176,7 +188,7 @@ def install_theme_zip(file) -> str:
             raise ValidationError('theme.json is not valid JSON')
 
         slug = manifest.get('slug', '')
-        if not THEME_SLUG_RE.fullmatch(slug) or slug == 'default':
+        if not THEME_SLUG_RE.fullmatch(slug) or slug in ('default', 'origin'):
             raise ValidationError('Theme manifest needs a valid slug')
 
         target = target_root / slug

@@ -1,0 +1,41 @@
+<header class="border-b border-slate-200">
+  <div class="mx-auto flex max-w-5xl items-center gap-6 px-4 py-4">
+    <a href="/" class="flex items-center gap-3 text-lg font-semibold">
+      {% set logo = g.org.logo() %}
+      {% if logo %}<img src="{{ logo.url('thumb') }}" alt="" class="h-8 w-8 rounded object-cover">{% endif %}
+      {{ g.org.name }}
+    </a>
+    <nav class="ms-auto flex flex-wrap items-center gap-5 text-sm" aria-label="{{ _('site.primary_nav') }}">
+      {% for item in nav_items('primary') %}
+        {% if item.is_group %}
+        <div x-data="{ open: false }" class="relative">
+          <button @click="open = !open" @keydown.escape="open = false"
+                  :aria-expanded="open" aria-haspopup="menu"
+                  class="flex items-center gap-1 hover:text-brand-600">
+            {{ item.label }}<span aria-hidden="true" class="text-xs">▾</span>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak x-transition
+               role="menu"
+               class="absolute start-0 z-30 mt-2 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5">
+            {% for child in item.children %}
+            <a href="{{ child.href }}" role="menuitem"
+               class="block px-4 py-2 text-sm hover:bg-slate-50">{{ child.label }}</a>
+            {% endfor %}
+          </div>
+        </div>
+        {% else %}
+        <a href="{{ item.href }}" class="hover:text-brand-600">{{ item.label }}</a>
+        {% endif %}
+      {% endfor %}
+      {% for item in plugin_nav %}
+      <a href="{{ item.href }}" class="hover:text-brand-600">{{ _(item.label) }}</a>
+      {% endfor %}
+      {% if current_user.is_authenticated and is_org_member() %}
+      <a href="{{ url_for('orgs.dashboard') }}" class="btn-primary">{{ _('site.community_cta') }}</a>
+      {% elif not current_user.is_authenticated %}
+      <a href="{{ url_for('auth.login') }}" class="hover:text-brand-600">{{ _('nav.login') }}</a>
+      <a href="/subscribe" class="btn-primary">{{ _('newsletter.subscribe_button') }}</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
