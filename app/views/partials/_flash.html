@@ -7,7 +7,7 @@
                  else 'bg-green-50 text-green-800 ring-green-200') }}">
     <span class="flex-1">{{ message }}</span>
     <button @click="show = false" class="opacity-60 hover:opacity-100">
-      <span class="sr-only">{{ _('common.dismiss') }}</span>&#10005;
+      <span class="sr-only">{{ _('common.dismiss') }}</span><span aria-hidden="true">&#10005;</span>
     </button>
   </div>
   {% endfor %}

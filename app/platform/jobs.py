@@ -43,12 +43,16 @@ def _claim_next() -> Optional[Job]:
     """Atomically claim one due job. Portable two-step claim: candidate
     select, then a conditional UPDATE whose rowcount detects a lost race."""
     now = utcnow()
-    candidate = db.session.scalars(
-        sa.select(Job.id)
-        .where(Job.status == 'pending', Job.run_at <= now)
-        .order_by(Job.run_at)
-        .limit(1)
-    ).first()
+    candidate_q = (sa.select(Job.id)
+                   .where(Job.status == 'pending', Job.run_at <= now)
+                   .order_by(Job.run_at)
+                   .limit(1))
+    # On PostgreSQL, SKIP LOCKED lets concurrent workers each grab a different
+    # head row instead of all contending on the same one. No-op on SQLite
+    # (single writer anyway), where the rowcount re-check below is the guard.
+    if current_app.config.get('IS_POSTGRES'):
+        candidate_q = candidate_q.with_for_update(skip_locked=True)
+    candidate = db.session.scalars(candidate_q).first()
     if candidate is None:
         db.session.rollback()
         return None
