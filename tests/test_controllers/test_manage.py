@@ -142,6 +142,11 @@ def test_upload_isolated_across_tenants(app, client, acme, globex, user):
                           base_url='http://globex.example.test')
     assert response.status_code == 404
 
+    # And on the bare installation host (g.org is None, two orgs exist) the
+    # file route resolves no tenant and must not serve any org's upload.
+    bare = client.get(f'/files/{upload_id}/original', base_url='http://example.test')
+    assert bare.status_code == 404
+
 
 def test_branding_settings(app, client, acme, globex, user):
     login_as(client, user)

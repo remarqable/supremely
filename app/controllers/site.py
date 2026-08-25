@@ -41,8 +41,11 @@ def page(slug):
 
 
 @bp.route('/files/<int:upload_id>/<variant>')
+@org_required
 def serve_upload(upload_id, variant):
-    # On an org host the tenant filter already hides other orgs' rows.
+    # @org_required ensures g.org is set, so the tenant filter scopes this
+    # lookup. Without it, the bare installation host (g.org is None) would
+    # serve ANY tenant's upload by id.
     upload = db.session.get(Upload, upload_id)
     if upload is None:
         abort(404)
