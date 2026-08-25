@@ -3,5 +3,17 @@
   "name": "Origin",
   "version": "1.0.0",
   "author": "Supremely",
-  "description": "The theme every organization starts from. Clean, functional, and the fallback for every other theme."
+  "description": "The theme every organization starts from. Clean, functional, and the fallback for every other theme.",
+  "content": {
+    "fields": [
+      {"key": "headline", "type": "text", "label": "Headline", "max": 100,
+       "hint": "Shown on the home page when no page is set as the homepage. Defaults to your organization name."},
+      {"key": "subhead", "type": "textarea", "label": "Subheading", "max": 240,
+       "hint": "Defaults to your organization description."},
+      {"key": "cta_label", "type": "text", "label": "Button label", "max": 40,
+       "hint": "Leave blank to hide the button."},
+      {"key": "cta_url", "type": "url", "label": "Button link", "max": 200,
+       "default": "/subscribe"}
+    ]
+  }
 }

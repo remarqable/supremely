@@ -6,12 +6,41 @@
   "extends": "origin",
   "overrides": ["layout.html", "header.html", "footer.html", "front-page.html"],
   "description": "The Supremely marketing theme. A warm, product-forward landing page for the open-source community platform.",
-  "landing_editor": true,
   "settings": {
     "accent": {
       "type": "color",
       "label": "Accent color",
       "default": "#8b5cf6"
     }
+  },
+  "content": {
+    "fields": [
+      {"key": "headline_lead", "type": "text", "label": "Headline", "max": 80,
+       "default": "Your community,"},
+      {"key": "headline_accent", "type": "text", "label": "Accent line", "max": 80,
+       "default": "all in one place.",
+       "hint": "Shown on a second line in the accent color. Leave blank for a single-line headline."},
+      {"key": "subhead", "type": "textarea", "label": "Subheading", "max": 240,
+       "default": "Publish updates, send newsletters, and host discussions — one simple home for your members."},
+      {"key": "primary_label", "type": "text", "label": "Primary button", "max": 40,
+       "default": "Get Started",
+       "hint": "Links to sign in (or the community, for signed-in members)."},
+      {"key": "secondary_label", "type": "text", "label": "Secondary button", "max": 40,
+       "default": "View Demo"},
+      {"key": "secondary_url", "type": "url", "label": "Secondary button link", "max": 200,
+       "default": "/discussions"},
+      {"key": "features", "type": "repeater", "label": "Feature highlights", "max_items": 4,
+       "hint": "Four short highlights shown under the buttons. Each keeps its icon.",
+       "item_fields": [
+         {"key": "title", "type": "text", "label": "Title", "max": 60},
+         {"key": "desc", "type": "text", "label": "Description", "max": 140}
+       ],
+       "default": [
+         {"title": "Publish", "desc": "Share updates and articles"},
+         {"title": "Newsletter", "desc": "Send beautiful emails"},
+         {"title": "Discussions", "desc": "Connect and talk with your members"},
+         {"title": "Membership", "desc": "Offer access and grow your community"}
+       ]}
+    ]
   }
 }

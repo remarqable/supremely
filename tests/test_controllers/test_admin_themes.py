@@ -56,20 +56,40 @@ def test_supremely_default_copy_is_neutral_not_a_clone(client, app, acme, globex
 
 
 def test_landing_copy_is_editable_per_org(client, app, acme, globex):
-    """Each org supplies its own copy; the design stays put."""
+    """Each org supplies its own copy (stored per theme); the design stays put."""
     acme.theme = 'supremely'
-    acme.update_settings(landing={
+    acme.update_settings(theme_content={'supremely': {
         'headline_lead': 'The open-source',
         'headline_accent': 'community platform.',
         'subhead': 'A simple home for your members.',
         'features': [],
-    })
+    }})
     acme.save()
     body = client.get('/', base_url='http://acme.example.test').data
     assert b'The open-source' in body
     assert b'community platform.' in body
     assert b'Publish' in body                            # blank feature -> default
     assert b'sup-gradient' in body                       # design unchanged
+
+
+def test_origin_theme_has_landing_editor_too(client, app, acme, globex):
+    """Origin declares its own (simpler) content schema, so it gets a hero
+    editor as well — proving content fields are theme-declared, not bespoke."""
+    from app.platform.theme_content import has_editor
+    assert has_editor('origin')
+    acme.theme = 'origin'
+    # No homepage page set -> the editable hero shows; blanks fall back to org.
+    acme.update_settings(homepage_content_id=None,
+                         theme_content={'origin': {'headline': 'Hello, Acme'}})
+    acme.save()
+    body = client.get('/', base_url='http://acme.example.test').data
+    assert b'Hello, Acme' in body
+
+
+def test_theme_without_schema_has_no_editor(app):
+    """Midnight declares no content, so it opts out of the editor entirely."""
+    from app.platform.theme_content import has_editor
+    assert not has_editor('midnight')
 
 
 def test_install_theme(admin_client, app):

@@ -15,9 +15,9 @@ from app.platform.authz import org_required, require
 from app.platform.content_types import CONTENT_TYPES, get_content_type
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
-from app.platform.landing import FEATURE_COUNT, LANDING_DEFAULTS
 from app.platform.logger import get_logger
-from app.platform.theming import AVAILABLE_THEMES
+from app.platform import theme_content as tc
+from app.platform.theming import AVAILABLE_THEMES, current_theme
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
 log = get_logger()
@@ -745,46 +745,28 @@ def settings():
                            themes=AVAILABLE_THEMES)
 
 
-# --- Landing page (marketing-theme hero copy) ---------------------------------
+# --- Landing page (theme-declared editable content) ---------------------------
 
 @bp.route('/landing', methods=['GET', 'POST'])
 @org_required
 @require('content.write')
 def landing_settings():
-    """Edit the active theme's landing copy. The design ships in the theme;
-    only the words are per-org, so a fresh org shows neutral placeholders and
-    never our copy. Text renders into autoescaped HTML — cap lengths, nothing
-    more."""
-    if request.method == 'POST':
-        def field(name, limit):
-            return request.form.get(name, '').strip()[:limit]
+    """Edit the active theme's declared content (theme.json "content"). The
+    design ships in the theme; only the words are per-org, stored under
+    settings['theme_content'][<theme>] so each theme keeps its own copy. Text
+    renders into autoescaped HTML — the schema's length caps are the only
+    write-time guard (see app.platform.theme_content)."""
+    theme = current_theme()
+    if not tc.has_editor(theme):
+        abort(404)
 
-        data = {
-            'headline_lead': field('headline_lead', 80),
-            'headline_accent': field('headline_accent', 80),
-            'subhead': field('subhead', 240),
-            'primary_label': field('primary_label', 40),
-            'secondary_label': field('secondary_label', 40),
-            'secondary_url': field('secondary_url', 200),
-            'features': [
-                {'title': field(f'feature_{i}_title', 60),
-                 'desc': field(f'feature_{i}_desc', 140)}
-                for i in range(FEATURE_COUNT)
-            ],
-        }
-        g.org.update_settings(landing=data)
+    if request.method == 'POST':
+        store = dict(g.org.setting('theme_content') or {})
+        store[theme] = tc.clean(theme, request.form)
+        g.org.update_settings(theme_content=store)
         flash(t('common.saved'), 'success')
         return redirect(url_for('manage.landing_settings'))
 
-    # Raw saved values fill the inputs; defaults fill the placeholders, so a
-    # blank field visibly falls back rather than persisting the default.
-    saved = g.org.setting('landing') or {}
-    saved_features = saved.get('features') or []
-    features = []
-    for i, default in enumerate(LANDING_DEFAULTS['features']):
-        entry = saved_features[i] if i < len(saved_features) else {}
-        entry = entry if isinstance(entry, dict) else {}
-        features.append({'title': entry.get('title', ''), 'desc': entry.get('desc', ''),
-                         'ph_title': default['title'], 'ph_desc': default['desc']})
-    return render_template('manage/landing.html', saved=saved,
-                           defaults=LANDING_DEFAULTS, features=features)
+    return render_template('manage/landing.html',
+                           fields=tc.editor_view(theme, g.org),
+                           theme_name=AVAILABLE_THEMES[theme]['name'])

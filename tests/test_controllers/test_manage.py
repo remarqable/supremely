@@ -197,6 +197,7 @@ def test_theme_switch(app, client, acme, globex, user):
 
 
 def test_landing_editor_saves_copy(app, client, acme, globex, user):
+    acme.theme = 'supremely'; acme.save()        # editor uses the active theme's schema
     login_as(client, user)
     response = client.post('/manage/landing', base_url=ACME, data={
         'headline_lead': 'The open-source',
@@ -204,20 +205,23 @@ def test_landing_editor_saves_copy(app, client, acme, globex, user):
         'subhead': 'A simple home for your members.',
         'primary_label': 'Get Started', 'secondary_label': 'View Demo',
         'secondary_url': '/discussions',
-        'feature_0_title': 'Publish', 'feature_0_desc': 'Share articles',
+        'features_0_title': 'Publish', 'features_0_desc': 'Share articles',
     })
     assert response.status_code == 302
-    saved = db.session.get(Organization, acme.id).setting('landing')
+    saved = db.session.get(Organization, acme.id).setting('theme_content')['supremely']
     assert saved['headline_lead'] == 'The open-source'
     assert saved['features'][0] == {'title': 'Publish', 'desc': 'Share articles'}
-    assert len(saved['features']) == 4      # always the four fixed slots
+    assert len(saved['features']) == 4          # always the four fixed slots
 
 
-def test_landing_nav_only_for_marketing_theme(app, client, acme, globex, user):
+def test_landing_nav_gated_by_content_schema(app, client, acme, globex, user):
     login_as(client, user)
-    # Origin has no landing hero -> no editor entry.
+    # Origin and Supremely both declare content -> editor entry present.
     acme.theme = 'origin'; acme.save()
-    assert b'/manage/landing' not in client.get('/manage/settings', base_url=ACME).data
-    # The marketing theme surfaces it.
+    assert b'/manage/landing' in client.get('/manage/settings', base_url=ACME).data
     acme.theme = 'supremely'; acme.save()
     assert b'/manage/landing' in client.get('/manage/settings', base_url=ACME).data
+    # Midnight declares none -> no editor, and the route itself 404s.
+    acme.theme = 'midnight'; acme.save()
+    assert b'/manage/landing' not in client.get('/manage/settings', base_url=ACME).data
+    assert client.get('/manage/landing', base_url=ACME).status_code == 404

@@ -49,12 +49,13 @@ def init_theming(app) -> None:
     with app.app_context():
         scan_themes()
 
-    from app.platform.landing import landing_copy
+    from app.platform.theme_content import resolve as resolve_content
     app.jinja_env.globals['theme_asset'] = theme_asset
     app.jinja_env.globals['themed'] = themed
     app.jinja_env.globals['available_themes'] = lambda: AVAILABLE_THEMES
     app.jinja_env.globals['current_theme'] = current_theme
-    app.jinja_env.globals['landing'] = landing_copy
+    # Resolved editable content for the active theme (defaults filled in).
+    app.jinja_env.globals['theme_content'] = lambda: resolve_content(current_theme())
 
 
 def scan_themes() -> None:
@@ -81,9 +82,10 @@ def scan_themes() -> None:
                     'source': source,
                     'path': manifest_path.parent,
                     'settings': manifest.get('settings', {}) or {},
-                    # A marketing theme with an editable hero declares this so
-                    # Manage surfaces the Landing-copy editor for it.
-                    'landing_editor': bool(manifest.get('landing_editor', False)),
+                    # Editable content schema (theme_content.py). Declaring any
+                    # fields here is what surfaces the Landing editor for the
+                    # theme in Manage.
+                    'content': manifest.get('content', {}) or {},
                 }
             except (json.JSONDecodeError, OSError) as e:
                 log.error('theme_manifest_invalid', path=str(manifest_path),

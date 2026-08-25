@@ -18,10 +18,17 @@
   {{ page.html | safe }}
 </article>
 {% else %}
+{# No homepage page set: show the theme's editable hero (Manage → Landing
+   page). Blank fields fall back to the org's own name/description. #}
+{% set hero = theme_content() %}
 <div class="py-16 text-center">
-  <h1 class="text-4xl font-bold">{{ g.org.name }}</h1>
-  {% if g.org.description %}
-  <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">{{ g.org.description }}</p>
+  <h1 class="text-4xl font-bold">{{ hero.headline or g.org.name }}</h1>
+  {% set subhead = hero.subhead or g.org.description %}
+  {% if subhead %}
+  <p class="mx-auto mt-4 max-w-xl text-lg text-slate-600">{{ subhead }}</p>
+  {% endif %}
+  {% if hero.cta_label %}
+  <a href="{{ hero.cta_url or '/subscribe' }}" class="btn-primary mt-6">{{ hero.cta_label }}</a>
   {% endif %}
 </div>
 {% endif %}

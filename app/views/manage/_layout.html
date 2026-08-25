@@ -18,10 +18,10 @@
 {% do content_items.append({'endpoint': 'manage.media', 'label': _('manage.media')}) %}
 {% do content_items.append({'endpoint': 'manage.navigation', 'label': _('manage.navigation')}) %}
 
-{# Site group: the Landing editor appears only for themes that declare a
-   landing hero (theme.json "landing_editor"), so it's meaningless nowhere. #}
+{# Site group: the Landing editor appears only for themes that declare an
+   editable content schema (theme.json "content"), so it's never a dead link. #}
 {% set site_items = [{'endpoint': 'manage.settings', 'label': _('manage.settings')}] %}
-{% if available_themes().get(current_theme(), {}).get('landing_editor') %}
+{% if available_themes().get(current_theme(), {}).get('content', {}).get('fields') %}
   {% do site_items.append({'endpoint': 'manage.landing_settings', 'label': _('manage.landing')}) %}
 {% endif %}
 {% do site_items.append({'endpoint': 'manage.plugins', 'label': _('manage.plugins')}) %}

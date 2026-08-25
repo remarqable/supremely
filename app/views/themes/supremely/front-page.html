@@ -3,17 +3,17 @@
 {% block title %}{{ g.org.name }}{% endblock %}
 
 {% block meta %}
-{% set summary = g.org.description or landing().subhead %}
+{% set summary = g.org.description or theme_content().subhead %}
 <meta name="description" content="{{ summary }}">
 <meta property="og:title" content="{{ g.org.name }}">
 <meta property="og:description" content="{{ summary }}">
 {% endblock %}
 
 {% set get_started = url_for('orgs.dashboard') if (current_user.is_authenticated and is_org_member()) else url_for('auth.login') %}
-{# Design lives in this template; the words are per-org content with neutral
-   defaults, so activating the theme elsewhere never clones our copy. Edit
-   under Manage → Landing page (app.platform.landing). #}
-{% set home = landing() %}
+{# Design lives in this template; the words are theme-declared content with
+   neutral defaults (see theme.json "content"), so activating the theme
+   elsewhere never clones our copy. Edit under Manage → Landing page. #}
+{% set home = theme_content() %}
 
 {% block main %}
 <main>
