@@ -154,7 +154,7 @@ def reply(slug, topic_id):
         flash(e.message, 'error')
         return redirect(topic.url)
 
-    topic.reply_count = Reply.query.filter_by(topic_id=topic.id).count()
+    topic.recount_replies()
     topic.touch()
     db.session.commit()
     TopicFollow.follow(current_user.id, topic)
@@ -226,7 +226,7 @@ def delete_reply(reply_id):
         abort(403)
     topic = reply.topic
     reply.delete()
-    topic.reply_count = Reply.query.filter_by(topic_id=topic.id).count()
+    topic.recount_replies()
     db.session.commit()
     return redirect(topic.url)
 

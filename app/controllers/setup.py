@@ -11,8 +11,6 @@ import json
 import os
 import re
 import secrets
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
@@ -23,10 +21,11 @@ from flask import (Blueprint, current_app, flash, redirect, render_template,
 from flask_login import login_user
 
 from app.extensions import db
-from app.models import InstallationSetting, Membership, Organization, User
+from app.models import Organization, User
 from app.platform.config_store import mark_installed, write_runtime_config
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
+from app.platform.install import migrate_and_seed_postgres, seed_installation
 from app.platform.logger import get_logger
 
 bp = Blueprint('setup', __name__, url_prefix='/setup')
@@ -262,7 +261,7 @@ def _apply(state: dict):
     if postgres:
         config_updates['DATABASE_URL'] = database['url']
         write_runtime_config(app, config_updates)
-        ok, error = _migrate_and_seed_postgres(database['url'], state)
+        ok, error = migrate_and_seed_postgres(database['url'], state)
         if not ok:
             flash(t('setup.postgres_apply_failed', error=error), 'error')
             return redirect(url_for('setup.database'))
@@ -273,7 +272,7 @@ def _apply(state: dict):
 
     # SQLite: the running database is already the real one.
     write_runtime_config(app, config_updates)
-    admin_user = _seed(db.session, state)
+    admin_user = seed_installation(db.session, state)
     mark_installed(app)
     _clear_state()
 
@@ -283,66 +282,3 @@ def _apply(state: dict):
     return render_template('setup/done.html', restart_required=False,
                            org=state.get('organization') or None)
 
-
-def _seed(db_session, state: dict) -> User:
-    """Create settings, the platform admin, and the first organization."""
-    env = state['environment']
-    admin_data = state['admin']
-
-    admin_user = User(email=admin_data['email'],
-                      name=admin_data['email'].split('@')[0],
-                      is_platform_admin=True)
-    admin_user.set_password(admin_data['password'])
-    db_session.add(admin_user)
-    db_session.flush()
-
-    settings = {
-        'installation.name': env['name'],
-        'installation.base_url': env['base_url'],
-        'installation.timezone': env['timezone'],
-        'installation.language': env['language'],
-        'installation.allow_organization_signups': 'false',
-    }
-    for key, value in (state.get('email') or {}).items():
-        settings[f'email.{key}'] = value
-    for key, value in settings.items():
-        db_session.add(InstallationSetting(key=key, value=value))
-
-    org_data = state.get('organization') or {}
-    if org_data.get('slug'):
-        org = Organization(name=org_data['name'], slug=org_data['slug'])
-        db_session.add(org)
-        db_session.flush()
-        db_session.add(Membership(user_id=admin_user.id, org_id=org.id,
-                                  role='owner'))
-        from app.platform.defaults import seed_default_content
-        seed_default_content(db_session, org, owner_id=admin_user.id)
-
-    db_session.commit()
-    return admin_user
-
-
-def _migrate_and_seed_postgres(url: str, state: dict) -> tuple[bool, str]:
-    """Run migrations against the chosen PostgreSQL database, then seed it.
-
-    The running process keeps serving from the bootstrap SQLite database
-    until restart; the done page says so.
-    """
-    root = Path(current_app.root_path).parent
-    try:
-        result = subprocess.run(
-            [sys.executable, '-m', 'flask', 'db', 'upgrade'],
-            cwd=root, capture_output=True, text=True, timeout=180,
-            env={**__import__('os').environ, 'DATABASE_URL': url,
-                 'FLASK_APP': 'wsgi.py'},
-        )
-        if result.returncode != 0:
-            return False, (result.stderr or result.stdout)[-500:]
-
-        engine = sa.create_engine(url)
-        with sa.orm.Session(engine) as pg_session:
-            _seed(pg_session, state)
-        engine.dispose()
-        return True, ''
-    except Exception as e:      # noqa: BLE001 -- wizard must report, not crash
-        return False, str(e)

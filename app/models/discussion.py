@@ -113,6 +113,11 @@ class Topic(OrgScoped, AuditMixin, BaseModel):
         self.last_activity_at = utcnow()
         return self
 
+    def recount_replies(self):
+        """Refresh the denormalized reply count from the reply table."""
+        self.reply_count = Reply.query.filter_by(topic_id=self.id).count()
+        return self
+
 
 class Reply(OrgScoped, AuditMixin, BaseModel):
     __tablename__ = 'discussion_reply'
