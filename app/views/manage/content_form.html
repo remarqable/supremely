@@ -123,6 +123,8 @@
       <button type="submit" name="action" value="save" class="btn-secondary w-full">{{ _('manage.save_draft') }}</button>
       <button type="submit" name="action" value="publish" class="btn-primary w-full">{{ _('manage.publish') }}</button>
       {% endif %}
+      <a href="{{ url_for('manage.content_list', type_slug=content_type.slug) }}"
+         class="btn-ghost w-full">{{ _('common.cancel') }}</a>
       {% if content and content.id %}
       <a href="{{ url_for('manage.preview_content', content_id=content.id) }}" class="btn-secondary w-full">{{ _('manage.preview') }}</a>
       {% if not content_type.is_page %}

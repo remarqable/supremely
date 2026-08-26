@@ -24,6 +24,7 @@
           {% endfor %}
         </select>
       </div>
+      <a href="{{ url_for('admin.orgs') }}" class="btn-ghost">{{ _('common.cancel') }}</a>
       <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
     </form>
   </div>

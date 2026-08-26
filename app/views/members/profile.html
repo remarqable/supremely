@@ -39,6 +39,7 @@
         <input type="file" id="avatar" name="avatar" class="input mt-1"
                accept="image/png,image/jpeg,image/webp">
       </div>
+      <a href="{{ url_for('orgs.dashboard') if g.membership else '/' }}" class="btn-ghost">{{ _('common.cancel') }}</a>
       <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
     </form>
   </div>

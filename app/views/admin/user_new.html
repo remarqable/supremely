@@ -22,6 +22,7 @@
         <input type="checkbox" name="is_platform_admin">
         {{ _('admin.platform_admin') }}
       </label>
+      <a href="{{ url_for('admin.users') }}" class="btn-ghost">{{ _('common.cancel') }}</a>
       <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
     </form>
   </div>
