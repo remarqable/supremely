@@ -1,31 +1,41 @@
 {% extends site_layout %}
-{% from 'community/_macros.html' import composer, discussion_card, search_box with context %}
+{% from 'community/_macros.html' import composer, post_row, search_box with context %}
 {% from 'partials/_ui.html' import empty_state with context %}
 
 {% block title %}{{ group.name }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
-<nav class="mb-3 text-sm text-slate-400" aria-label="{{ _('discussions.breadcrumb') }}">
-  <a href="/discussions" class="hover:text-slate-900">{{ _('discussions.title') }}</a>
-  <span class="mx-1">/</span>
-  <span class="text-slate-600">{{ group.name }}</span>
-</nav>
+<div class="mx-auto max-w-3xl">
+  <nav class="mb-3 text-sm text-slate-400" aria-label="{{ _('discussions.breadcrumb') }}">
+    <a href="/discussions" class="hover:text-slate-900">{{ _('discussions.title') }}</a>
+    <span class="mx-1">/</span>
+    <span class="text-slate-600">{{ group.name }}</span>
+  </nav>
 
-<div class="mb-5 flex flex-wrap items-start justify-between gap-3">
-  <div class="min-w-0">
-    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ group.name }}</h1>
-    {% if group.description %}<p class="mt-0.5 text-sm text-slate-500">{{ group.description }}</p>{% endif %}
+  <div class="mb-5 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+    <div class="flex items-start gap-4">
+      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg font-bold text-slate-500">{{ group.name[:1]|upper }}</span>
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ group.name }}</h1>
+          {{ search_box(q, _('common.search')) }}
+        </div>
+        {% if group.description %}<p class="mt-1 text-sm leading-relaxed text-slate-600">{{ group.description }}</p>{% endif %}
+        <p class="mt-1.5 text-xs tabular-nums text-slate-400">{{ _('discussions.post_count', n=group.post_count()) }}</p>
+      </div>
+    </div>
   </div>
-  {{ search_box(q, _('common.search')) }}
-</div>
 
-<div class="mb-5">{{ composer([group]) }}</div>
+  <div class="mb-5">{{ composer([group]) }}</div>
 
-<div class="space-y-3.5">
-  {% for post in posts %}
-  {{ discussion_card(post, show_group=false) }}
+  {% if posts %}
+  <div class="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
+    {% for post in posts %}
+    {{ post_row(post) }}
+    {% endfor %}
+  </div>
   {% else %}
   <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_posts')) }}</div>
-  {% endfor %}
+  {% endif %}
 </div>
 {% endblock %}

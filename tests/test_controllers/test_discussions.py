@@ -312,3 +312,50 @@ def test_email_job_enqueued_only_when_configured(app, client, acme, globex, user
     bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'now with email'})
     assert Job.query.filter_by(name='notifications.email').count() >= 1
+
+
+# --- Directory / dense-list layout ------------------------------------------
+
+def test_index_is_a_group_directory(app, client, acme, globex, user):
+    make_group(app, acme)
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_post(owner_client, title='Latest thing', body='hello')
+    page = owner_client.get('/discussions/', base_url=ACME)
+    # Group row with post count and last-activity meta; no composer here.
+    assert b'General' in page.data
+    assert b'1 posts' in page.data
+    assert b'Latest thing' in page.data          # last-activity line
+    assert b'Share something with your community' not in page.data
+
+
+def test_reply_sort_toggle(app, client, acme, globex, user):
+    make_group(app, acme)
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_post(owner_client, title='Sortable', body='x')
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        post = Post.query.filter_by(title='Sortable').one()
+        url = post.url
+    owner_client.post(f'{url}/reply', base_url=ACME, data={'body': 'first reply'})
+    owner_client.post(f'{url}/reply', base_url=ACME, data={'body': 'second reply'})
+
+    oldest = owner_client.get(url, base_url=ACME).data
+    assert oldest.index(b'first reply') < oldest.index(b'second reply')
+    newest = owner_client.get(f'{url}?sort=newest', base_url=ACME).data
+    assert newest.index(b'second reply') < newest.index(b'first reply')
+
+
+def test_latest_in_group_rail(app, client, acme, globex, user):
+    make_group(app, acme)
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_post(owner_client, title='Rail neighbor', body='x')
+    create_post(owner_client, title='Current post', body='y')
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        url = Post.query.filter_by(title='Current post').one().url
+    page = owner_client.get(url, base_url=ACME).data
+    assert b'Latest in General' in page
+    assert b'Rail neighbor' in page

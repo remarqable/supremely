@@ -70,20 +70,31 @@ def _moderator_filter(query):
 @bp.route('/')
 @org_required
 def index():
+    """The groups directory. Recent activity lives on the Home feed; this
+    page answers "what groups exist and how alive are they"."""
     groups = _visible_groups()
     group_ids = [group.id for group in groups]
     q = request.args.get('q', '').strip()
+    latest_by_group: dict = {}
+    search_results = []
     recent = []
     if group_ids:
-        query = _moderator_filter(
+        base = _moderator_filter(
             Post.query.filter(Post.group_id.in_(group_ids)))
+        recent = (base.order_by(Post.last_activity_at.desc())
+                  .limit(50).all())
+        for post in recent:
+            latest_by_group.setdefault(post.group_id, post)
         if q:
-            query = query.filter(sa.or_(Post.title.ilike(f'%{q}%'),
-                                        Post.body.ilike(f'%{q}%')))
-        recent = (query.order_by(Post.last_activity_at.desc())
-                  .limit(20).all())
+            search_results = (base.filter(
+                sa.or_(Post.title.ilike(f'%{q}%'),
+                       Post.body.ilike(f'%{q}%')))
+                .order_by(Post.last_activity_at.desc()).limit(20).all())
+    # recent_posts keeps the public theme template working for visitors.
     return render_site(['discussions.html'], groups=groups,
-                       recent_posts=recent, q=q)
+                       latest_by_group=latest_by_group,
+                       search_results=search_results, q=q,
+                       recent_posts=(search_results if q else recent[:20]))
 
 
 @bp.route('/<slug>')
@@ -143,11 +154,20 @@ def post(slug, post_id):
         'post': Reaction.counts_for('post', [post.id]).get(post.id, {}),
         'reply': Reaction.counts_for('reply', [r.id for r in replies]),
     }
+    sort = request.args.get('sort', 'oldest')
+    if sort == 'newest':
+        top_level.reverse()
+
+    latest_in_group = (_moderator_filter(
+        Post.query.filter(Post.group_id == group.id, Post.id != post.id))
+        .order_by(Post.last_activity_at.desc()).limit(5).all())
+
     following = (current_user.is_authenticated and
                  PostFollow.is_following(current_user.id, post.id))
     return render_site(['discussion-post.html'], group=group,
                        post=post, top_level=top_level, children=children,
                        reactions=reactions, following=following,
+                       sort=sort, latest_in_group=latest_in_group,
                        emoji_set=REACTION_EMOJI)
 
 

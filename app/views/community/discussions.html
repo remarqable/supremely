@@ -1,50 +1,59 @@
 {% extends site_layout %}
-{% from 'community/_macros.html' import composer, discussion_card, search_box with context %}
-{% from 'partials/_ui.html' import empty_state with context %}
+{% from 'community/_macros.html' import post_row, search_box with context %}
+{% from 'partials/_ui.html' import avatar, empty_state with context %}
 
 {% block title %}{{ _('discussions.title') }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
-<div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-  <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ _('discussions.title') }}</h1>
-  {{ search_box(q, _('common.search')) }}
-</div>
-
-<div class="grid gap-5 lg:grid-cols-3">
-  <div class="lg:col-span-1">
-    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.groups') }}</h2>
-    <div class="space-y-2.5">
-      {% for group in groups %}
-      <a href="/discussions/{{ group.slug }}"
-         class="block rounded-xl bg-white p-4 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
-        <div class="flex items-center gap-2">
-          <span class="font-semibold text-slate-900">{{ group.name }}</span>
-          <span class="ms-auto text-xs tabular-nums text-slate-400">{{ _('discussions.post_count', n=group.post_count()) }}</span>
-        </div>
-        {% if group.description %}<p class="mt-1 text-sm text-slate-500">{{ group.description }}</p>{% endif %}
-      </a>
-      {% else %}
-      <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_groups')) }}</div>
-      {% endfor %}
-    </div>
+<div class="mx-auto max-w-3xl">
+  <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ _('discussions.title') }}</h1>
+    {{ search_box(q, _('common.search')) }}
   </div>
 
-  <div class="lg:col-span-2">
-    <div class="mb-4">{{ composer(groups) }}</div>
-    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.recent') }}</h2>
-    <div class="space-y-3.5">
-      {% for post in recent_posts %}
-      {{ discussion_card(post) }}
-      {% else %}
-      <div class="rounded-xl bg-white ring-1 ring-slate-200">
-        {% if groups and can('discuss') %}
-        {{ empty_state(_('discussions.no_posts'), '/discussions/' + groups[0].slug, _('discussions.new_post')) }}
+  {% if q %}
+  <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.search_results') }}</h2>
+  <div class="mb-6 divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
+    {% for post in search_results %}
+    {{ post_row(post, show_group=true) }}
+    {% else %}
+    {{ empty_state(_('discussions.no_posts')) }}
+    {% endfor %}
+  </div>
+  {% else %}
+
+  <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.groups') }}</h2>
+  {% if groups %}
+  <div class="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
+    {% for group in groups %}
+    {% set latest = latest_by_group.get(group.id) %}
+    <a href="/discussions/{{ group.slug }}"
+       class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/60">
+      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-base font-bold text-slate-500">{{ group.name[:1]|upper }}</span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate font-semibold text-slate-900">{{ group.name }}</span>
+        {% if latest %}
+        <span class="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
+          {{ avatar(latest.author.name if latest.author else '?',
+                    latest.author.avatar_url if latest.author else None,
+                    size='h-4.5 w-4.5', text='text-[8px]') }}
+          <span class="truncate">
+            <span class="text-slate-500">{{ latest.author.name if latest.author else g.org.name }}</span>
+            · {{ latest.title }} · {{ latest.last_activity_at|timeago }}</span>
+        </span>
+        {% elif group.description %}
+        <span class="mt-0.5 block truncate text-xs text-slate-400">{{ group.description }}</span>
         {% else %}
-        {{ empty_state(_('discussions.no_posts')) }}
+        <span class="mt-0.5 block text-xs text-slate-400">{{ _('discussions.no_posts_short') }}</span>
         {% endif %}
-      </div>
-      {% endfor %}
-    </div>
+      </span>
+      <span class="shrink-0 text-sm tabular-nums text-slate-400">{{ _('discussions.post_count', n=group.post_count()) }}</span>
+    </a>
+    {% endfor %}
   </div>
+  {% else %}
+  <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_groups')) }}</div>
+  {% endif %}
+  {% endif %}
 </div>
 {% endblock %}

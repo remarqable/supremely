@@ -75,3 +75,25 @@
   <button type="submit" class="btn-secondary">{{ _('common.search') }}</button>
 </form>
 {% endmacro %}
+
+{% macro post_row(post, show_group=false) %}
+{# Dense list row: title-first, scannable at volume (the Long Angle shape). #}
+<a href="{{ post.url }}" class="block px-5 py-3.5 transition-colors hover:bg-slate-50/60 {{ 'opacity-60' if post.is_hidden }}">
+  <div class="flex items-center gap-2">
+    <span class="min-w-0 truncate font-medium text-slate-900">{{ post.title }}</span>
+    {% if post.is_pinned %}<span class="badge-brand shrink-0">{{ _('discussions.pinned') }}</span>{% endif %}
+    {% if post.is_locked %}<span class="badge-slate shrink-0">{{ _('discussions.locked_badge') }}</span>{% endif %}
+    {% if post.is_hidden %}<span class="badge-red shrink-0">{{ _('discussions.hidden') }}</span>{% endif %}
+    <span class="ms-auto shrink-0 text-sm tabular-nums text-slate-500">{{ _('community.replies_count', n=post.reply_count) }}</span>
+  </div>
+  <div class="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
+    {{ avatar(post.author.name if post.author else '?',
+              post.author.avatar_url if post.author else None,
+              size='h-4.5 w-4.5', text='text-[8px]') }}
+    <span class="text-slate-500">{{ post.author.name if post.author else g.org.name }}</span>
+    <span>{{ _('discussions.posted_ago', when=post.created_at|timeago) }}</span>
+    {% if show_group %}<span>· {{ post.group.name }}</span>{% endif %}
+    {% if post.reply_count %}<span>· {{ _('discussions.active_ago', when=post.last_activity_at|timeago) }}</span>{% endif %}
+  </div>
+</a>
+{% endmacro %}
