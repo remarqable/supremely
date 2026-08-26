@@ -50,7 +50,8 @@ def test_count_by_type_is_tenant_scoped(app, acme, globex):
         g.org = acme
         counts = dict(Content.count_by_type())
     # Seeded content for ONE org only: 3 pages, 1 article, 1 event.
-    assert counts == {'page': 3, 'article': 1, 'event': 1}
+    assert counts == {'page': 3, 'article': 1, 'event': 1,
+                      'announcement': 1}
 
 
 def test_nav_groups_declared(app):

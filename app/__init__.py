@@ -169,6 +169,13 @@ def _init_context(app):
             from .models import Content
             return Content.published_page('about')
 
+        def latest_announcement():
+            """Newest published announcement for the right-rail card."""
+            if getattr(g, 'org', None) is None:
+                return None
+            from .models import Content
+            return Content.published_query('announcement').first()
+
         def managing():
             """Manage mode: presentation only — surfaces controls the user
             already has permission for. Never consulted for authorization."""
@@ -186,6 +193,7 @@ def _init_context(app):
             'unread_notifications': unread_notifications,
             'managing': managing,
             'start_here_page': start_here_page,
+            'latest_announcement': latest_announcement,
             'content_types': active_types,
         }
 

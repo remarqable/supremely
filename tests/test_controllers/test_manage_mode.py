@@ -35,9 +35,9 @@ def test_members_get_community_templates(app, client, acme, user):
     index = client.get('/discussions/', base_url=ACME)
     assert b'Roadmap question' in index.data
     assert COMMUNITY_MARKER in index.data
-    # DiscussionGroup page: the inline composer replaces the old details-form.
+    # Group page: the New Post modal replaces the old details-form.
     space = client.get('/discussions/general', base_url=ACME)
-    assert b'Share something with your community' in space.data
+    assert b'New Post' in space.data
     # Post page: comments heading + reaction bar render.
     with app.test_request_context(base_url=ACME):
         g.org = acme

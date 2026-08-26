@@ -38,8 +38,8 @@ def test_feed_mixes_discussions_and_content(app, client, acme, user):
     # Seeded org: first article + kickoff event in the feed (posts side).
     assert b'Hello, World!' in response.data
     assert b'Kickoff meetup' in response.data
-    # Composer renders; the tab bar is gone (sidebar sections replaced it).
-    assert b'Share something with your community' in response.data
+    # New Post modal trigger renders; the tab bar is gone.
+    assert b'New Post' in response.data
     assert b'?tab=' not in response.data
 
 

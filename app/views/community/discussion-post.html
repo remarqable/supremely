@@ -1,5 +1,6 @@
 {% extends site_layout %}
 {% from 'partials/_ui.html' import avatar with context %}
+{% from 'partials/_community_rail.html' import announcement_card with context %}
 
 {% block title %}{{ post.title }} — {{ g.org.name }}{% endblock %}
 
@@ -236,8 +237,9 @@
 {% endif %}
 </div>
 
-{% if latest_in_group %}
-<aside class="sticky top-6 hidden w-72 shrink-0 lg:block">
+<aside class="sticky top-6 hidden w-72 shrink-0 space-y-4 lg:block">
+  {{ announcement_card() }}
+  {% if latest_in_group %}
   <div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
     <h2 class="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.latest_in', group=group.name) }}</h2>
     <div class="mt-1 divide-y divide-slate-100">
@@ -250,7 +252,7 @@
       {% endfor %}
     </div>
   </div>
+  {% endif %}
 </aside>
-{% endif %}
 </div>
 {% endblock %}

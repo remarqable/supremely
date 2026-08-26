@@ -52,6 +52,12 @@ Edit this page under **Manage → Pages** and add your preferred contact
 channels — an email address, a form link, or your social profiles.
 """
 
+FIRST_ANNOUNCEMENT_BODY = """\
+Welcome to **{name}**! This is the announcements space — official updates
+from the team live here and in the community sidebar. Edit or delete this
+one under **Manage → Announcements**, then tell your members what's new.
+"""
+
 FIRST_ARTICLE_BODY = """\
 Hello, world! This is the first article on **{name}**.
 
@@ -126,8 +132,16 @@ def seed_default_content(session, org, owner_id=None) -> None:
     nav('footer', 'FAQ', 2, content_id=faq.id, parent=f_about)
     nav('footer', 'Contact', 3, content_id=contact.id, parent=f_about)
 
-    # A first article, and one Event so the vertical content type is a visible
-    # hint (this is where custom content goes).
+    # A first article, an Event, and a welcome Announcement so the typed
+    # content surfaces are visible hints (this is where custom content goes).
+    session.add(Content(org_id=org.id, type='announcement',
+                        title=f'Welcome to {org.name}',
+                        slug='welcome',
+                        body=FIRST_ANNOUNCEMENT_BODY.format(name=org.name),
+                        excerpt='Official updates from the team live here.',
+                        status='published', published_at=now,
+                        visibility='public', tags=[], fields={},
+                        created_by_id=owner_id))
     session.add(Content(org_id=org.id, type='article', title='Hello, World!',
                         slug='hello-world',
                         body=FIRST_ARTICLE_BODY.format(name=org.name),

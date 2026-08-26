@@ -1,14 +1,19 @@
 {% extends site_layout %}
-{% from 'community/_macros.html' import post_row, search_box with context %}
+{% from 'community/_macros.html' import new_post_modal, post_row, search_box with context %}
+{% from 'partials/_community_rail.html' import announcement_card with context %}
 {% from 'partials/_ui.html' import avatar, empty_state with context %}
 
 {% block title %}{{ _('discussions.title') }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-3xl">
+<div class="mx-auto flex max-w-5xl items-start gap-6">
+<div class="min-w-0 flex-1">
   <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
     <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ _('discussions.title') }}</h1>
-    {{ search_box(q, _('common.search')) }}
+    <div class="flex items-center gap-2">
+      {{ search_box(q, _('common.search')) }}
+      {{ new_post_modal(groups) }}
+    </div>
   </div>
 
   {% if q %}
@@ -55,5 +60,7 @@
   <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_groups')) }}</div>
   {% endif %}
   {% endif %}
+</div>
+<aside class="sticky top-6 hidden w-72 shrink-0 lg:block">{{ announcement_card() }}</aside>
 </div>
 {% endblock %}

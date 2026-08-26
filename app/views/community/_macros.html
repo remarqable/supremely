@@ -3,39 +3,58 @@
    in one visual language. #}
 {% from 'partials/_ui.html' import avatar with context %}
 
-{% macro composer(groups) %}
-{# Inline post composer: collapsed single line, expands on focus. Posts
-   through discussions.new_post. With one group the target is fixed; with
-   several, a picker appears. #}
+{% macro new_post_modal(groups) %}
+{# "New Post" button opening a modal (the Long Angle shape): title,
+   "Posting in" group picker, Markdown body. Posts through
+   discussions.new_post; the static action is a no-JS fallback. #}
 {% if groups and can('discuss') %}
-<form method="POST" x-data="{ open: false, group: '{{ groups[0].slug }}' }"
-      :action="'/discussions/' + group + '/new'"
-      action="/discussions/{{ groups[0].slug }}/new"
-      class="rounded-xl bg-white p-3 ring-1 ring-slate-200">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <div class="flex items-center gap-3">
-    {{ avatar(current_user.name, current_user.avatar_url, size='h-8.5 w-8.5', text='text-xs') }}
-    <input type="text" name="title" maxlength="200" required
-           placeholder="{{ _('community.share_prompt') }}" @focus="open = true"
-           class="min-w-0 flex-1 border-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0">
-    <svg x-show="!open" class="h-5 w-5 shrink-0 text-slate-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M3 14l4-3.5 3 2.5 3-3 4 4"/></svg>
-  </div>
-  <div x-show="open" x-cloak x-transition class="mt-3 space-y-3 border-t border-slate-100 pt-3">
-    <textarea name="body" rows="3" required
-              placeholder="{{ _('community.post_body_placeholder') }}"
-              class="textarea"></textarea>
-    <div class="flex items-center gap-2">
-      {% if groups|length > 1 %}
-      <label for="composer-group" class="text-xs font-medium text-slate-500">{{ _('community.choose_space') }}</label>
-      <select id="composer-group" x-model="group" class="select w-auto min-w-32">
-        {% for group in groups %}<option value="{{ group.slug }}">{{ group.name }}</option>{% endfor %}
-      </select>
-      {% endif %}
-      <button type="button" @click="open = false" class="btn-ghost ms-auto">{{ _('common.cancel') }}</button>
-      <button type="submit" class="btn-primary">{{ _('community.post_button') }}</button>
+<div x-data="{ open: false, group: '{{ groups[0].slug }}' }"
+     @keydown.escape.window="open = false">
+  <button type="button" @click="open = true; $nextTick(() => $refs.title.focus())"
+          class="btn-primary">{{ _('community.new_post_button') }}</button>
+
+  <template x-teleport="body">
+    <div x-show="open" x-cloak class="fixed inset-0 z-50"
+         @keydown.escape.window="open = false">
+      <div class="absolute inset-0 bg-slate-900/40" @click="open = false"></div>
+      <form method="POST" :action="'/discussions/' + group + '/new'"
+            action="/discussions/{{ groups[0].slug }}/new"
+            x-show="open" x-transition
+            role="dialog" aria-modal="true" aria-label="{{ _('community.new_post_button') }}"
+            class="absolute inset-x-4 top-[12vh] mx-auto max-w-xl rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-900/10">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-lg font-bold tracking-tight text-slate-900">{{ _('community.new_post_button') }}</h2>
+          <button type="button" @click="open = false" aria-label="{{ _('common.cancel') }}"
+                  class="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
+        </div>
+        <div class="flex flex-wrap items-end gap-3">
+          <div class="min-w-0 flex-1">
+            <input type="text" name="title" x-ref="title" maxlength="200" required
+                   placeholder="{{ _('discussions.post_title') }}" class="input">
+          </div>
+          {% if groups|length > 1 %}
+          <div class="flex items-center gap-2">
+            <label for="modal-group" class="text-sm text-slate-500">{{ _('community.posting_in') }}</label>
+            <select id="modal-group" x-model="group" class="select w-auto min-w-36">
+              {% for group in groups %}<option value="{{ group.slug }}">{{ group.name }}</option>{% endfor %}
+            </select>
+          </div>
+          {% endif %}
+        </div>
+        <textarea name="body" rows="7" required
+                  placeholder="{{ _('community.post_body_placeholder') }}"
+                  class="textarea mt-3"></textarea>
+        <div class="mt-4 flex items-center justify-end gap-2">
+          <button type="button" @click="open = false" class="btn-ghost">{{ _('common.cancel') }}</button>
+          <button type="submit" class="btn-primary">{{ _('community.post_button') }}</button>
+        </div>
+      </form>
     </div>
-  </div>
-</form>
+  </template>
+</div>
 {% endif %}
 {% endmacro %}
 

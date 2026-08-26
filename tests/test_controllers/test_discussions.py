@@ -326,7 +326,7 @@ def test_index_is_a_group_directory(app, client, acme, globex, user):
     assert b'General' in page.data
     assert b'1 posts' in page.data
     assert b'Latest thing' in page.data          # last-activity line
-    assert b'Share something with your community' not in page.data
+    assert b'New Post' in page.data              # modal trigger
 
 
 def test_reply_sort_toggle(app, client, acme, globex, user):

@@ -1,11 +1,13 @@
 {% extends site_layout %}
-{% from 'community/_macros.html' import composer, post_row, search_box with context %}
+{% from 'community/_macros.html' import new_post_modal, post_row, search_box with context %}
+{% from 'partials/_community_rail.html' import announcement_card with context %}
 {% from 'partials/_ui.html' import empty_state with context %}
 
 {% block title %}{{ group.name }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-3xl">
+<div class="mx-auto flex max-w-5xl items-start gap-6">
+<div class="min-w-0 flex-1">
   <nav class="mb-3 text-sm text-slate-400" aria-label="{{ _('discussions.breadcrumb') }}">
     <a href="/discussions" class="hover:text-slate-900">{{ _('discussions.title') }}</a>
     <span class="mx-1">/</span>
@@ -18,15 +20,16 @@
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ group.name }}</h1>
-          {{ search_box(q, _('common.search')) }}
+          <div class="flex items-center gap-2">
+            {{ search_box(q, _('common.search')) }}
+            {{ new_post_modal([group]) }}
+          </div>
         </div>
         {% if group.description %}<p class="mt-1 text-sm leading-relaxed text-slate-600">{{ group.description }}</p>{% endif %}
         <p class="mt-1.5 text-xs tabular-nums text-slate-400">{{ _('discussions.post_count', n=group.post_count()) }}</p>
       </div>
     </div>
   </div>
-
-  <div class="mb-5">{{ composer([group]) }}</div>
 
   {% if posts %}
   <div class="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
@@ -37,5 +40,7 @@
   {% else %}
   <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_posts')) }}</div>
   {% endif %}
+</div>
+<aside class="sticky top-6 hidden w-72 shrink-0 lg:block">{{ announcement_card() }}</aside>
 </div>
 {% endblock %}
