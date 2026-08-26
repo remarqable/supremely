@@ -84,34 +84,29 @@ def toggle_manage_mode():
 FEED_LIMIT = 20
 
 
-def _feed_items(groups):
-    """The community feed: one reverse-chronological stream of discussion
-    posts and published content. Merged in Python — both sides are already
-    small, indexed, tenant-scoped queries. Filtering by kind is the
-    sidebar's job (each section is a destination), not the feed's."""
-    from app.models import Content
+def _recent_posts(groups):
+    """The community pulse: recent forum posts. Published content lives in
+    Home's org column, not this feed."""
     from app.models.discussion import Post
+    if not groups:
+        return []
+    return (Post.query
+            .filter(Post.group_id.in_([group.id for group in groups]),
+                    Post.is_hidden.is_(False))
+            .order_by(Post.last_activity_at.desc())
+            .limit(FEED_LIMIT).all())
+
+
+def _latest_published():
+    """The org's published voice for Home's org column. Announcements are
+    excluded — the rail's announcement card already features the latest."""
+    from app.models import Content
     from app.platform.content_types import feed_types
-
-    discussions = []
-    if groups:
-        discussions = (Post.query
-                       .filter(Post.group_id.in_(
-                                   [group.id for group in groups]),
-                               Post.is_hidden.is_(False))
-                       .order_by(Post.last_activity_at.desc())
-                       .limit(FEED_LIMIT).all())
-
-    type_slugs = [ct.slug for ct in feed_types()]
-    content = (Content.published_query()
-               .filter(Content.type.in_(type_slugs))
-               .limit(FEED_LIMIT).all())
-
-    items = ([('discussion', post.last_activity_at, post)
-              for post in discussions]
-             + [('content', item.published_at, item) for item in content])
-    items.sort(key=lambda entry: entry[1], reverse=True)
-    return items[:FEED_LIMIT]
+    type_slugs = [ct.slug for ct in feed_types() if ct.slug != 'announcement']
+    if not type_slugs:
+        return []
+    return (Content.published_query()
+            .filter(Content.type.in_(type_slugs)).limit(4).all())
 
 
 def _upcoming_event():
@@ -150,7 +145,8 @@ def dashboard():
                       .order_by(Membership.created_at.desc()).limit(5).all())
 
     return render_template('orgs/dashboard.html', org=g.org, groups=groups,
-                           feed=_feed_items(groups),
+                           feed=_recent_posts(groups),
+                           latest_published=_latest_published(),
                            member_count=member_count,
                            recent_members=recent_members,
                            upcoming_event=_upcoming_event())

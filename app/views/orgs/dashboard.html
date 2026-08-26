@@ -1,7 +1,7 @@
 {% extends 'layouts/base.html' %}
 {% from 'partials/_ui.html' import avatar, empty_state with context %}
 {% from 'partials/_community_nav.html' import community_nav with context %}
-{% from 'community/_macros.html' import new_post_modal with context %}
+{% from 'community/_macros.html' import discussion_card, new_post_modal, publish_menu with context %}
 {% from 'partials/_community_rail.html' import announcement_card with context %}
 
 {% block title %}{{ _('community.home') }} — {{ org.name }}{% endblock %}
@@ -18,42 +18,17 @@
     {% include 'partials/_flash.html' %}
     <div class="mb-5 flex items-center justify-between">
       <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ _('community.home') }}</h1>
-      {{ new_post_modal(groups) }}
+      <div class="flex items-center gap-2">
+        {{ publish_menu() }}
+        {{ new_post_modal(groups) }}
+      </div>
     </div>
 
     <div class="mt-5"></div>
 
     <div class="space-y-3.5">
-      {% for kind, when, item in feed %}
-      <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
-        <div class="flex items-center gap-2.5">
-          {{ avatar(item.author.name if item.author else '?',
-                    item.author.avatar_url if item.author else None,
-                    size='h-8.5 w-8.5', text='text-xs') }}
-          <div class="min-w-0">
-            <div class="truncate text-sm font-semibold text-slate-900">{{ item.author.name if item.author else org.name }}</div>
-            <div class="text-xs text-slate-400">{{ when|timeago }}</div>
-          </div>
-          <span class="badge-slate ms-auto shrink-0 uppercase tracking-wide">
-            {{ item.group.name if kind == 'discussion' else item.content_type.singular }}</span>
-        </div>
-        <h2 class="mt-3 text-lg font-semibold tracking-tight">
-          <a href="{{ item.url if kind == 'discussion' else item.permalink }}"
-             class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>
-        </h2>
-        {% set summary = (item.body or '') if kind == 'discussion' else item.excerpt_or_summary() %}
-        {% if summary %}<p class="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary[:280] }}</p>{% endif %}
-        <div class="mt-3.5 flex items-center gap-4 text-sm text-slate-500">
-          {% if kind == 'discussion' %}
-          <a href="{{ item.url }}" class="inline-flex items-center gap-1.5 hover:text-slate-900">
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
-            {{ _('community.replies_count', n=item.reply_count) }}</a>
-          {% if item.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
-          {% else %}
-          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
-          {% endif %}
-        </div>
-      </article>
+      {% for post in feed %}
+      {{ discussion_card(post) }}
       {% else %}
       <div class="rounded-xl bg-white ring-1 ring-slate-200">
         {% if groups and can('discuss') %}
@@ -67,8 +42,24 @@
   </div>
 
   {# --- Right rail: members + upcoming event ---------------------------------- #}
-  <aside class="w-full shrink-0 px-4 py-6 sm:px-8 lg:w-80 lg:ps-0 lg:pe-6">
+  <aside class="w-full shrink-0 px-4 py-6 sm:px-8 lg:w-[22.5rem] lg:ps-0 lg:pe-6">
     <div class="space-y-4 lg:sticky lg:top-6">
+      {% if latest_published %}
+      <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.latest_from', org=org.name) }}</h2>
+        <div class="mt-1 divide-y divide-slate-100">
+          {% for item in latest_published %}
+          <a href="{{ item.permalink }}" class="block py-2.5 hover:bg-slate-50/60">
+            <span class="flex items-center gap-2">
+              <span class="badge-slate shrink-0 uppercase tracking-wide">{{ item.content_type.singular }}</span>
+              <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
+            </span>
+            <span class="mt-1 line-clamp-2 block text-sm font-medium leading-snug text-slate-900">{{ item.title }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
       {{ announcement_card() }}
       <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
         <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.members_card') }}</h2>

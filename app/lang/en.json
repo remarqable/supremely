@@ -43,6 +43,8 @@
   "community.share_prompt": "Share something with your community\u2026",
   "community.post_button": "Post",
   "community.new_post_button": "New Post",
+  "community.publish_button": "Publish",
+  "community.latest_from": "Latest from {org}",
   "community.posting_in": "Posting in",
   "community.announcements_card": "Announcements",
   "community.all_announcements": "All announcements",

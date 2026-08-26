@@ -31,16 +31,37 @@ def test_dashboard_requires_membership(client, acme, globex):
     assert client.get('/dashboard', base_url=ACME).status_code == 404
 
 
-def test_feed_mixes_discussions_and_content(app, client, acme, user):
+def test_home_splits_feed_and_published(app, client, acme, user):
     login_as(client, user)
     response = client.get('/dashboard', base_url=ACME)
     assert response.status_code == 200
-    # Seeded org: first article + kickoff event in the feed (posts side).
+    # Org column: published content under "Latest from", announcements only
+    # in their own card (not duplicated in the list).
+    assert b'Latest from Acme' in response.data
     assert b'Hello, World!' in response.data
     assert b'Kickoff meetup' in response.data
-    # New Post modal trigger renders; the tab bar is gone.
+    assert response.data.count(b'Welcome to Acme') == 1   # announcement card
+    # Feed column: seeded forum posts; New Post trigger; no tabs.
+    assert b'Introduce yourself' in response.data
     assert b'New Post' in response.data
     assert b'?tab=' not in response.data
+
+
+def test_publish_menu_is_permission_gated(app, client, acme, user):
+    login_as(client, user)                # owner: content.write
+    page = client.get('/dashboard', base_url=ACME)
+    assert b'>Publish' in page.data or b'Publish\n' in page.data
+    assert b'/manage/content/article/new' in page.data
+    assert b'/manage/content/recording/new' in page.data
+
+    from app.models import Membership
+    from tests.conftest import make_user
+    member = make_user(email='pm@example.com')
+    Membership.add(member.id, acme.id, role='member')
+    member_client = app.test_client()
+    login_as(member_client, member)
+    page = member_client.get('/dashboard', base_url=ACME)
+    assert b'/manage/content/article/new' not in page.data
 
 
 

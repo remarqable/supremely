@@ -2,6 +2,7 @@
    theme-resolvable). Feed cards and the composer keep every community page
    in one visual language. #}
 {% from 'partials/_ui.html' import avatar with context %}
+{% from 'partials/_community_nav.html' import type_icon %}
 
 {% macro new_post_modal(groups) %}
 {# "New Post" button opening a modal (the Long Angle shape): title,
@@ -116,4 +117,27 @@
     {% if post.reply_count %}<span>· {{ _('discussions.active_ago', when=post.last_activity_at|timeago) }}</span>{% endif %}
   </div>
 </a>
+{% endmacro %}
+
+{% macro publish_menu() %}
+{# The creation verb for authored content: a type picker over the org's
+   enabled feed types, landing in that type's editor. New Post = say
+   something; Publish = author something. #}
+{% if can('content.write') %}
+<div x-data="{ open: false }" class="relative">
+  <button type="button" @click="open = !open" @keydown.escape="open = false"
+          :aria-expanded="open" aria-haspopup="menu" class="btn-secondary">
+    {{ _('community.publish_button') }}
+    <svg class="h-3 w-3 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+  </button>
+  <div x-show="open" @click.outside="open = false" x-cloak x-transition role="menu"
+       class="absolute end-0 z-20 mt-1.5 w-52 rounded-lg bg-white py-1 shadow-lg ring-1 ring-slate-900/10">
+    {% for ct in content_types().values() if ct.has_archive %}
+    <a href="{{ url_for('manage.new_content', type_slug=ct.slug) }}" role="menuitem"
+       class="flex items-center gap-2.5 px-3.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+      <span class="text-slate-400">{{ type_icon(ct.slug) }}</span>{{ ct.singular }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 {% endmacro %}
