@@ -1,8 +1,8 @@
 """Initial schema
 
-Revision ID: 885d6bb4f953
+Revision ID: d26a27f7ea63
 Revises: 
-Create Date: 2026-08-25 11:07:08.832249
+Create Date: 2026-08-26 13:05:27.677239
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '885d6bb4f953'
+revision = 'd26a27f7ea63'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -93,6 +93,23 @@ def upgrade():
     with op.batch_alter_table('discussion_flag', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_discussion_flag_org_id'), ['org_id'], unique=False)
 
+    op.create_table('discussion_group',
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('slug', sa.String(length=100), nullable=False),
+    sa.Column('description', sa.String(length=500), nullable=True),
+    sa.Column('visibility', sa.String(length=10), nullable=False),
+    sa.Column('position', sa.Integer(), nullable=False),
+    sa.Column('org_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_group_org_id_organization'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_group')),
+    sa.UniqueConstraint('org_id', 'slug', name='uq_discussion_group_org_slug')
+    )
+    with op.batch_alter_table('discussion_group', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_discussion_group_org_id'), ['org_id'], unique=False)
+
     op.create_table('discussion_reaction',
     sa.Column('user_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
     sa.Column('target_type', sa.String(length=10), nullable=False),
@@ -111,23 +128,6 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_discussion_reaction_org_id'), ['org_id'], unique=False)
         batch_op.create_index('ix_discussion_reaction_target', ['target_type', 'target_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_discussion_reaction_user_id'), ['user_id'], unique=False)
-
-    op.create_table('discussion_space',
-    sa.Column('name', sa.String(length=100), nullable=False),
-    sa.Column('slug', sa.String(length=100), nullable=False),
-    sa.Column('description', sa.String(length=500), nullable=True),
-    sa.Column('visibility', sa.String(length=10), nullable=False),
-    sa.Column('position', sa.Integer(), nullable=False),
-    sa.Column('org_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
-    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_space_org_id_organization'), ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_space')),
-    sa.UniqueConstraint('org_id', 'slug', name='uq_discussion_space_org_slug')
-    )
-    with op.batch_alter_table('discussion_space', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_discussion_space_org_id'), ['org_id'], unique=False)
 
     op.create_table('glossary_v1_term',
     sa.Column('term', sa.String(length=100), nullable=False),
@@ -335,14 +335,14 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_content_org_id'), ['org_id'], unique=False)
         batch_op.create_index('ix_content_org_type_status', ['org_id', 'type', 'status'], unique=False)
 
-    op.create_table('discussion_post',
-    sa.Column('space_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    op.create_table('discussion_topic',
+    sa.Column('group_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
     sa.Column('title', sa.String(length=200), nullable=False),
     sa.Column('body', sa.Text(), nullable=False),
     sa.Column('is_locked', sa.Boolean(), nullable=False),
     sa.Column('is_pinned', sa.Boolean(), nullable=False),
     sa.Column('is_hidden', sa.Boolean(), nullable=False),
-    sa.Column('comment_count', sa.Integer(), nullable=False),
+    sa.Column('reply_count', sa.Integer(), nullable=False),
     sa.Column('last_activity_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('org_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
     sa.Column('created_by_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=True),
@@ -350,16 +350,16 @@ def upgrade():
     sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['created_by_id'], ['user.id'], name=op.f('fk_discussion_post_created_by_id_user'), ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_post_org_id_organization'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['space_id'], ['discussion_space.id'], name=op.f('fk_discussion_post_space_id_discussion_space'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['updated_by_id'], ['user.id'], name=op.f('fk_discussion_post_updated_by_id_user'), ondelete='SET NULL'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_post'))
+    sa.ForeignKeyConstraint(['created_by_id'], ['user.id'], name=op.f('fk_discussion_topic_created_by_id_user'), ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['group_id'], ['discussion_group.id'], name=op.f('fk_discussion_topic_group_id_discussion_group'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_topic_org_id_organization'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['updated_by_id'], ['user.id'], name=op.f('fk_discussion_topic_updated_by_id_user'), ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_topic'))
     )
-    with op.batch_alter_table('discussion_post', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_discussion_post_org_id'), ['org_id'], unique=False)
-        batch_op.create_index('ix_discussion_post_space_activity', ['space_id', 'last_activity_at'], unique=False)
-        batch_op.create_index(batch_op.f('ix_discussion_post_space_id'), ['space_id'], unique=False)
+    with op.batch_alter_table('discussion_topic', schema=None) as batch_op:
+        batch_op.create_index('ix_discussion_topic_group_activity', ['group_id', 'last_activity_at'], unique=False)
+        batch_op.create_index(batch_op.f('ix_discussion_topic_group_id'), ['group_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_discussion_topic_org_id'), ['org_id'], unique=False)
 
     op.create_table('content_category',
     sa.Column('content_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
@@ -368,8 +368,26 @@ def upgrade():
     sa.ForeignKeyConstraint(['content_id'], ['content.id'], name=op.f('fk_content_category_content_id_content'), ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('content_id', 'category_id', name=op.f('pk_content_category'))
     )
-    op.create_table('discussion_comment',
-    sa.Column('post_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    op.create_table('discussion_follow',
+    sa.Column('user_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('topic_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('org_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
+    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_follow_org_id_organization'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['topic_id'], ['discussion_topic.id'], name=op.f('fk_discussion_follow_topic_id_discussion_topic'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id'], name=op.f('fk_discussion_follow_user_id_user'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_follow')),
+    sa.UniqueConstraint('user_id', 'topic_id', name='uq_discussion_follow_user_topic')
+    )
+    with op.batch_alter_table('discussion_follow', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_discussion_follow_org_id'), ['org_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_discussion_follow_topic_id'), ['topic_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_discussion_follow_user_id'), ['user_id'], unique=False)
+
+    op.create_table('discussion_reply',
+    sa.Column('topic_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
     sa.Column('parent_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=True),
     sa.Column('body', sa.Text(), nullable=False),
     sa.Column('is_hidden', sa.Boolean(), nullable=False),
@@ -379,34 +397,16 @@ def upgrade():
     sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['created_by_id'], ['user.id'], name=op.f('fk_discussion_comment_created_by_id_user'), ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_comment_org_id_organization'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['parent_id'], ['discussion_comment.id'], name=op.f('fk_discussion_comment_parent_id_discussion_comment'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['post_id'], ['discussion_post.id'], name=op.f('fk_discussion_comment_post_id_discussion_post'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['updated_by_id'], ['user.id'], name=op.f('fk_discussion_comment_updated_by_id_user'), ondelete='SET NULL'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_comment'))
+    sa.ForeignKeyConstraint(['created_by_id'], ['user.id'], name=op.f('fk_discussion_reply_created_by_id_user'), ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_reply_org_id_organization'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['parent_id'], ['discussion_reply.id'], name=op.f('fk_discussion_reply_parent_id_discussion_reply'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['topic_id'], ['discussion_topic.id'], name=op.f('fk_discussion_reply_topic_id_discussion_topic'), ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['updated_by_id'], ['user.id'], name=op.f('fk_discussion_reply_updated_by_id_user'), ondelete='SET NULL'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_reply'))
     )
-    with op.batch_alter_table('discussion_comment', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_discussion_comment_org_id'), ['org_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_discussion_comment_post_id'), ['post_id'], unique=False)
-
-    op.create_table('discussion_follow',
-    sa.Column('user_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
-    sa.Column('post_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
-    sa.Column('org_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
-    sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), autoincrement=True, nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name=op.f('fk_discussion_follow_org_id_organization'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['post_id'], ['discussion_post.id'], name=op.f('fk_discussion_follow_post_id_discussion_post'), ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], name=op.f('fk_discussion_follow_user_id_user'), ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_discussion_follow')),
-    sa.UniqueConstraint('user_id', 'post_id', name='uq_discussion_follow_user_post')
-    )
-    with op.batch_alter_table('discussion_follow', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_discussion_follow_org_id'), ['org_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_discussion_follow_post_id'), ['post_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_discussion_follow_user_id'), ['user_id'], unique=False)
+    with op.batch_alter_table('discussion_reply', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_discussion_reply_org_id'), ['org_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_discussion_reply_topic_id'), ['topic_id'], unique=False)
 
     op.create_table('navigation_item',
     sa.Column('menu', sa.String(length=20), nullable=False),
@@ -490,24 +490,24 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_navigation_item_org_id'))
 
     op.drop_table('navigation_item')
+    with op.batch_alter_table('discussion_reply', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_discussion_reply_topic_id'))
+        batch_op.drop_index(batch_op.f('ix_discussion_reply_org_id'))
+
+    op.drop_table('discussion_reply')
     with op.batch_alter_table('discussion_follow', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_discussion_follow_user_id'))
-        batch_op.drop_index(batch_op.f('ix_discussion_follow_post_id'))
+        batch_op.drop_index(batch_op.f('ix_discussion_follow_topic_id'))
         batch_op.drop_index(batch_op.f('ix_discussion_follow_org_id'))
 
     op.drop_table('discussion_follow')
-    with op.batch_alter_table('discussion_comment', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_discussion_comment_post_id'))
-        batch_op.drop_index(batch_op.f('ix_discussion_comment_org_id'))
-
-    op.drop_table('discussion_comment')
     op.drop_table('content_category')
-    with op.batch_alter_table('discussion_post', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_discussion_post_space_id'))
-        batch_op.drop_index('ix_discussion_post_space_activity')
-        batch_op.drop_index(batch_op.f('ix_discussion_post_org_id'))
+    with op.batch_alter_table('discussion_topic', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_discussion_topic_org_id'))
+        batch_op.drop_index(batch_op.f('ix_discussion_topic_group_id'))
+        batch_op.drop_index('ix_discussion_topic_group_activity')
 
-    op.drop_table('discussion_post')
+    op.drop_table('discussion_topic')
     with op.batch_alter_table('content', schema=None) as batch_op:
         batch_op.drop_index('ix_content_org_type_status')
         batch_op.drop_index(batch_op.f('ix_content_org_id'))
@@ -558,16 +558,16 @@ def downgrade():
         batch_op.drop_index(batch_op.f('ix_glossary_v1_term_org_id'))
 
     op.drop_table('glossary_v1_term')
-    with op.batch_alter_table('discussion_space', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_discussion_space_org_id'))
-
-    op.drop_table('discussion_space')
     with op.batch_alter_table('discussion_reaction', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_discussion_reaction_user_id'))
         batch_op.drop_index('ix_discussion_reaction_target')
         batch_op.drop_index(batch_op.f('ix_discussion_reaction_org_id'))
 
     op.drop_table('discussion_reaction')
+    with op.batch_alter_table('discussion_group', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_discussion_group_org_id'))
+
+    op.drop_table('discussion_group')
     with op.batch_alter_table('discussion_flag', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_discussion_flag_org_id'))
 

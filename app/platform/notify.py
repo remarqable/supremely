@@ -25,55 +25,55 @@ def _mentioned_user_ids(body: str, org_id: int) -> set[int]:
             if user.email.split('@')[0].lower() in handles}
 
 
-def notify_comment_created(comment) -> None:
+def notify_reply_created(reply) -> None:
     """Mentions beat author-notify beat follower notifications; one
     notification per user; the actor never notifies themselves."""
-    from app.models.discussion import PostFollow
-    post = comment.post
-    actor_id = comment.created_by_id
-    actor_name = comment.author.name if comment.author else ''
-    snippet = (comment.body or '')[:300]
+    from app.models.discussion import TopicFollow
+    topic = reply.topic
+    actor_id = reply.created_by_id
+    actor_name = reply.author.name if reply.author else ''
+    snippet = (reply.body or '')[:300]
     notified: set[int] = {actor_id} if actor_id else set()
 
     def send(user_id: int, type: str):
         if user_id in notified:
             return
         notified.add(user_id)
-        Notification.notify(user_id=user_id, org_id=post.org_id, type=type,
-                            title=post.title, url=post.url,
+        Notification.notify(user_id=user_id, org_id=topic.org_id, type=type,
+                            title=topic.title, url=topic.url,
                             actor_name=actor_name, snippet=snippet)
 
-    for user_id in _mentioned_user_ids(comment.body, post.org_id):
+    for user_id in _mentioned_user_ids(reply.body, topic.org_id):
         send(user_id, 'mention')
 
-    parent_author = comment.parent.created_by_id if comment.parent else None
+    parent_author = reply.parent.created_by_id if reply.parent else None
     if parent_author:
-        send(parent_author, 'comment.to_author')
-    if post.created_by_id:
-        send(post.created_by_id, 'comment.to_author')
+        send(parent_author, 'reply.to_author')
+    if topic.created_by_id:
+        send(topic.created_by_id, 'reply.to_author')
 
-    for user_id in PostFollow.follower_ids(post.id):
-        send(user_id, 'comment.followed')
+    for user_id in TopicFollow.follower_ids(topic.id):
+        send(user_id, 'reply.followed')
 
 
-def notify_post_mentions(post) -> None:
-    actor_name = post.author.name if post.author else ''
-    for user_id in _mentioned_user_ids(post.body, post.org_id):
-        if user_id == post.created_by_id:
+def notify_topic_mentions(topic) -> None:
+    actor_name = topic.author.name if topic.author else ''
+    for user_id in _mentioned_user_ids(topic.body, topic.org_id):
+        if user_id == topic.created_by_id:
             continue
-        Notification.notify(user_id=user_id, org_id=post.org_id,
-                            type='mention', title=post.title, url=post.url,
+        Notification.notify(user_id=user_id, org_id=topic.org_id,
+                            type='mention', title=topic.title, url=topic.url,
                             actor_name=actor_name,
-                            snippet=(post.body or '')[:300])
+                            snippet=(topic.body or '')[:300])
 
 
 def notify_moderation(target, action: str) -> None:
     """Tell the author their content was moderated."""
     if not target.created_by_id:
         return
-    post = target if hasattr(target, 'space_id') else target.post
+    topic = target if hasattr(target, 'group_id') else target.topic
     Notification.notify(user_id=target.created_by_id, org_id=target.org_id,
-                        type='moderation', title=post.title, url=post.url,
+                        type='moderation', title=topic.title, url=topic.url,
                         snippet=action)
 
 

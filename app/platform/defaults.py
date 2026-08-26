@@ -8,7 +8,7 @@ community-product split:
 - Pages: About, FAQ, Contact
 - Primary navigation with dropdown groups: Community, Resources, About
 - A grouped footer mirroring the navigation
-- A first post, a General discussion space, and the member directory on
+- A first post, a General discussion group, and the member directory on
 
 Owners edit or delete all of it under Manage.
 
@@ -67,7 +67,7 @@ def seed_default_content(session, org, owner_id=None) -> None:
     """Idempotent-enough for fresh orgs: only ever called at provisioning."""
     from app.models.base import utcnow
     from app.models.content import Content
-    from app.models.discussion import Space
+    from app.models.discussion import DiscussionGroup
     from app.models.navigation import NavigationItem
 
     now = utcnow()
@@ -145,6 +145,6 @@ def seed_default_content(session, org, owner_id=None) -> None:
                                 'location': 'Online'},
                         created_by_id=owner_id))
 
-    session.add(Space(org_id=org.id, name='General', slug='general',
+    session.add(DiscussionGroup(org_id=org.id, name='General', slug='general',
                       visibility='members', position=1,
                       description='Introductions, questions, and everything else.'))

@@ -203,6 +203,7 @@ class Content(OrgScoped, AuditMixin, BaseModel):
     def count_by_type(cls):
         """(type_slug, count) pairs for this org's content, tenant-scoped."""
         import sqlalchemy as sa
+
         from app.extensions import db
         return (db.session.query(cls.type, sa.func.count(cls.id))
                 .group_by(cls.type).all())

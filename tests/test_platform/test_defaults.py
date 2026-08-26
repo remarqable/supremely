@@ -4,7 +4,7 @@ an example Event, and a General discussion space."""
 
 from flask import g
 
-from app.models import Content, NavigationItem, Space
+from app.models import Content, DiscussionGroup, NavigationItem
 from tests.conftest import login_as
 
 ACME = 'http://acme.example.test'
@@ -53,7 +53,7 @@ def test_provision_seeds_starter_content(app, acme, user):
         assert event is not None
         assert event.fields.get('starts_on')
 
-        space = Space.get_by_slug('general')
+        space = DiscussionGroup.get_by_slug('general')
         assert space is not None
         assert space.visibility == 'members'
 

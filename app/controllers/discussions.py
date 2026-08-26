@@ -1,5 +1,5 @@
-"""Discussion routes: spaces, posts, comments, reactions, follows,
-moderation, flags. URLs stay /discussions/<space>/<post_id>."""
+"""Discussion routes: groups, topics, replies, reactions, follows,
+moderation, flags. URLs stay /discussions/<group>/<topic_id>."""
 
 import sqlalchemy as sa
 from flask import (
@@ -17,21 +17,21 @@ from flask_login import current_user, login_required
 from app.extensions import db
 from app.models.discussion import (
     REACTION_EMOJI,
-    Comment,
-    DiscussionPost,
+    DiscussionGroup,
     Flag,
-    PostFollow,
     Reaction,
-    Space,
+    Reply,
+    Topic,
+    TopicFollow,
 )
 from app.platform.authz import can, org_required, require
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
 from app.platform.notify import (
-    notify_comment_created,
     notify_moderation,
-    notify_post_mentions,
+    notify_reply_created,
+    notify_topic_mentions,
 )
 from app.platform.theming import render_site
 
@@ -39,265 +39,271 @@ bp = Blueprint('discussions', __name__, url_prefix='/discussions')
 log = get_logger()
 
 
-def _visible_spaces():
-    spaces = Space.query.order_by(Space.position, Space.name).all()
-    return [space for space in spaces if space.readable_by_current_visitor()]
+def _visible_groups():
+    groups = DiscussionGroup.query.order_by(DiscussionGroup.position,
+                                            DiscussionGroup.name).all()
+    return [group for group in groups if group.readable_by_current_visitor()]
 
 
-def _space_or_404(slug) -> Space:
-    space = Space.get_by_slug(slug)
-    if space is None or not space.readable_by_current_visitor():
+def _group_or_404(slug) -> DiscussionGroup:
+    group = DiscussionGroup.get_by_slug(slug)
+    if group is None or not group.readable_by_current_visitor():
         abort(404)
-    return space
+    return group
 
 
-def _post_or_404(space, post_id) -> DiscussionPost:
-    post = db.session.get(DiscussionPost, post_id)
-    if post is None or post.space_id != space.id:
+def _topic_or_404(group, topic_id) -> Topic:
+    topic = db.session.get(Topic, topic_id)
+    if topic is None or topic.group_id != group.id:
         abort(404)
-    if post.is_hidden and not can('content.moderate'):
+    if topic.is_hidden and not can('content.moderate'):
         abort(404)
-    return post
+    return topic
 
 
 def _moderator_filter(query):
     if can('content.moderate'):
         return query
-    return query.filter(DiscussionPost.is_hidden.is_(False))
+    return query.filter(Topic.is_hidden.is_(False))
 
 
 @bp.route('/')
 @org_required
 def index():
-    spaces = _visible_spaces()
-    space_ids = [space.id for space in spaces]
+    groups = _visible_groups()
+    group_ids = [group.id for group in groups]
     q = request.args.get('q', '').strip()
     recent = []
-    if space_ids:
+    if group_ids:
         query = _moderator_filter(
-            DiscussionPost.query.filter(DiscussionPost.space_id.in_(space_ids)))
+            Topic.query.filter(Topic.group_id.in_(group_ids)))
         if q:
-            query = query.filter(sa.or_(DiscussionPost.title.ilike(f'%{q}%'),
-                                        DiscussionPost.body.ilike(f'%{q}%')))
-        recent = (query.order_by(DiscussionPost.last_activity_at.desc())
+            query = query.filter(sa.or_(Topic.title.ilike(f'%{q}%'),
+                                        Topic.body.ilike(f'%{q}%')))
+        recent = (query.order_by(Topic.last_activity_at.desc())
                   .limit(20).all())
-    return render_site(['discussions.html'], spaces=spaces,
-                       recent_posts=recent, q=q)
+    return render_site(['discussions.html'], groups=groups,
+                       recent_topics=recent, q=q)
 
 
 @bp.route('/<slug>')
 @org_required
-def space(slug):
-    space = _space_or_404(slug)
+def group(slug):
+    group = _group_or_404(slug)
     q = request.args.get('q', '').strip()
-    query = _moderator_filter(DiscussionPost.query.filter_by(space_id=space.id))
+    query = _moderator_filter(Topic.query.filter_by(group_id=group.id))
     if q:
-        query = query.filter(sa.or_(DiscussionPost.title.ilike(f'%{q}%'),
-                                    DiscussionPost.body.ilike(f'%{q}%')))
-    posts = (query.order_by(DiscussionPost.is_pinned.desc(),
-                            DiscussionPost.last_activity_at.desc())
-             .limit(100).all())
-    return render_site(['discussion-space.html'], space=space,
-                       posts=posts, q=q)
+        query = query.filter(sa.or_(Topic.title.ilike(f'%{q}%'),
+                                    Topic.body.ilike(f'%{q}%')))
+    topics = (query.order_by(Topic.is_pinned.desc(),
+                             Topic.last_activity_at.desc())
+              .limit(100).all())
+    return render_site(['discussion-group.html'], group=group,
+                       topics=topics, q=q)
 
 
 @bp.route('/<slug>/new', methods=['POST'])
 @org_required
 @require('discuss')
-def new_post(slug):
-    space = _space_or_404(slug)
-    post = DiscussionPost(space_id=space.id, title=request.form.get('title', ''),
-                          body=request.form.get('body', ''))
-    post.stamp_audit()
+def new_topic(slug):
+    group = _group_or_404(slug)
+    topic = Topic(group_id=group.id, title=request.form.get('title', ''),
+                  body=request.form.get('body', ''))
+    topic.stamp_audit()
     try:
-        post.save()
+        topic.save()
     except ValidationError as e:
         db.session.rollback()
         flash(e.message, 'error')
-        return redirect(url_for('discussions.space', slug=space.slug))
-    PostFollow.follow(current_user.id, post)
-    notify_post_mentions(post)
-    log.info('discussion_post_created', post_id=post.id, org_id=g.org.id)
-    return redirect(post.url)
+        return redirect(url_for('discussions.group', slug=group.slug))
+    TopicFollow.follow(current_user.id, topic)
+    notify_topic_mentions(topic)
+    log.info('discussion_topic_created', topic_id=topic.id, org_id=g.org.id)
+    return redirect(topic.url)
 
 
-@bp.route('/<slug>/<int:post_id>')
+@bp.route('/<slug>/<int:topic_id>')
 @org_required
-def post(slug, post_id):
-    space = _space_or_404(slug)
-    post = _post_or_404(space, post_id)
+def topic(slug, topic_id):
+    group = _group_or_404(slug)
+    topic = _topic_or_404(group, topic_id)
 
-    comments = Comment.query.filter_by(post_id=post.id) \
-        .order_by(Comment.created_at).all()
+    replies = Reply.query.filter_by(topic_id=topic.id) \
+        .order_by(Reply.created_at).all()
     if not can('content.moderate'):
-        comments = [c for c in comments if not c.is_hidden]
+        replies = [r for r in replies if not r.is_hidden]
 
-    top_level = [c for c in comments if c.parent_id is None]
+    top_level = [r for r in replies if r.parent_id is None]
     children: dict = {}
-    for comment in comments:
-        if comment.parent_id:
-            children.setdefault(comment.parent_id, []).append(comment)
+    for reply in replies:
+        if reply.parent_id:
+            children.setdefault(reply.parent_id, []).append(reply)
 
     reactions = {
-        'post': Reaction.counts_for('post', [post.id]).get(post.id, {}),
-        'comment': Reaction.counts_for('comment', [c.id for c in comments]),
+        'topic': Reaction.counts_for('topic', [topic.id]).get(topic.id, {}),
+        'reply': Reaction.counts_for('reply', [r.id for r in replies]),
     }
     following = (current_user.is_authenticated and
-                 PostFollow.is_following(current_user.id, post.id))
-    return render_site(['discussion-post.html'], space=space,
-                       post=post, top_level=top_level, children=children,
+                 TopicFollow.is_following(current_user.id, topic.id))
+    return render_site(['discussion-topic.html'], group=group,
+                       topic=topic, top_level=top_level, children=children,
                        reactions=reactions, following=following,
                        emoji_set=REACTION_EMOJI)
 
 
-@bp.route('/<slug>/<int:post_id>/comment', methods=['POST'])
+@bp.route('/<slug>/<int:topic_id>/reply', methods=['POST'])
 @org_required
 @require('discuss')
-def comment(slug, post_id):
-    space = _space_or_404(slug)
-    post = _post_or_404(space, post_id)
-    if post.is_locked and not can('content.moderate'):
+def reply(slug, topic_id):
+    group = _group_or_404(slug)
+    topic = _topic_or_404(group, topic_id)
+    if topic.is_locked and not can('content.moderate'):
         flash(t('discussions.locked'), 'error')
-        return redirect(post.url)
+        return redirect(topic.url)
 
-    comment = Comment(post_id=post.id, body=request.form.get('body', ''),
-                      parent_id=request.form.get('parent_id', type=int) or None)
-    comment.stamp_audit()
+    reply = Reply(topic_id=topic.id, body=request.form.get('body', ''),
+                  parent_id=request.form.get('parent_id', type=int) or None)
+    reply.stamp_audit()
     try:
-        comment.save()
+        reply.save()
     except ValidationError as e:
         db.session.rollback()
         flash(e.message, 'error')
-        return redirect(post.url)
+        return redirect(topic.url)
 
-    post.recount_comments()
-    post.touch()
+    topic.recount_replies()
+    topic.touch()
     db.session.commit()
-    PostFollow.follow(current_user.id, post)
-    notify_comment_created(comment)
-    return redirect(f'{post.url}#comment-{comment.id}')
+    TopicFollow.follow(current_user.id, topic)
+    notify_reply_created(reply)
+    return redirect(f'{topic.url}#reply-{reply.id}')
 
 
-@bp.route('/<slug>/<int:post_id>/edit', methods=['POST'])
+@bp.route('/<slug>/<int:topic_id>/edit', methods=['POST'])
 @org_required
 @login_required
-def edit_post(slug, post_id):
-    space = _space_or_404(slug)
-    post = _post_or_404(space, post_id)
-    if not post.can_edit():
+def edit_topic(slug, topic_id):
+    group = _group_or_404(slug)
+    topic = _topic_or_404(group, topic_id)
+    if not topic.can_edit():
         abort(403)
-    post.title = request.form.get('title', post.title)
-    post.body = request.form.get('body', post.body)
-    post.stamp_audit()
+    topic.title = request.form.get('title', topic.title)
+    topic.body = request.form.get('body', topic.body)
+    topic.stamp_audit()
     try:
-        post.save()
+        topic.save()
         flash(t('common.saved'), 'success')
     except ValidationError as e:
         db.session.rollback()
         flash(e.message, 'error')
-    return redirect(post.url)
+    return redirect(topic.url)
 
 
-@bp.route('/comments/<int:comment_id>/edit', methods=['POST'])
+@bp.route('/replies/<int:reply_id>/edit', methods=['POST'])
 @org_required
 @login_required
-def edit_comment(comment_id):
-    comment = db.session.get(Comment, comment_id)
-    if comment is None:
+def edit_reply(reply_id):
+    reply = db.session.get(Reply, reply_id)
+    if reply is None:
         abort(404)
-    if not comment.can_edit():
+    if not reply.can_edit():
         abort(403)
-    comment.body = request.form.get('body', comment.body)
-    comment.stamp_audit()
+    reply.body = request.form.get('body', reply.body)
+    reply.stamp_audit()
     try:
-        comment.save()
+        reply.save()
         flash(t('common.saved'), 'success')
     except ValidationError as e:
         db.session.rollback()
         flash(e.message, 'error')
-    return redirect(f'{comment.post.url}#comment-{comment.id}')
+    return redirect(f'{reply.topic.url}#reply-{reply.id}')
 
 
-@bp.route('/<slug>/<int:post_id>/delete', methods=['POST'])
+@bp.route('/<slug>/<int:topic_id>/delete', methods=['POST'])
 @org_required
 @login_required
-def delete_post(slug, post_id):
-    space = _space_or_404(slug)
-    post = _post_or_404(space, post_id)
-    if not post.can_edit():
+def delete_topic(slug, topic_id):
+    group = _group_or_404(slug)
+    topic = _topic_or_404(group, topic_id)
+    if not topic.can_edit():
         abort(403)
-    post.delete()
-    flash(t('discussions.post_deleted'), 'success')
-    return redirect(url_for('discussions.space', slug=space.slug))
+    topic.delete()
+    flash(t('discussions.topic_deleted'), 'success')
+    return redirect(url_for('discussions.group', slug=group.slug))
 
 
-@bp.route('/comments/<int:comment_id>/delete', methods=['POST'])
+@bp.route('/replies/<int:reply_id>/delete', methods=['POST'])
 @org_required
 @login_required
-def delete_comment(comment_id):
-    comment = db.session.get(Comment, comment_id)
-    if comment is None:
+def delete_reply(reply_id):
+    reply = db.session.get(Reply, reply_id)
+    if reply is None:
         abort(404)
-    if not comment.can_edit():
+    if not reply.can_edit():
         abort(403)
-    post = comment.post
-    comment.delete()
-    post.recount_comments()
+    topic = reply.topic
+    reply.delete()
+    topic.recount_replies()
     db.session.commit()
-    return redirect(post.url)
+    return redirect(topic.url)
 
 
 # --- Moderation --------------------------------------------------------------
 
-@bp.route('/<slug>/<int:post_id>/lock', methods=['POST'])
+@bp.route('/<slug>/<int:topic_id>/lock', methods=['POST'])
 @org_required
 @require('content.moderate')
-def lock_post(slug, post_id):
-    post = _post_or_404(_space_or_404(slug), post_id)
-    post.is_locked = not post.is_locked
-    post.save()
-    if post.is_locked:
-        notify_moderation(post, 'locked')
-    return redirect(post.url)
+def lock_topic(slug, topic_id):
+    topic = _topic_or_404(_group_or_404(slug), topic_id)
+    topic.is_locked = not topic.is_locked
+    topic.save()
+    if topic.is_locked:
+        notify_moderation(topic, 'locked')
+    return redirect(topic.url)
 
 
-@bp.route('/<slug>/<int:post_id>/pin', methods=['POST'])
+@bp.route('/<slug>/<int:topic_id>/pin', methods=['POST'])
 @org_required
 @require('content.moderate')
-def pin_post(slug, post_id):
-    post = _post_or_404(_space_or_404(slug), post_id)
-    post.is_pinned = not post.is_pinned
-    post.save()
-    return redirect(post.url)
+def pin_topic(slug, topic_id):
+    topic = _topic_or_404(_group_or_404(slug), topic_id)
+    topic.is_pinned = not topic.is_pinned
+    topic.save()
+    return redirect(topic.url)
 
 
-@bp.route('/<slug>/<int:post_id>/hide', methods=['POST'])
+@bp.route('/<slug>/<int:topic_id>/hide', methods=['POST'])
 @org_required
 @require('content.moderate')
-def hide_post(slug, post_id):
-    post = _post_or_404(_space_or_404(slug), post_id)
-    post.is_hidden = not post.is_hidden
-    post.save()
-    if post.is_hidden:
-        notify_moderation(post, 'hidden')
-    return redirect(url_for('discussions.space', slug=slug))
+def hide_topic(slug, topic_id):
+    topic = _topic_or_404(_group_or_404(slug), topic_id)
+    topic.is_hidden = not topic.is_hidden
+    topic.save()
+    if topic.is_hidden:
+        notify_moderation(topic, 'hidden')
+    return redirect(url_for('discussions.group', slug=slug))
 
 
-@bp.route('/comments/<int:comment_id>/hide', methods=['POST'])
+@bp.route('/replies/<int:reply_id>/hide', methods=['POST'])
 @org_required
 @require('content.moderate')
-def hide_comment(comment_id):
-    comment = db.session.get(Comment, comment_id)
-    if comment is None:
+def hide_reply(reply_id):
+    reply = db.session.get(Reply, reply_id)
+    if reply is None:
         abort(404)
-    comment.is_hidden = not comment.is_hidden
-    comment.save()
-    if comment.is_hidden:
-        notify_moderation(comment, 'hidden')
-    return redirect(comment.post.url)
+    reply.is_hidden = not reply.is_hidden
+    reply.save()
+    if reply.is_hidden:
+        notify_moderation(reply, 'hidden')
+    return redirect(reply.topic.url)
 
 
 # --- Reactions, follows, flags --------------------------------------------------
+
+def _reaction_target(target_type, target_id):
+    model = Topic if target_type == 'topic' else Reply
+    return db.session.get(model, target_id) if target_id else None
+
 
 @bp.route('/react', methods=['POST'])
 @org_required
@@ -306,15 +312,14 @@ def react():
     target_type = request.form.get('target_type', '')
     target_id = request.form.get('target_id', type=int)
     emoji = request.form.get('emoji', '👍')
-    model = DiscussionPost if target_type == 'post' else Comment
-    target = db.session.get(model, target_id) if target_id else None
+    target = _reaction_target(target_type, target_id)
     if target is None:
         abort(404)
     try:
         Reaction.toggle(current_user.id, target_type, target_id, emoji)
     except ValidationError as e:
         flash(e.message, 'error')
-    post = target if target_type == 'post' else target.post
+    topic = target if target_type == 'topic' else target.topic
 
     # HTMX: swap just the reaction bar in place; full-page fallback otherwise.
     if request.headers.get('HX-Request') == 'true':
@@ -322,21 +327,21 @@ def react():
         return render_template('partials/_reaction_bar.html',
                                target_type=target_type, target_id=target_id,
                                counts=counts, emoji_set=REACTION_EMOJI)
-    return redirect(post.url)
+    return redirect(topic.url)
 
 
-@bp.route('/<slug>/<int:post_id>/follow', methods=['POST'])
+@bp.route('/<slug>/<int:topic_id>/follow', methods=['POST'])
 @org_required
 @require('discuss')
-def follow(slug, post_id):
-    post = _post_or_404(_space_or_404(slug), post_id)
-    if PostFollow.is_following(current_user.id, post.id):
-        PostFollow.unfollow(current_user.id, post)
+def follow(slug, topic_id):
+    topic = _topic_or_404(_group_or_404(slug), topic_id)
+    if TopicFollow.is_following(current_user.id, topic.id):
+        TopicFollow.unfollow(current_user.id, topic)
         flash(t('discussions.unfollowed'), 'success')
     else:
-        PostFollow.follow(current_user.id, post)
+        TopicFollow.follow(current_user.id, topic)
         flash(t('discussions.followed'), 'success')
-    return redirect(post.url)
+    return redirect(topic.url)
 
 
 @bp.route('/flag', methods=['POST'])
@@ -345,8 +350,7 @@ def follow(slug, post_id):
 def flag():
     target_type = request.form.get('target_type', '')
     target_id = request.form.get('target_id', type=int)
-    model = DiscussionPost if target_type == 'post' else Comment
-    target = db.session.get(model, target_id) if target_id else None
+    target = _reaction_target(target_type, target_id)
     if target is None:
         abort(404)
     flag = Flag(user_id=current_user.id, target_type=target_type,
@@ -357,5 +361,5 @@ def flag():
         flash(t('discussions.flagged'), 'success')
     except ValidationError as e:
         flash(e.message, 'error')
-    post = target if target_type == 'post' else target.post
-    return redirect(post.url)
+    topic = target if target_type == 'topic' else target.topic
+    return redirect(topic.url)

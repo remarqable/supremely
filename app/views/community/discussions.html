@@ -12,35 +12,35 @@
 
 <div class="grid gap-5 lg:grid-cols-3">
   <div class="lg:col-span-1">
-    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.spaces') }}</h2>
+    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.groups') }}</h2>
     <div class="space-y-2.5">
-      {% for space in spaces %}
-      <a href="/discussions/{{ space.slug }}"
+      {% for group in groups %}
+      <a href="/discussions/{{ group.slug }}"
          class="block rounded-xl bg-white p-4 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
         <div class="flex items-center gap-2">
-          <span class="font-semibold text-slate-900">{{ space.name }}</span>
-          <span class="ms-auto text-xs tabular-nums text-slate-400">{{ _('discussions.post_count', n=space.post_count()) }}</span>
+          <span class="font-semibold text-slate-900">{{ group.name }}</span>
+          <span class="ms-auto text-xs tabular-nums text-slate-400">{{ _('discussions.topic_count', n=group.topic_count()) }}</span>
         </div>
-        {% if space.description %}<p class="mt-1 text-sm text-slate-500">{{ space.description }}</p>{% endif %}
+        {% if group.description %}<p class="mt-1 text-sm text-slate-500">{{ group.description }}</p>{% endif %}
       </a>
       {% else %}
-      <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_spaces')) }}</div>
+      <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_groups')) }}</div>
       {% endfor %}
     </div>
   </div>
 
   <div class="lg:col-span-2">
-    <div class="mb-4">{{ composer(spaces) }}</div>
+    <div class="mb-4">{{ composer(groups) }}</div>
     <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.recent') }}</h2>
     <div class="space-y-3.5">
-      {% for post in recent_posts %}
-      {{ discussion_card(post) }}
+      {% for topic in recent_topics %}
+      {{ discussion_card(topic) }}
       {% else %}
       <div class="rounded-xl bg-white ring-1 ring-slate-200">
-        {% if spaces and can('discuss') %}
-        {{ empty_state(_('discussions.no_posts'), '/discussions/' + spaces[0].slug, _('discussions.new_post')) }}
+        {% if groups and can('discuss') %}
+        {{ empty_state(_('discussions.no_topics'), '/discussions/' + groups[0].slug, _('discussions.new_topic')) }}
         {% else %}
-        {{ empty_state(_('discussions.no_posts')) }}
+        {{ empty_state(_('discussions.no_topics')) }}
         {% endif %}
       </div>
       {% endfor %}

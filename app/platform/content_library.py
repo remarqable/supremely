@@ -14,8 +14,12 @@ placeholders, never registered, never routable.
 
 from dataclasses import dataclass
 
-from app.platform.content_types import (CONTENT_TYPES, ContentType, FieldSpec,
-                                        register_content_type)
+from app.platform.content_types import (
+    CONTENT_TYPES,
+    ContentType,
+    FieldSpec,
+    register_content_type,
+)
 
 
 def register_library_types() -> None:

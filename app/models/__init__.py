@@ -2,7 +2,7 @@
 
 from .base import AuditMixin, BaseModel, OrgScoped, transaction, utcnow
 from .content import Category, Content
-from .discussion import Comment, DiscussionPost, Flag, PostFollow, Reaction, Space
+from .discussion import DiscussionGroup, Flag, Reaction, Reply, Topic, TopicFollow
 from .domain import OrgDomain
 from .invitation import Invitation
 from .job import Job
@@ -21,11 +21,10 @@ __all__ = [
     'AuditMixin',
     'BaseModel',
     'Category',
-    'Comment',
     'Content',
     'Delivery',
     'DeliveryRecipient',
-    'DiscussionPost',
+    'DiscussionGroup',
     'Flag',
     'InstallationSetting',
     'Invitation',
@@ -37,10 +36,11 @@ __all__ = [
     'OrgPlugin',
     'OrgScoped',
     'Organization',
-    'PostFollow',
     'Reaction',
-    'Space',
+    'Reply',
     'Subscriber',
+    'Topic',
+    'TopicFollow',
     'Upload',
     'User',
     'transaction',

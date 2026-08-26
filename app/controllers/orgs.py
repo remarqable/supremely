@@ -1,7 +1,15 @@
 """Organization launcher, creation, and member-facing org pages."""
 
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
-                   request, url_for)
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from app.models import InstallationSetting, Membership, Organization
@@ -76,22 +84,22 @@ def toggle_manage_mode():
 FEED_LIMIT = 20
 
 
-def _feed_items(spaces):
+def _feed_items(groups):
     """The community feed: one reverse-chronological stream of discussion
     posts and published content. Merged in Python — both sides are already
     small, indexed, tenant-scoped queries. Filtering by kind is the
     sidebar's job (each section is a destination), not the feed's."""
     from app.models import Content
-    from app.models.discussion import DiscussionPost
+    from app.models.discussion import Topic
     from app.platform.content_types import feed_types
 
     discussions = []
-    if spaces:
-        discussions = (DiscussionPost.query
-                       .filter(DiscussionPost.space_id.in_(
-                                   [space.id for space in spaces]),
-                               DiscussionPost.is_hidden.is_(False))
-                       .order_by(DiscussionPost.last_activity_at.desc())
+    if groups:
+        discussions = (Topic.query
+                       .filter(Topic.group_id.in_(
+                                   [group.id for group in groups]),
+                               Topic.is_hidden.is_(False))
+                       .order_by(Topic.last_activity_at.desc())
                        .limit(FEED_LIMIT).all())
 
     type_slugs = [ct.slug for ct in feed_types()]
@@ -127,11 +135,12 @@ def dashboard():
     if g.membership is None and not current_user.is_platform_admin:
         abort(404)
     from app.models import User
-    from app.models.discussion import Space
+    from app.models.discussion import DiscussionGroup
 
-    spaces = [space for space in
-              Space.query.order_by(Space.position, Space.name).all()
-              if space.readable_by_current_visitor()]
+    groups = [group for group in
+              DiscussionGroup.query.order_by(DiscussionGroup.position,
+                                             DiscussionGroup.name).all()
+              if group.readable_by_current_visitor()]
 
     member_count = Membership.query.filter_by(org_id=g.org.id,
                                               is_active=True).count()
@@ -140,8 +149,8 @@ def dashboard():
                               Membership.is_active.is_(True))
                       .order_by(Membership.created_at.desc()).limit(5).all())
 
-    return render_template('orgs/dashboard.html', org=g.org, spaces=spaces,
-                           feed=_feed_items(spaces),
+    return render_template('orgs/dashboard.html', org=g.org, groups=groups,
+                           feed=_feed_items(groups),
                            member_count=member_count,
                            recent_members=recent_members,
                            upcoming_event=_upcoming_event())

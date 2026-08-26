@@ -35,19 +35,19 @@ def test_members_get_community_templates(app, client, acme, user):
     index = client.get('/discussions/', base_url=ACME)
     assert b'Roadmap question' in index.data
     assert COMMUNITY_MARKER in index.data
-    # Space page: the inline composer replaces the old details-form.
+    # DiscussionGroup page: the inline composer replaces the old details-form.
     space = client.get('/discussions/general', base_url=ACME)
     assert b'Share something with your community' in space.data
     # Post page: comments heading + reaction bar render.
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        from app.models.discussion import DiscussionPost
-        post = DiscussionPost.query.filter_by(title='Roadmap question').one()
+        from app.models.discussion import Topic
+        post = Topic.query.filter_by(title='Roadmap question').one()
         url = post.url
     page = client.get(url, base_url=ACME)
     assert page.status_code == 200
     assert b'reaction-bar' in page.data
-    assert b'0 comments' in page.data
+    assert b'0 replies' in page.data
 
 
 def test_visitor_discussion_pages_stay_themed(app, client, acme, user):
@@ -79,8 +79,8 @@ def test_space_composer_posts_into_that_space(app, client, acme, user):
     login_as(client, user)
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        from app.models.discussion import Space
-        db.session.add(Space(org_id=acme.id, name='Dev', slug='dev',
+        from app.models.discussion import DiscussionGroup
+        db.session.add(DiscussionGroup(org_id=acme.id, name='Dev', slug='dev',
                              visibility='members', position=2))
         db.session.commit()
     response = client.post('/discussions/dev/new', base_url=ACME,
@@ -109,8 +109,8 @@ def test_manage_mode_surfaces_moderation_controls(app, client, acme, user):
     seed_discussion(client)
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        from app.models.discussion import DiscussionPost
-        url = DiscussionPost.query.filter_by(title='Roadmap question').one().url
+        from app.models.discussion import Topic
+        url = Topic.query.filter_by(title='Roadmap question').one().url
 
     normal = client.get(url, base_url=ACME)
     assert b'>Pin</button>' not in normal.data
@@ -133,8 +133,8 @@ def test_manage_mode_session_grants_nothing_to_members(app, client, acme, user):
     seed_discussion(client)
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        from app.models.discussion import DiscussionPost
-        post = DiscussionPost.query.filter_by(title='Roadmap question').one()
+        from app.models.discussion import Topic
+        post = Topic.query.filter_by(title='Roadmap question').one()
         url, post_id = post.url, post.id
 
     member_client = app.test_client()

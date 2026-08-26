@@ -645,39 +645,39 @@ def send_post_newsletter(content_id):
     return redirect(url_for('manage.newsletter'))
 
 
-# --- Discussion spaces & moderation queue ------------------------------------------
+# --- Discussion groups & moderation queue ------------------------------------------
 
 @bp.route('/discussions', methods=['GET', 'POST'])
 @org_required
 @require('content.moderate')
 def discussions():
-    from app.models.discussion import Space
+    from app.models.discussion import DiscussionGroup
     if request.method == 'POST':
-        space = Space(name=request.form.get('name', ''),
+        group = DiscussionGroup(name=request.form.get('name', ''),
                       slug=request.form.get('slug', ''),
                       description=request.form.get('description', '').strip() or None,
                       visibility=request.form.get('visibility', 'members'))
-        space.position = Space.query.count() + 1
+        group.position = DiscussionGroup.query.count() + 1
         try:
-            space.save()
+            group.save()
             flash(t('common.saved'), 'success')
         except ValidationError as e:
             flash(e.message, 'error')
         return redirect(url_for('manage.discussions'))
-    spaces = Space.query.order_by(Space.position, Space.name).all()
-    return render_template('manage/discussions.html', spaces=spaces)
+    groups = DiscussionGroup.query.order_by(DiscussionGroup.position, DiscussionGroup.name).all()
+    return render_template('manage/discussions.html', groups=groups)
 
 
-@bp.route('/discussions/<int:space_id>/delete', methods=['POST'])
+@bp.route('/discussions/<int:group_id>/delete', methods=['POST'])
 @org_required
 @require('content.moderate')
-def delete_space(space_id):
-    from app.models.discussion import Space
-    space = db.session.get(Space, space_id)
-    if space is None:
+def delete_group(group_id):
+    from app.models.discussion import DiscussionGroup
+    group = db.session.get(DiscussionGroup, group_id)
+    if group is None:
         abort(404)
-    space.delete()
-    flash(t('manage.space_deleted'), 'success')
+    group.delete()
+    flash(t('manage.group_deleted'), 'success')
     return redirect(url_for('manage.discussions'))
 
 

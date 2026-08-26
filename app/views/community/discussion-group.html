@@ -2,30 +2,30 @@
 {% from 'community/_macros.html' import composer, discussion_card, search_box with context %}
 {% from 'partials/_ui.html' import empty_state with context %}
 
-{% block title %}{{ space.name }} — {{ g.org.name }}{% endblock %}
+{% block title %}{{ group.name }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
 <nav class="mb-3 text-sm text-slate-400" aria-label="{{ _('discussions.breadcrumb') }}">
   <a href="/discussions" class="hover:text-slate-900">{{ _('discussions.title') }}</a>
   <span class="mx-1">/</span>
-  <span class="text-slate-600">{{ space.name }}</span>
+  <span class="text-slate-600">{{ group.name }}</span>
 </nav>
 
 <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
   <div class="min-w-0">
-    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ space.name }}</h1>
-    {% if space.description %}<p class="mt-0.5 text-sm text-slate-500">{{ space.description }}</p>{% endif %}
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ group.name }}</h1>
+    {% if group.description %}<p class="mt-0.5 text-sm text-slate-500">{{ group.description }}</p>{% endif %}
   </div>
   {{ search_box(q, _('common.search')) }}
 </div>
 
-<div class="mb-5">{{ composer([space]) }}</div>
+<div class="mb-5">{{ composer([group]) }}</div>
 
 <div class="space-y-3.5">
-  {% for post in posts %}
-  {{ discussion_card(post, show_space=false) }}
+  {% for topic in topics %}
+  {{ discussion_card(topic, show_group=false) }}
   {% else %}
-  <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_posts')) }}</div>
+  <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_topics')) }}</div>
   {% endfor %}
 </div>
 {% endblock %}

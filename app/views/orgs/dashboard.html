@@ -17,7 +17,7 @@
     {% include 'partials/_flash.html' %}
     <h1 class="mb-5 text-2xl font-bold tracking-tight text-slate-900">{{ _('community.home') }}</h1>
 
-    {{ composer(spaces) }}
+    {{ composer(groups) }}
 
     <div class="mt-5"></div>
 
@@ -33,7 +33,7 @@
             <div class="text-xs text-slate-400">{{ when|timeago }}</div>
           </div>
           <span class="badge-slate ms-auto shrink-0 uppercase tracking-wide">
-            {{ item.space.name if kind == 'discussion' else item.content_type.singular }}</span>
+            {{ item.group.name if kind == 'discussion' else item.content_type.singular }}</span>
         </div>
         <h2 class="mt-3 text-lg font-semibold tracking-tight">
           <a href="{{ item.url if kind == 'discussion' else item.permalink }}"
@@ -45,7 +45,7 @@
           {% if kind == 'discussion' %}
           <a href="{{ item.url }}" class="inline-flex items-center gap-1.5 hover:text-slate-900">
             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
-            {{ _('community.comments_count', n=item.comment_count) }}</a>
+            {{ _('community.replies_count', n=item.reply_count) }}</a>
           {% if item.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
           {% else %}
           <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_post') }} →</a>
@@ -54,8 +54,8 @@
       </article>
       {% else %}
       <div class="rounded-xl bg-white ring-1 ring-slate-200">
-        {% if spaces and can('discuss') %}
-        {{ empty_state(_('community.empty_feed'), '/discussions/' + spaces[0].slug, _('community.start_first_post')) }}
+        {% if groups and can('discuss') %}
+        {{ empty_state(_('community.empty_feed'), '/discussions/' + groups[0].slug, _('community.start_first_post')) }}
         {% else %}
         {{ empty_state(_('community.empty_feed')) }}
         {% endif %}

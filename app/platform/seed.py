@@ -46,7 +46,7 @@ Organization.
 | Organization | The tenant: a website/community with members |
 | Page | Durable website content (About, Pricing, Docs) |
 | Post | The universal publishing unit; typed via Post Types |
-| Space | A discussion area holding topics and replies |
+| Group | A discussion area holding topics and replies |
 | Theme | A per-organization presentation package |
 | Plugin | Boot-loaded code, enabled per organization |
 
@@ -77,11 +77,11 @@ def seed_getsupremely_org():
 
     from app.models import (
         Content,
+        DiscussionGroup,
         InstallationSetting,
         Membership,
         NavigationItem,
         Organization,
-        Space,
         User,
     )
 
@@ -171,12 +171,12 @@ def seed_getsupremely_org():
             post.save()
             post.publish()
 
-        if Space.query.filter_by(slug='general').first() is None:
-            Space(name='General', slug='general', org_id=org.id,
+        if DiscussionGroup.query.filter_by(slug='general').first() is None:
+            DiscussionGroup(name='General', slug='general', org_id=org.id,
                   visibility='public',
                   description='Questions, ideas, and show-and-tell.').save()
-        if Space.query.filter_by(slug='development').first() is None:
-            Space(name='Development', slug='development', org_id=org.id,
+        if DiscussionGroup.query.filter_by(slug='development').first() is None:
+            DiscussionGroup(name='Development', slug='development', org_id=org.id,
                   visibility='public',
                   description='Building Supremely: architecture and PRs.').save()
 
