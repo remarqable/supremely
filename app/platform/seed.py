@@ -5,6 +5,7 @@ newsletter signup, community discussions, and membership -- entirely through
 the same models any organization uses. Idempotent.
 """
 
+from app.extensions import db
 from app.platform.logger import get_logger
 
 log = get_logger()
@@ -182,13 +183,15 @@ def seed_getsupremely_org():
             article.save()
             article.publish()
 
-        if DiscussionGroup.query.filter_by(slug='general').first() is None:
-            DiscussionGroup(name='General', slug='general', org_id=org.id,
-                  visibility='public',
-                  description='Questions, ideas, and show-and-tell.').save()
+        # The standard starter forum (Welcome/General/Ideas & Feedback with
+        # owner-authored posts) — the dogfood site demos the real product —
+        # plus one site-specific group.
+        from app.platform.defaults import seed_community_forum
+        seed_community_forum(db.session, org, owner_id=owner_id)
+        db.session.commit()
         if DiscussionGroup.query.filter_by(slug='development').first() is None:
             DiscussionGroup(name='Development', slug='development', org_id=org.id,
-                  visibility='public',
+                  visibility='public', position=4,
                   description='Building Supremely: architecture and PRs.').save()
 
         org.update_settings(member_directory=True)

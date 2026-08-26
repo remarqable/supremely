@@ -53,3 +53,24 @@ def test_reseeding_never_clobbers_owner_edits(app, runner):
         assert org.description == 'Custom description'
         content = org.setting('theme_content')['supremely']
         assert content['headline_accent'] == 'my own words.'
+
+
+def test_seed_creates_the_starter_forum(app, runner):
+    from flask import g
+
+    from app.models import DiscussionGroup, Organization, Post
+    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    with app.test_request_context():
+        org = Organization.get_by_slug('getsupremely')
+        g.org = org
+        names = [grp.name for grp in DiscussionGroup.query
+                 .order_by(DiscussionGroup.position).all()]
+        assert names == ['Welcome', 'General', 'Ideas & Feedback',
+                         'Development']
+        assert Post.query.count() == 6
+    # Re-seeding neither duplicates groups nor posts.
+    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    with app.test_request_context():
+        g.org = Organization.get_by_slug('getsupremely')
+        assert DiscussionGroup.query.count() == 4
+        assert Post.query.count() == 6

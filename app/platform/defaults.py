@@ -74,7 +74,6 @@ def seed_default_content(session, org, owner_id=None,
     """Idempotent-enough for fresh orgs: only ever called at provisioning."""
     from app.models.base import utcnow
     from app.models.content import Content
-    from app.models.discussion import DiscussionGroup, Post
     from app.models.navigation import NavigationItem
 
     now = utcnow()
@@ -160,11 +159,23 @@ def seed_default_content(session, org, owner_id=None,
                                 'location': 'Online'},
                         created_by_id=owner_id))
 
-    # The starter forum: three groups, six owner-authored posts — enough to
-    # demonstrate the model without feeling padded. Structure comes from the
-    # community_seed resolver so vertical overlays can reshape it.
+    seed_community_forum(session, org, owner_id=owner_id, vertical=vertical)
+
+
+def seed_community_forum(session, org, owner_id=None, vertical=None) -> None:
+    """The starter forum: three groups, six owner-authored posts — enough to
+    demonstrate the model without feeling padded. Structure comes from the
+    community_seed resolver so vertical overlays can reshape it. Groups that
+    already exist are skipped untouched (re-seeding heals, never duplicates
+    or overwrites)."""
+    from app.models.discussion import DiscussionGroup, Post
     from app.platform.community_seed import resolve_seed
+
+    existing = {group.slug for group in
+                DiscussionGroup.query.filter_by(org_id=org.id).all()}
     for group_spec in resolve_seed(vertical)['groups']:
+        if group_spec['slug'] in existing:
+            continue                             # heal, never touch or dupe
         group = DiscussionGroup(org_id=org.id, name=group_spec['name'],
                                 slug=group_spec['slug'],
                                 visibility=group_spec['visibility'],
