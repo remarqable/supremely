@@ -83,10 +83,10 @@ class Subscriber(OrgScoped, BaseModel):
 
 
 class Delivery(OrgScoped, AuditMixin, BaseModel):
-    """One email send of one Post to the subscribed audience."""
+    """One email send of one published Content item to the audience."""
     __tablename__ = 'newsletter_delivery'
 
-    post_id = db.Column(BigIntFK, db.ForeignKey('content.id', ondelete='CASCADE'),
+    content_id = db.Column(BigIntFK, db.ForeignKey('content.id', ondelete='CASCADE'),
                         nullable=False, index=True)
     status = db.Column(db.String(10), nullable=False, default='pending')
     # pending -> sending -> done | failed
@@ -95,21 +95,21 @@ class Delivery(OrgScoped, AuditMixin, BaseModel):
     failed_count = db.Column(db.Integer, nullable=False, default=0)
     finished_at = db.Column(TZDateTime, nullable=True)
 
-    post = db.relationship('Content', lazy='select')
+    content = db.relationship('Content', lazy='select')
 
     @classmethod
-    def create_for_post(cls, post) -> 'Delivery':
+    def create_for_content(cls, content) -> 'Delivery':
         """Snapshot the audience and create per-recipient rows upfront, so
         the send job is idempotent: it only mails rows not yet marked."""
         subscribers = Subscriber.audience().all()
-        delivery = cls(post_id=post.id, org_id=post.org_id,
+        delivery = cls(content_id=content.id, org_id=content.org_id,
                        recipients_total=len(subscribers))
         delivery.stamp_audit()
         delivery.save()
         for subscriber in subscribers:
             db.session.add(DeliveryRecipient(
                 delivery_id=delivery.id, subscriber_id=subscriber.id,
-                org_id=post.org_id))
+                org_id=content.org_id))
         db.session.commit()
         return delivery
 

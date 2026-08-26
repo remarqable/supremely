@@ -1,10 +1,10 @@
 {% extends site_layout %}
 {% from 'partials/_ui.html' import avatar with context %}
 
-{% block title %}{{ topic.title }} — {{ g.org.name }}{% endblock %}
+{% block title %}{{ post.title }} — {{ g.org.name }}{% endblock %}
 
 {% macro reaction_bar(target_type, target_id) %}
-{% set counts = reactions[target_type].get(target_id, {}) if target_type == 'reply' else reactions['topic'] %}
+{% set counts = reactions[target_type].get(target_id, {}) if target_type == 'reply' else reactions['post'] %}
 {% include 'partials/_reaction_bar.html' %}
 {% endmacro %}
 
@@ -16,7 +16,7 @@
 {% endmacro %}
 
 {% macro reply_form(parent_id=None) %}
-<form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/reply" class="mt-3 space-y-2">
+<form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/reply" class="mt-3 space-y-2">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   {% if parent_id %}<input type="hidden" name="parent_id" value="{{ parent_id }}">{% endif %}
   <textarea name="body" class="textarea min-h-20" required
@@ -40,7 +40,7 @@
   <div class="prose-supremely mt-2 text-[15px]">{{ reply.html | safe }}</div>
   {{ reaction_bar('reply', reply.id) }}
   <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
-    {% if can('discuss') and not topic.is_locked and not nested %}
+    {% if can('discuss') and not post.is_locked and not nested %}
     <details><summary class="cursor-pointer text-slate-500 hover:text-slate-900">{{ _('discussions.reply') }}</summary>
       {{ reply_form(parent_id=reply.id) }}
     </details>
@@ -86,23 +86,23 @@
 
 <article class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
   <div class="flex items-start gap-3">
-    {{ avatar(topic.author.name if topic.author else '?',
-              topic.author.avatar_url if topic.author else None,
+    {{ avatar(post.author.name if post.author else '?',
+              post.author.avatar_url if post.author else None,
               size='h-9 w-9', text='text-xs') }}
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2">
-        <span class="text-sm font-semibold text-slate-900">{{ topic.author.name if topic.author else g.org.name }}</span>
-        <span class="text-xs text-slate-400">{{ topic.created_at|timeago }}</span>
-        {% if topic.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
-        {% if topic.is_locked %}<span class="badge-slate">{{ _('discussions.locked_badge') }}</span>{% endif %}
-        {% if topic.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
+        <span class="text-sm font-semibold text-slate-900">{{ post.author.name if post.author else g.org.name }}</span>
+        <span class="text-xs text-slate-400">{{ post.created_at|timeago }}</span>
+        {% if post.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
+        {% if post.is_locked %}<span class="badge-slate">{{ _('discussions.locked_badge') }}</span>{% endif %}
+        {% if post.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
       </div>
-      <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ topic.title }}</h1>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ post.title }}</h1>
     </div>
 
     <div class="flex shrink-0 items-center gap-2">
       {% if is_org_member() %}
-      <form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/follow">
+      <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/follow">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn-secondary">
           {{ _('discussions.unfollow') if following else _('discussions.follow') }}</button>
@@ -110,7 +110,7 @@
       {% endif %}
       {# Normal mode keeps the page clean: the viewer's own actions live in a
          quiet overflow menu. Manage mode surfaces moderation inline below. #}
-      {% if topic.can_edit() or can('discuss') %}
+      {% if post.can_edit() or can('discuss') %}
       <div x-data="{ open: false }" class="relative">
         <button @click="open = !open" @keydown.escape="open = false"
                 :aria-expanded="open" aria-haspopup="menu" aria-label="{{ _('common.actions') }}"
@@ -119,14 +119,14 @@
         </button>
         <div x-show="open" @click.outside="open = false" x-cloak x-transition role="menu"
              class="absolute end-0 z-20 mt-1.5 w-44 rounded-lg bg-white py-1 shadow-lg ring-1 ring-slate-900/10">
-          {% if topic.can_edit() %}
-          {{ action_form('/discussions/%s/%s/delete' % (group.slug, topic.id), _('common.delete'), 'text-red-600 hover:bg-red-50') }}
+          {% if post.can_edit() %}
+          {{ action_form('/discussions/%s/%s/delete' % (group.slug, post.id), _('common.delete'), 'text-red-600 hover:bg-red-50') }}
           {% endif %}
           {% if can('discuss') %}
           <form method="POST" action="/discussions/flag">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="target_type" value="topic">
-            <input type="hidden" name="target_id" value="{{ topic.id }}">
+            <input type="hidden" name="target_type" value="post">
+            <input type="hidden" name="target_id" value="{{ post.id }}">
             <button type="submit" class="block w-full rounded px-3 py-1.5 text-start text-sm text-slate-600 hover:bg-slate-50">{{ _('discussions.flag') }}</button>
           </form>
           {% endif %}
@@ -136,51 +136,51 @@
     </div>
   </div>
 
-  <div class="prose-supremely mt-4">{{ topic.html | safe }}</div>
-  {{ reaction_bar('topic', topic.id) }}
+  <div class="prose-supremely mt-4">{{ post.html | safe }}</div>
+  {{ reaction_bar('post', post.id) }}
 
-  {% if topic.can_edit() and not managing() %}
+  {% if post.can_edit() and not managing() %}
   <details class="mt-3">
     <summary class="cursor-pointer text-xs text-slate-500 hover:text-slate-900">{{ _('discussions.edit') }}</summary>
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/edit" class="mt-2 space-y-2">
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/edit" class="mt-2 space-y-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="text" name="title" class="input" value="{{ topic.title }}">
-      <textarea name="body" class="textarea min-h-24">{{ topic.body }}</textarea>
+      <input type="text" name="title" class="input" value="{{ post.title }}">
+      <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
       <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
     </form>
   </details>
   {% endif %}
 
-  {% if managing() and (topic.can_edit() or can('content.moderate')) %}
+  {% if managing() and (post.can_edit() or can('content.moderate')) %}
   <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
     <span class="badge-brand me-1">{{ _('community.managing') }}</span>
-    {% if topic.can_edit() %}
+    {% if post.can_edit() %}
     <details class="min-w-0 flex-1">
       <summary class="btn-secondary inline-flex cursor-pointer">{{ _('discussions.edit') }}</summary>
-      <form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/edit" class="mt-3 space-y-2">
+      <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/edit" class="mt-3 space-y-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="text" name="title" class="input" value="{{ topic.title }}">
-        <textarea name="body" class="textarea min-h-24">{{ topic.body }}</textarea>
+        <input type="text" name="title" class="input" value="{{ post.title }}">
+        <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
         <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
       </form>
     </details>
     {% endif %}
     {% if can('content.moderate') %}
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/pin">
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/pin">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn-secondary">{{ _('discussions.unpin') if topic.is_pinned else _('discussions.pin') }}</button>
+      <button type="submit" class="btn-secondary">{{ _('discussions.unpin') if post.is_pinned else _('discussions.pin') }}</button>
     </form>
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/lock">
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/lock">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn-secondary">{{ _('discussions.unlock') if topic.is_locked else _('discussions.lock') }}</button>
+      <button type="submit" class="btn-secondary">{{ _('discussions.unlock') if post.is_locked else _('discussions.lock') }}</button>
     </form>
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/hide">
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/hide">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn-secondary text-amber-700">{{ _('discussions.unhide') if topic.is_hidden else _('discussions.hide') }}</button>
+      <button type="submit" class="btn-secondary text-amber-700">{{ _('discussions.unhide') if post.is_hidden else _('discussions.hide') }}</button>
     </form>
     {% endif %}
-    {% if topic.can_edit() %}
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ topic.id }}/delete">
+    {% if post.can_edit() %}
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/delete">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="btn-secondary text-red-600">{{ _('common.delete') }}</button>
     </form>
@@ -190,7 +190,7 @@
 </article>
 
 <h2 class="mb-3 mt-7 text-[15px] font-semibold tracking-tight text-slate-900">
-  {{ topic.reply_count }} {{ _('discussions.replies') }}</h2>
+  {{ post.reply_count }} {{ _('discussions.replies') }}</h2>
 <div class="space-y-3">
   {% for reply in top_level %}
     {{ render_reply(reply) }}
@@ -201,7 +201,7 @@
 </div>
 
 {% if can('discuss') %}
-  {% if topic.is_locked %}
+  {% if post.is_locked %}
   <p class="mt-6 rounded-xl bg-white p-4 text-sm text-slate-500 ring-1 ring-slate-200">
     {{ _('discussions.locked') }}</p>
   {% else %}

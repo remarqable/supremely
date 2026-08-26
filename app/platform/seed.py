@@ -1,6 +1,6 @@
 """Dogfood seed: getsupremely.org built on Supremely itself.
 
-Demonstrates pages, theme, navigation, posts, documentation content,
+Demonstrates pages, theme, navigation, articles, documentation content,
 newsletter signup, community discussions, and membership -- entirely through
 the same models any organization uses. Idempotent.
 """
@@ -23,7 +23,7 @@ architecture, security, review, and what ships.
 1. One codebase for self-hosted, SaaS providers, and the official cloud
 2. Multi-tenant from day one — the Organization is the tenant
 3. Email enhances, never gates
-4. Familiar ecosystem concepts: themes, templates, posts, plugins, hooks
+4. Familiar ecosystem concepts: themes, templates, content types, plugins, hooks
 """
 
 DOCS_BODY = """\
@@ -45,8 +45,8 @@ Organization.
 |---------|-----------|
 | Organization | The tenant: a website/community with members |
 | Page | Durable website content (About, Pricing, Docs) |
-| Post | The universal publishing unit; typed via Post Types |
-| Group | A discussion area holding topics and replies |
+| Content | The universal publishing unit; typed via Content Types |
+| Group | A discussion area holding posts and replies |
 | Theme | A per-organization presentation package |
 | Plugin | Boot-loaded code, enabled per organization |
 
@@ -59,7 +59,7 @@ by mail, notification copies, and newsletters.
 """
 
 FIRST_POST = """\
-Supremely now runs its own website — pages, navigation, theming, posts,
+Supremely now runs its own website — pages, navigation, theming, articles,
 discussions, and the newsletter you can subscribe to below.
 
 This is the milestone the spec called out:
@@ -161,15 +161,15 @@ def seed_getsupremely_org():
 
         if Content.query.filter_by(type='article',
                                    slug='supremely-runs-supremely').first() is None:
-            post = Content(type='article',
+            article = Content(type='article',
                            title='Supremely now runs on Supremely',
                            slug='supremely-runs-supremely', body=FIRST_POST,
                            tags=['meta', 'milestones'], org_id=org.id,
                            created_by_id=owner_id, fields={},
                            seo_description='Dogfooding milestone: the project '
                                            'website runs on the platform itself.')
-            post.save()
-            post.publish()
+            article.save()
+            article.publish()
 
         if DiscussionGroup.query.filter_by(slug='general').first() is None:
             DiscussionGroup(name='General', slug='general', org_id=org.id,

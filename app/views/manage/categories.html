@@ -10,7 +10,7 @@
       {% for category in categories %}
       <li class="flex items-center gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
         <span class="font-medium text-slate-900">{{ category.name }}</span>
-        <span class="font-mono text-xs text-slate-400">/posts/category/{{ category.slug }}</span>
+        <span class="font-mono text-xs text-slate-400">/blog/category/{{ category.slug }}</span>
         <form method="POST" action="{{ url_for('manage.delete_category', category_id=category.id) }}" class="ms-auto">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="text-sm text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>

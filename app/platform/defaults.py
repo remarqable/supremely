@@ -8,7 +8,7 @@ community-product split:
 - Pages: About, FAQ, Contact
 - Primary navigation with dropdown groups: Community, Resources, About
 - A grouped footer mirroring the navigation
-- A first post, a General discussion group, and the member directory on
+- A first article, a General discussion group, and the member directory on
 
 Owners edit or delete all of it under Manage.
 
@@ -39,10 +39,10 @@ A community and publication. Replace this answer with your own.
 Members join by invitation. Ask an organizer for an invite link — it works
 even before email is configured.
 
-### How do I get new posts?
+### How do I get updates?
 
-[Subscribe](/subscribe) to receive new posts by email, or follow the
-[blog](/posts).
+[Subscribe](/subscribe) to receive updates by email, or follow the
+[blog](/blog).
 """
 
 CONTACT_BODY = """\
@@ -52,10 +52,10 @@ Edit this page under **Manage → Pages** and add your preferred contact
 channels — an email address, a form link, or your social profiles.
 """
 
-FIRST_POST_BODY = """\
-Hello, world! This is the first post on **{name}**.
+FIRST_ARTICLE_BODY = """\
+Hello, world! This is the first article on **{name}**.
 
-Posts support **Markdown**, categories, tags, featured images, and
+Articles support **Markdown**, categories, tags, featured images, and
 member-only visibility. This one was created automatically — edit or delete
 it under **Manage → Blog**, then write something real.
 
@@ -130,8 +130,8 @@ def seed_default_content(session, org, owner_id=None) -> None:
     # hint (this is where custom content goes).
     session.add(Content(org_id=org.id, type='article', title='Hello, World!',
                         slug='hello-world',
-                        body=FIRST_POST_BODY.format(name=org.name),
-                        excerpt=f'The first post on {org.name}.',
+                        body=FIRST_ARTICLE_BODY.format(name=org.name),
+                        excerpt=f'The first article on {org.name}.',
                         status='published', published_at=now,
                         visibility='public', tags=['welcome'], fields={},
                         created_by_id=owner_id))

@@ -9,9 +9,9 @@ from app.models import (
     Flag,
     Membership,
     Notification,
+    Post,
+    PostFollow,
     Reply,
-    Topic,
-    TopicFollow,
 )
 from tests.conftest import login_as, make_user
 
@@ -39,7 +39,7 @@ def member_client(app, org, email):
     return login_as(client, user), user
 
 
-def create_post(client, group_slug='general', title='First topic',
+def create_post(client, group_slug='general', title='First post',
                  body='Hello everyone'):
     return client.post(f'/discussions/{group_slug}/new', base_url=ACME,
                        data={'title': title, 'body': body})
@@ -50,12 +50,12 @@ def test_reaction_htmx_swaps_bar_only(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client)
-    topic = Topic.query.first()
+    post = Post.query.first()
 
     # HTMX request gets the reaction-bar fragment, not a full page or redirect
     response = owner_client.post('/discussions/react', base_url=ACME,
-                                 data={'target_type': 'topic',
-                                       'target_id': topic.id, 'emoji': '👍'},
+                                 data={'target_type': 'post',
+                                       'target_id': post.id, 'emoji': '👍'},
                                  headers={'HX-Request': 'true'})
     assert response.status_code == 200
     assert b'reaction-bar' in response.data
@@ -64,8 +64,8 @@ def test_reaction_htmx_swaps_bar_only(app, client, acme, globex, user):
 
     # Non-HTMX still redirects (progressive enhancement)
     plain = owner_client.post('/discussions/react', base_url=ACME,
-                              data={'target_type': 'topic',
-                                    'target_id': topic.id, 'emoji': '👍'})
+                              data={'target_type': 'post',
+                                    'target_id': post.id, 'emoji': '👍'})
     assert plain.status_code == 302
 
 
@@ -75,28 +75,28 @@ def test_full_discussion_flow(app, client, acme, globex, user):
     alice_client, alice = member_client(app, acme, 'alice@example.com')
     bob_client, _bob = member_client(app, acme, 'bob@example.com')
 
-    # Alice starts a topic
+    # Alice starts a post
     response = create_post(alice_client, title='Welcome thread',
                             body='Say hi **here**.')
     assert response.status_code == 302
-    topic = Topic.query.filter_by(title='Welcome thread').first()
-    assert topic is not None
-    assert topic.created_by_id == alice.id
-    assert TopicFollow.is_following(alice.id, topic.id)   # auto-follow
+    post = Post.query.filter_by(title='Welcome thread').first()
+    assert post is not None
+    assert post.created_by_id == alice.id
+    assert PostFollow.is_following(alice.id, post.id)   # auto-follow
 
     # Bob replies
-    bob_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'Hi Alice!'})
-    reply = Reply.query.filter_by(topic_id=topic.id).first()
+    reply = Reply.query.filter_by(post_id=post.id).first()
     assert reply is not None
 
     # One-level threading: Alice answers Bob's reply
-    alice_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    alice_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                       data={'body': 'Welcome Bob', 'parent_id': reply.id})
-    page = alice_client.get(f'/discussions/general/{topic.id}', base_url=ACME)
+    page = alice_client.get(f'/discussions/general/{post.id}', base_url=ACME)
     assert b'Hi Alice!' in page.data
     assert b'Welcome Bob' in page.data
-    assert db.session.get(Topic, topic.id).reply_count == 2
+    assert db.session.get(Post, post.id).reply_count == 2
 
     # Alice was notified of Bob's reply (author + follower dedup: one entry)
     notes = Notification.query.filter_by(user_id=alice.id).all()
@@ -105,8 +105,8 @@ def test_full_discussion_flow(app, client, acme, globex, user):
 
     # Reaction
     bob_client.post('/discussions/react', base_url=ACME, data={
-        'target_type': 'topic', 'target_id': topic.id, 'emoji': '👍'})
-    page = bob_client.get(f'/discussions/general/{topic.id}', base_url=ACME)
+        'target_type': 'post', 'target_id': post.id, 'emoji': '👍'})
+    page = bob_client.get(f'/discussions/general/{post.id}', base_url=ACME)
     assert '👍 1'.encode() in page.data
 
 
@@ -114,14 +114,14 @@ def test_second_level_nesting_rejected(app, client, acme, globex, user):
     make_group(app, acme)
     alice_client, _alice = member_client(app, acme, 'a2@example.com')
     create_post(alice_client)
-    topic = Topic.query.first()
-    alice_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    post = Post.query.first()
+    alice_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                       data={'body': 'level 1'})
     first = Reply.query.first()
-    alice_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    alice_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                       data={'body': 'level 2', 'parent_id': first.id})
     second = Reply.query.filter_by(parent_id=first.id).first()
-    response = alice_client.post(f'/discussions/general/{topic.id}/reply',
+    response = alice_client.post(f'/discussions/general/{post.id}/reply',
                                  base_url=ACME,
                                  data={'body': 'level 3',
                                        'parent_id': second.id},
@@ -141,13 +141,13 @@ def test_public_space_readable_not_writable(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client, title='Open thread')
-    topic = Topic.query.first()
+    post = Post.query.first()
 
-    anon_view = client.get(f'/discussions/general/{topic.id}', base_url=ACME)
+    anon_view = client.get(f'/discussions/general/{post.id}', base_url=ACME)
     assert anon_view.status_code == 200
     assert b'Open thread' in anon_view.data
     # Anonymous posting refused (redirects to login)
-    response = client.post(f'/discussions/general/{topic.id}/reply',
+    response = client.post(f'/discussions/general/{post.id}/reply',
                            base_url=ACME, data={'body': 'spam'})
     assert response.status_code == 302
     assert Reply.query.count() == 0
@@ -158,13 +158,13 @@ def test_lock_stops_replies(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client)
-    topic = Topic.query.first()
+    post = Post.query.first()
 
-    owner_client.post(f'/discussions/general/{topic.id}/lock', base_url=ACME)
-    assert db.session.get(Topic, topic.id).is_locked
+    owner_client.post(f'/discussions/general/{post.id}/lock', base_url=ACME)
+    assert db.session.get(Post, post.id).is_locked
 
     member, _ = member_client(app, acme, 'm@example.com')
-    member.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    member.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                 data={'body': 'too late'})
     assert Reply.query.count() == 0
 
@@ -173,17 +173,17 @@ def test_hidden_topic_invisible_to_members(app, client, acme, globex, user):
     make_group(app, acme)
     owner_client = app.test_client()
     login_as(owner_client, user)
-    create_post(owner_client, title='Bad topic')
-    topic = Topic.query.first()
-    owner_client.post(f'/discussions/general/{topic.id}/hide', base_url=ACME)
+    create_post(owner_client, title='Bad post')
+    post = Post.query.first()
+    owner_client.post(f'/discussions/general/{post.id}/hide', base_url=ACME)
 
     member, _ = member_client(app, acme, 'm4@example.com')
-    assert member.get(f'/discussions/general/{topic.id}',
+    assert member.get(f'/discussions/general/{post.id}',
                       base_url=ACME).status_code == 404
     listing = member.get('/discussions/general', base_url=ACME)
-    assert b'Bad topic' not in listing.data
+    assert b'Bad post' not in listing.data
     # Moderator still sees it
-    assert owner_client.get(f'/discussions/general/{topic.id}',
+    assert owner_client.get(f'/discussions/general/{post.id}',
                             base_url=ACME).status_code == 200
 
 
@@ -192,9 +192,9 @@ def test_member_cannot_moderate(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client)
-    topic = Topic.query.first()
+    post = Post.query.first()
     member, _ = member_client(app, acme, 'm5@example.com')
-    assert member.post(f'/discussions/general/{topic.id}/lock',
+    assert member.post(f'/discussions/general/{post.id}/lock',
                        base_url=ACME).status_code == 403
 
 
@@ -203,15 +203,15 @@ def test_edit_own_only(app, client, acme, globex, user):
     alice_client, _alice = member_client(app, acme, 'a6@example.com')
     bob_client, _bob = member_client(app, acme, 'b6@example.com')
     create_post(alice_client, title='Mine')
-    topic = Topic.query.first()
+    post = Post.query.first()
 
-    assert bob_client.post(f'/discussions/general/{topic.id}/edit',
+    assert bob_client.post(f'/discussions/general/{post.id}/edit',
                            base_url=ACME,
                            data={'title': 'Hijacked', 'body': 'x'}
                            ).status_code == 403
-    alice_client.post(f'/discussions/general/{topic.id}/edit', base_url=ACME,
+    alice_client.post(f'/discussions/general/{post.id}/edit', base_url=ACME,
                       data={'title': 'Mine v2', 'body': 'updated'})
-    assert db.session.get(Topic, topic.id).title == 'Mine v2'
+    assert db.session.get(Post, post.id).title == 'Mine v2'
 
 
 def test_mention_notification(app, client, acme, globex, user):
@@ -219,9 +219,9 @@ def test_mention_notification(app, client, acme, globex, user):
     alice_client, alice = member_client(app, acme, 'alice7@example.com')
     bob_client, _bob = member_client(app, acme, 'bob7@example.com')
     create_post(alice_client, title='T')
-    topic = Topic.query.first()
+    post = Post.query.first()
     # Bob mentions alice7 by email local part
-    bob_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'ping @alice7 what do you think?'})
     mention = Notification.query.filter_by(user_id=alice.id,
                                            type='mention').first()
@@ -235,10 +235,10 @@ def test_follow_notification_and_unread_flow(app, client, acme, globex, user):
     carol_client, carol = member_client(app, acme, 'c8@example.com')
 
     create_post(alice_client)
-    topic = Topic.query.first()
+    post = Post.query.first()
     # Carol follows without replying
-    carol_client.post(f'/discussions/general/{topic.id}/follow', base_url=ACME)
-    bob_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    carol_client.post(f'/discussions/general/{post.id}/follow', base_url=ACME)
+    bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'news!'})
 
     assert Notification.query.filter_by(user_id=carol.id,
@@ -256,9 +256,9 @@ def test_flag_and_moderation_queue(app, client, acme, globex, user):
     make_group(app, acme)
     alice_client, _alice = member_client(app, acme, 'a9@example.com')
     create_post(alice_client, title='Spammy')
-    topic = Topic.query.first()
+    post = Post.query.first()
     alice_client.post('/discussions/flag', base_url=ACME, data={
-        'target_type': 'topic', 'target_id': topic.id, 'reason': 'spam'})
+        'target_type': 'post', 'target_id': post.id, 'reason': 'spam'})
     assert Flag.query.filter_by(resolved_at=None).count() == 1
 
     owner_client = app.test_client()
@@ -301,14 +301,14 @@ def test_email_job_enqueued_only_when_configured(app, client, acme, globex, user
     alice_client, _alice = member_client(app, acme, 'a10@example.com')
     bob_client, _bob = member_client(app, acme, 'b10@example.com')
     create_post(alice_client)
-    topic = Topic.query.first()
+    post = Post.query.first()
 
-    bob_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'no email configured'})
     assert Job.query.filter_by(name='notifications.email').count() == 0
 
     InstallationSetting.set('email.smtp_host', 'smtp.test')
     InstallationSetting.set('email.from_address', 'noreply@test')
-    bob_client.post(f'/discussions/general/{topic.id}/reply', base_url=ACME,
+    bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'now with email'})
     assert Job.query.filter_by(name='notifications.email').count() >= 1

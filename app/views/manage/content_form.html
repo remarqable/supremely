@@ -127,11 +127,11 @@
       <a href="{{ url_for('manage.preview_content', content_id=content.id) }}" class="btn-secondary w-full">{{ _('manage.preview') }}</a>
       {% if not content_type.is_page %}
       <button type="submit" name="action" value="save"
-              formaction="{{ url_for('manage.send_post_newsletter', content_id=content.id) }}"
+              formaction="{{ url_for('manage.send_content_newsletter', content_id=content.id) }}"
               class="btn-secondary w-full">{{ _('newsletter.send_by_email') }}</button>
       {% endif %}
       {% if content.status != 'archived' %}
-      <button type="submit" name="action" value="archive" class="btn-danger w-full">{{ _('manage.archive_post') }}</button>
+      <button type="submit" name="action" value="archive" class="btn-danger w-full">{{ _('manage.archive_content') }}</button>
       {% endif %}
       {% endif %}
     </div>

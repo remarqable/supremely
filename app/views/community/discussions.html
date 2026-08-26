@@ -19,7 +19,7 @@
          class="block rounded-xl bg-white p-4 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
         <div class="flex items-center gap-2">
           <span class="font-semibold text-slate-900">{{ group.name }}</span>
-          <span class="ms-auto text-xs tabular-nums text-slate-400">{{ _('discussions.topic_count', n=group.topic_count()) }}</span>
+          <span class="ms-auto text-xs tabular-nums text-slate-400">{{ _('discussions.post_count', n=group.post_count()) }}</span>
         </div>
         {% if group.description %}<p class="mt-1 text-sm text-slate-500">{{ group.description }}</p>{% endif %}
       </a>
@@ -33,14 +33,14 @@
     <div class="mb-4">{{ composer(groups) }}</div>
     <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.recent') }}</h2>
     <div class="space-y-3.5">
-      {% for topic in recent_topics %}
-      {{ discussion_card(topic) }}
+      {% for post in recent_posts %}
+      {{ discussion_card(post) }}
       {% else %}
       <div class="rounded-xl bg-white ring-1 ring-slate-200">
         {% if groups and can('discuss') %}
-        {{ empty_state(_('discussions.no_topics'), '/discussions/' + groups[0].slug, _('discussions.new_topic')) }}
+        {{ empty_state(_('discussions.no_posts'), '/discussions/' + groups[0].slug, _('discussions.new_post')) }}
         {% else %}
-        {{ empty_state(_('discussions.no_topics')) }}
+        {{ empty_state(_('discussions.no_posts')) }}
         {% endif %}
       </div>
       {% endfor %}

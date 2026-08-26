@@ -41,8 +41,8 @@ def test_members_get_community_templates(app, client, acme, user):
     # Post page: comments heading + reaction bar render.
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        from app.models.discussion import Topic
-        post = Topic.query.filter_by(title='Roadmap question').one()
+        from app.models.discussion import Post
+        post = Post.query.filter_by(title='Roadmap question').one()
         url = post.url
     page = client.get(url, base_url=ACME)
     assert page.status_code == 200
@@ -109,8 +109,8 @@ def test_manage_mode_surfaces_moderation_controls(app, client, acme, user):
     seed_discussion(client)
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        from app.models.discussion import Topic
-        url = Topic.query.filter_by(title='Roadmap question').one().url
+        from app.models.discussion import Post
+        url = Post.query.filter_by(title='Roadmap question').one().url
 
     normal = client.get(url, base_url=ACME)
     assert b'>Pin</button>' not in normal.data
@@ -133,8 +133,8 @@ def test_manage_mode_session_grants_nothing_to_members(app, client, acme, user):
     seed_discussion(client)
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        from app.models.discussion import Topic
-        post = Topic.query.filter_by(title='Roadmap question').one()
+        from app.models.discussion import Post
+        post = Post.query.filter_by(title='Roadmap question').one()
         url, post_id = post.url, post.id
 
     member_client = app.test_client()
@@ -204,7 +204,7 @@ def test_newsletter_archive_lists_sent_issues(app, client, acme, user):
     with app.test_request_context(base_url=ACME):
         g.org = acme
         post = Content.query.filter_by(type='article').first()
-        delivery = Delivery(org_id=acme.id, post_id=post.id, status='done',
+        delivery = Delivery(org_id=acme.id, content_id=post.id, status='done',
                             recipients_total=3, sent_count=3,
                             finished_at=utcnow())
         db.session.add(delivery)

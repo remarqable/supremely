@@ -34,7 +34,7 @@ def archive():
                                      and current_user.is_platform_admin):
         abort(404)
     issues = (Delivery.query.filter_by(status='done')
-              .join(Delivery.post)
+              .join(Delivery.content)
               .filter(Content.status == 'published')
               .order_by(Delivery.finished_at.desc()).limit(50).all())
     return render_template('community/newsletters.html', issues=issues)

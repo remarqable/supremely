@@ -1,10 +1,10 @@
-"""Discussions: Organization -> Groups -> Topics -> Replies (one level).
+"""Discussions: Organization -> Groups -> Posts -> Replies (one level).
 
 Vocabulary: a Group is the container ("General", "Product Feedback"); a
-Topic is the conversation someone starts; Replies hang under it. Durable
-community conversation, not realtime chat — which is why it isn't called
-"channels". ("Topic" is deliberately distinct from published Content; see
-app/models/content.py.)
+Post is the conversation someone starts (universal social vocabulary);
+Replies hang under it. Published content never uses the word "post" —
+see app/models/content.py. Durable community conversation, not realtime
+chat — which is why it isn't called "channels".
 """
 
 import re
@@ -60,13 +60,13 @@ class DiscussionGroup(OrgScoped, BaseModel):
     def get_by_slug(cls, slug: str):
         return cls.query.filter_by(slug=(slug or '').strip().lower()).first()
 
-    def topic_count(self) -> int:
-        return Topic.query.filter_by(group_id=self.id,
+    def post_count(self) -> int:
+        return Post.query.filter_by(group_id=self.id,
                                      is_hidden=False).count()
 
 
-class Topic(OrgScoped, AuditMixin, BaseModel):
-    __tablename__ = 'discussion_topic'
+class Post(OrgScoped, AuditMixin, BaseModel):
+    __tablename__ = 'discussion_post'
 
     group_id = db.Column(BigIntFK,
                          db.ForeignKey('discussion_group.id', ondelete='CASCADE'),
@@ -80,12 +80,12 @@ class Topic(OrgScoped, AuditMixin, BaseModel):
     last_activity_at = db.Column(TZDateTime, nullable=False, default=utcnow)
 
     group = db.relationship('DiscussionGroup', lazy='select')
-    replies = db.relationship('Reply', back_populates='topic', lazy='select',
+    replies = db.relationship('Reply', back_populates='post', lazy='select',
                               cascade='all, delete-orphan',
                               order_by='Reply.created_at')
 
     __table_args__ = (
-        db.Index('ix_discussion_topic_group_activity',
+        db.Index('ix_discussion_post_group_activity',
                  'group_id', 'last_activity_at'),
     )
 
@@ -123,16 +123,16 @@ class Topic(OrgScoped, AuditMixin, BaseModel):
 
     def recount_replies(self):
         """Refresh the denormalized reply count from the reply table."""
-        self.reply_count = Reply.query.filter_by(topic_id=self.id).count()
+        self.reply_count = Reply.query.filter_by(post_id=self.id).count()
         return self
 
 
 class Reply(OrgScoped, AuditMixin, BaseModel):
     __tablename__ = 'discussion_reply'
 
-    topic_id = db.Column(BigIntFK,
-                         db.ForeignKey('discussion_topic.id', ondelete='CASCADE'),
-                         nullable=False, index=True)
+    post_id = db.Column(BigIntFK,
+                        db.ForeignKey('discussion_post.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
     # One-level threading: a reply may answer another top-level reply.
     parent_id = db.Column(BigIntFK,
                           db.ForeignKey('discussion_reply.id', ondelete='CASCADE'),
@@ -140,7 +140,7 @@ class Reply(OrgScoped, AuditMixin, BaseModel):
     body = db.Column(db.Text, nullable=False)
     is_hidden = db.Column(db.Boolean, nullable=False, default=False)
 
-    topic = db.relationship('Topic', back_populates='replies')
+    post = db.relationship('Post', back_populates='replies')
     parent = db.relationship('Reply', remote_side='Reply.id', lazy='select')
 
     def validate(self):
@@ -148,7 +148,7 @@ class Reply(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('Reply cannot be empty')
         if self.parent_id:
             parent = db.session.get(Reply, self.parent_id)
-            if parent is None or parent.topic_id != self.topic_id:
+            if parent is None or parent.post_id != self.post_id:
                 raise ValidationError('Invalid parent reply')
             if parent.parent_id is not None:
                 raise ValidationError('Replies nest one level only')
@@ -170,7 +170,7 @@ class Reply(OrgScoped, AuditMixin, BaseModel):
 
 
 REACTION_EMOJI = ('👍', '❤️', '🎉')
-REACTION_TARGETS = ('topic', 'reply')
+REACTION_TARGETS = ('post', 'reply')
 
 
 class Reaction(OrgScoped, BaseModel):
@@ -178,7 +178,7 @@ class Reaction(OrgScoped, BaseModel):
 
     user_id = db.Column(BigIntFK, db.ForeignKey('user.id', ondelete='CASCADE'),
                         nullable=False, index=True)
-    target_type = db.Column(db.String(10), nullable=False)     # topic | reply
+    target_type = db.Column(db.String(10), nullable=False)     # post | reply
     target_id = db.Column(BigIntFK, nullable=False)
     emoji = db.Column(db.String(10), nullable=False, default='👍')
 
@@ -225,41 +225,41 @@ class Reaction(OrgScoped, BaseModel):
         return result
 
 
-class TopicFollow(OrgScoped, BaseModel):
+class PostFollow(OrgScoped, BaseModel):
     __tablename__ = 'discussion_follow'
 
     user_id = db.Column(BigIntFK, db.ForeignKey('user.id', ondelete='CASCADE'),
                         nullable=False, index=True)
-    topic_id = db.Column(BigIntFK,
-                         db.ForeignKey('discussion_topic.id', ondelete='CASCADE'),
-                         nullable=False, index=True)
+    post_id = db.Column(BigIntFK,
+                        db.ForeignKey('discussion_post.id', ondelete='CASCADE'),
+                        nullable=False, index=True)
 
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'topic_id',
-                            name='uq_discussion_follow_user_topic'),
+        db.UniqueConstraint('user_id', 'post_id',
+                            name='uq_discussion_follow_user_post'),
     )
 
     @classmethod
-    def follow(cls, user_id: int, topic: 'Topic'):
-        existing = cls.query.filter_by(user_id=user_id, topic_id=topic.id).first()
+    def follow(cls, user_id: int, post: 'Post'):
+        existing = cls.query.filter_by(user_id=user_id, post_id=post.id).first()
         if existing is None:
-            cls(user_id=user_id, topic_id=topic.id, org_id=topic.org_id).save()
+            cls(user_id=user_id, post_id=post.id, org_id=post.org_id).save()
 
     @classmethod
-    def unfollow(cls, user_id: int, topic: 'Topic'):
-        existing = cls.query.filter_by(user_id=user_id, topic_id=topic.id).first()
+    def unfollow(cls, user_id: int, post: 'Post'):
+        existing = cls.query.filter_by(user_id=user_id, post_id=post.id).first()
         if existing:
             existing.delete()
 
     @classmethod
-    def is_following(cls, user_id: int, topic_id: int) -> bool:
-        return cls.query.filter_by(user_id=user_id, topic_id=topic_id).count() > 0
+    def is_following(cls, user_id: int, post_id: int) -> bool:
+        return cls.query.filter_by(user_id=user_id, post_id=post_id).count() > 0
 
     @classmethod
-    def follower_ids(cls, topic_id: int) -> set[int]:
+    def follower_ids(cls, post_id: int) -> set[int]:
         import sqlalchemy as sa
         return set(db.session.scalars(
-            sa.select(cls.user_id).where(cls.topic_id == topic_id)))
+            sa.select(cls.user_id).where(cls.post_id == post_id)))
 
 
 class Flag(OrgScoped, BaseModel):
@@ -267,7 +267,7 @@ class Flag(OrgScoped, BaseModel):
 
     user_id = db.Column(BigIntFK, db.ForeignKey('user.id', ondelete='CASCADE'),
                         nullable=False)
-    target_type = db.Column(db.String(10), nullable=False)     # topic | reply
+    target_type = db.Column(db.String(10), nullable=False)     # post | reply
     target_id = db.Column(BigIntFK, nullable=False)
     reason = db.Column(db.String(500), nullable=True)
     resolved_at = db.Column(TZDateTime, nullable=True)
@@ -277,7 +277,7 @@ class Flag(OrgScoped, BaseModel):
             raise ValidationError('Invalid flag target')
 
     def target(self):
-        model = Topic if self.target_type == 'topic' else Reply
+        model = Post if self.target_type == 'post' else Reply
         return db.session.get(model, self.target_id)
 
     def resolve(self):

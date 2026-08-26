@@ -4,11 +4,9 @@ Everything an organization publishes is a Content row with a `type`. Content
 Types are defined in code -- by Supremely core or by plugins -- and validated
 at registration. Each type declares its own labels and public URL base, so a
 recipe site shows "Recipes" at /recipes while a blog shows "Blog" at /blog;
-there is no generic "posts" surface. The Post subsystem never changes when a
-vertical is added -- you register one ContentType.
-
-("Content" here is deliberately distinct from a discussion Post; see
-app/models/discussion.py.)
+there is no generic "posts" surface — the word "post" belongs to
+discussions (app/models/discussion.py). The Content subsystem never changes
+when a vertical is added -- you register one ContentType.
 """
 
 import re

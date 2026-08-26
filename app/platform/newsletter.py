@@ -15,21 +15,21 @@ log = get_logger()
 BATCH_LIMIT = 200       # per job execution; the job re-enqueues if more remain
 
 
-def compose_email(post, org, subscriber) -> tuple[str, str, str]:
+def compose_email(content, org, subscriber) -> tuple[str, str, str]:
     """(subject, text, html) for one recipient."""
     from app.platform.tenant import org_url
-    post_url = org_url(org, post.permalink)
+    content_url = org_url(org, content.permalink)
     unsubscribe_url = org_url(org, f'/unsubscribe/{subscriber.token}')
 
-    subject = post.title
-    text = (f'{post.title}\n\n{post.excerpt_or_summary(400)}\n\n'
-            f'Read online: {post_url}\n\n--\n'
+    subject = content.title
+    text = (f'{content.title}\n\n{content.excerpt_or_summary(400)}\n\n'
+            f'Read online: {content_url}\n\n--\n'
             f'You receive this because you subscribed to {org.name}.\n'
             f'Unsubscribe: {unsubscribe_url}\n')
     html = (
-        f'<h1 style="font-family:sans-serif">{_escape(post.title)}</h1>'
-        f'<div style="font-family:sans-serif;line-height:1.6">{post.html}</div>'
-        f'<p style="font-family:sans-serif"><a href="{post_url}">Read online</a></p>'
+        f'<h1 style="font-family:sans-serif">{_escape(content.title)}</h1>'
+        f'<div style="font-family:sans-serif;line-height:1.6">{content.html}</div>'
+        f'<p style="font-family:sans-serif"><a href="{content_url}">Read online</a></p>'
         f'<hr><p style="font-family:sans-serif;font-size:12px;color:#666">'
         f'You receive this because you subscribed to {_escape(org.name)}. '
         f'<a href="{unsubscribe_url}">Unsubscribe</a></p>'
@@ -57,9 +57,9 @@ def send_delivery(payload: dict) -> None:
         log.error('newsletter_send_no_email', delivery_id=delivery.id)
         return
 
-    post = db.session.get(Content, delivery.post_id)
+    content = db.session.get(Content, delivery.content_id)
     org = db.session.get(Organization, delivery.org_id)
-    if post is None or org is None:
+    if content is None or org is None:
         delivery.status = 'failed'
         db.session.commit()
         return
@@ -77,7 +77,7 @@ def send_delivery(payload: dict) -> None:
             db.session.commit()
             continue
         try:
-            subject, text, html = compose_email(post, org, subscriber)
+            subject, text, html = compose_email(content, org, subscriber)
             send_email(subscriber.email, subject, text, html=html)
             recipient.sent_at = utcnow()
         except Exception as e:      # noqa: BLE001 -- one bad address must not stop the batch

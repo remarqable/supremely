@@ -90,16 +90,16 @@ def _feed_items(groups):
     small, indexed, tenant-scoped queries. Filtering by kind is the
     sidebar's job (each section is a destination), not the feed's."""
     from app.models import Content
-    from app.models.discussion import Topic
+    from app.models.discussion import Post
     from app.platform.content_types import feed_types
 
     discussions = []
     if groups:
-        discussions = (Topic.query
-                       .filter(Topic.group_id.in_(
+        discussions = (Post.query
+                       .filter(Post.group_id.in_(
                                    [group.id for group in groups]),
-                               Topic.is_hidden.is_(False))
-                       .order_by(Topic.last_activity_at.desc())
+                               Post.is_hidden.is_(False))
+                       .order_by(Post.last_activity_at.desc())
                        .limit(FEED_LIMIT).all())
 
     type_slugs = [ct.slug for ct in feed_types()]

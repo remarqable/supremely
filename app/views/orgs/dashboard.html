@@ -48,7 +48,7 @@
             {{ _('community.replies_count', n=item.reply_count) }}</a>
           {% if item.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
           {% else %}
-          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_post') }} →</a>
+          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
           {% endif %}
         </div>
       </article>

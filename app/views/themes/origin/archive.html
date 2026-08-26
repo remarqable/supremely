@@ -29,17 +29,17 @@
     </div>
   </article>
   {% else %}
-  <p class="text-slate-500">{{ _('posts.none') }}</p>
+  <p class="text-slate-500">{{ _('archive.none') }}</p>
   {% endfor %}
 </div>
 
 {% if pagination and pagination.pages > 1 %}
-<nav class="mt-10 flex justify-center gap-2 text-sm" aria-label="{{ _('posts.pagination') }}">
+<nav class="mt-10 flex justify-center gap-2 text-sm" aria-label="{{ _('archive.pagination') }}">
   {% if pagination.has_prev %}
-  <a href="?page={{ pagination.prev_num }}" class="btn-secondary">&larr; {{ _('posts.newer') }}</a>
+  <a href="?page={{ pagination.prev_num }}" class="btn-secondary">&larr; {{ _('archive.newer') }}</a>
   {% endif %}
   {% if pagination.has_next %}
-  <a href="?page={{ pagination.next_num }}" class="btn-secondary">{{ _('posts.older') }} &rarr;</a>
+  <a href="?page={{ pagination.next_num }}" class="btn-secondary">{{ _('archive.older') }} &rarr;</a>
   {% endif %}
 </nav>
 {% endif %}

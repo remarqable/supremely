@@ -64,7 +64,7 @@
       <tbody>
         {% for delivery in deliveries %}
         <tr>
-          <td>{{ delivery.post.title if delivery.post else '—' }}</td>
+          <td>{{ delivery.content.title if delivery.content else '—' }}</td>
           <td>
             {% if delivery.status == 'done' %}<span class="badge-green">{{ delivery.status }}</span>
             {% elif delivery.status == 'failed' %}<span class="badge-red">{{ delivery.status }}</span>

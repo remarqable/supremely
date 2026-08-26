@@ -15,8 +15,8 @@
         </div>
         {% if target %}
         <p class="mt-2">
-          {% set topic = target if flag.target_type == 'topic' else target.topic %}
-          <a href="{{ topic.url }}" class="font-medium text-brand-700 hover:underline">{{ topic.title }}</a>
+          {% set post = target if flag.target_type == 'post' else target.post %}
+          <a href="{{ post.url }}" class="font-medium text-brand-700 hover:underline">{{ post.title }}</a>
         </p>
         <p class="mt-1 truncate text-slate-600">{{ (target.body or '')[:200] }}</p>
         {% else %}

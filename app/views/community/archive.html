@@ -44,7 +44,7 @@
         {% set summary = item.excerpt_or_summary() %}
         {% if summary %}<p class="mt-1 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
         <div class="mt-2.5 flex items-center gap-3 text-sm text-slate-500">
-          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_post') }} →</a>
+          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
           {% if content_type.slug == 'event' and item.fields.get('location') %}
           <span>· {{ item.fields.location }}</span>
           {% endif %}
@@ -55,21 +55,21 @@
   {% else %}
   <div class="rounded-xl bg-white ring-1 ring-slate-200">
     {% if can('content.write') %}
-    {{ empty_state(_('posts.none'), url_for('manage.new_content', type_slug=content_type.slug), _('manage.new_of', name=content_type.singular)) }}
+    {{ empty_state(_('archive.none'), url_for('manage.new_content', type_slug=content_type.slug), _('manage.new_of', name=content_type.singular)) }}
     {% else %}
-    {{ empty_state(_('posts.none')) }}
+    {{ empty_state(_('archive.none')) }}
     {% endif %}
   </div>
   {% endfor %}
 </div>
 
 {% if pagination and pagination.pages > 1 %}
-<nav class="mt-6 flex items-center justify-between text-sm" aria-label="{{ _('posts.pagination') }}">
+<nav class="mt-6 flex items-center justify-between text-sm" aria-label="{{ _('archive.pagination') }}">
   {% if pagination.has_prev %}
-  <a href="?page={{ pagination.prev_num }}" class="btn-secondary">{{ _('posts.newer') }}</a>
+  <a href="?page={{ pagination.prev_num }}" class="btn-secondary">{{ _('archive.newer') }}</a>
   {% else %}<span></span>{% endif %}
   {% if pagination.has_next %}
-  <a href="?page={{ pagination.next_num }}" class="btn-secondary">{{ _('posts.older') }}</a>
+  <a href="?page={{ pagination.next_num }}" class="btn-secondary">{{ _('archive.older') }}</a>
   {% endif %}
 </nav>
 {% endif %}

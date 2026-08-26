@@ -82,7 +82,7 @@ def _render_single(ct, content):
         abort(404)
     return render_site(
         [f'single-{content.slug}.html', f'{ct.template}.html', 'single.html'],
-        content_type=ct, content=content, post=content)
+        content_type=ct, content=content)
 
 
 @bp.route('/<seg>')

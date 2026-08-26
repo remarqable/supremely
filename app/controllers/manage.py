@@ -166,7 +166,7 @@ def preview_content(content_id):
         names = [f'{tmpl}.html', 'page.html']
     else:
         names = [f'{ct.template}.html', 'single.html']
-    return render_site(names, content=content, content_type=ct, post=content,
+    return render_site(names, content=content, content_type=ct,
                        page=content, preview=True)
 
 
@@ -621,22 +621,22 @@ def remove_subscriber(subscriber_id):
 @bp.route('/content/<int:content_id>/send-newsletter', methods=['POST'])
 @org_required
 @require('content.write')
-def send_post_newsletter(content_id):
+def send_content_newsletter(content_id):
     from app.models.newsletter import Delivery, Subscriber
     from app.platform.jobs import enqueue
     from app.platform.mailer import is_email_configured
 
-    post = db.session.get(Content, content_id)
-    if post is None:
+    content = db.session.get(Content, content_id)
+    if content is None:
         abort(404)
     if not is_email_configured():
         flash(t('newsletter.email_required_to_send'), 'error')
-        return redirect(url_for('manage.edit_content', content_id=post.id))
+        return redirect(url_for('manage.edit_content', content_id=content.id))
     if Subscriber.audience().count() == 0:
         flash(t('newsletter.no_subscribers'), 'error')
-        return redirect(url_for('manage.edit_content', content_id=post.id))
+        return redirect(url_for('manage.edit_content', content_id=content.id))
 
-    delivery = Delivery.create_for_post(post)
+    delivery = Delivery.create_for_content(content)
     enqueue('newsletter.send_delivery', org_id=g.org.id,
             delivery_id=delivery.id)
     log.info('newsletter_queued', delivery_id=delivery.id,

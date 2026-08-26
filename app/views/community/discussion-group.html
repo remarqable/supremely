@@ -22,10 +22,10 @@
 <div class="mb-5">{{ composer([group]) }}</div>
 
 <div class="space-y-3.5">
-  {% for topic in topics %}
-  {{ discussion_card(topic, show_group=false) }}
+  {% for post in posts %}
+  {{ discussion_card(post, show_group=false) }}
   {% else %}
-  <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_topics')) }}</div>
+  <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_posts')) }}</div>
   {% endfor %}
 </div>
 {% endblock %}

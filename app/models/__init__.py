@@ -2,7 +2,7 @@
 
 from .base import AuditMixin, BaseModel, OrgScoped, transaction, utcnow
 from .content import Category, Content
-from .discussion import DiscussionGroup, Flag, Reaction, Reply, Topic, TopicFollow
+from .discussion import DiscussionGroup, Flag, Post, PostFollow, Reaction, Reply
 from .domain import OrgDomain
 from .invitation import Invitation
 from .job import Job
@@ -36,11 +36,11 @@ __all__ = [
     'OrgPlugin',
     'OrgScoped',
     'Organization',
+    'Post',
+    'PostFollow',
     'Reaction',
     'Reply',
     'Subscriber',
-    'Topic',
-    'TopicFollow',
     'Upload',
     'User',
     'transaction',
