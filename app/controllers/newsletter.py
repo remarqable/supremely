@@ -19,6 +19,27 @@ bp = Blueprint('newsletter', __name__)
 log = get_logger()
 
 
+@bp.route('/newsletters')
+@org_required
+def archive():
+    """Past issues, for members: sent deliveries whose post is still
+    published. A community-surface page — visitors get a 404, not a theme
+    fallback."""
+    from flask import render_template
+    from flask_login import current_user
+
+    from app.models import Content
+    from app.models.newsletter import Delivery
+    if g.membership is None and not (current_user.is_authenticated
+                                     and current_user.is_platform_admin):
+        abort(404)
+    issues = (Delivery.query.filter_by(status='done')
+              .join(Delivery.post)
+              .filter(Content.status == 'published')
+              .order_by(Delivery.finished_at.desc()).limit(50).all())
+    return render_template('community/newsletters.html', issues=issues)
+
+
 @bp.route('/subscribe', methods=['GET', 'POST'])
 @org_required
 def subscribe():

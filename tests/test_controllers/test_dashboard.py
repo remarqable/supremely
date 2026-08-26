@@ -84,10 +84,26 @@ def test_sidebar_lists_content_type_sections(app, client, acme, user):
     login_as(client, user)
     response = client.get('/dashboard', base_url=ACME)
     for base, label in ((b'/blog', b'Blog'), (b'/events', b'Events'),
+                        (b'/announcements', b'Announcements'),
                         (b'/recordings', b'Recordings'),
                         (b'/podcast', b'Podcast'), (b'/resources', b'Resources')):
         assert b'href="' + base + b'"' in response.data, base
         assert label in response.data, label
+
+
+def test_sidebar_groups_and_fixed_items(app, client, acme, user):
+    """Community -> Meet -> Learn in order; Start Here, Newsletters archive,
+    and Settings present; the public /subscribe page is out of the sidebar."""
+    login_as(client, user)
+    html = client.get('/dashboard', base_url=ACME).data
+    community = html.index(b'>Community</div>')
+    meet = html.index(b'>Meet</div>')
+    learn = html.index(b'>Learn</div>')
+    assert community < meet < learn
+    assert b'Start Here' in html and b'href="/about"' in html
+    assert b'href="/newsletters"' in html
+    assert b'href="/subscribe"' not in html
+    assert b'Settings' in html
 
 
 def test_members_widget_counts(app, client, acme, user):

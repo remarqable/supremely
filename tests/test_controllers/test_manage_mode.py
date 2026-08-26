@@ -169,3 +169,47 @@ def test_community_tokens_whitelist(app, acme):
                 AVAILABLE_THEMES[theme].pop('community_tokens', None)
             else:
                 AVAILABLE_THEMES[theme]['community_tokens'] = original
+
+
+# --- Announcements + newsletter archive ---------------------------------------
+
+def test_publish_and_view_announcement(app, client, acme, user):
+    login_as(client, user)
+    response = client.post('/manage/content/announcement/new', base_url=ACME,
+                           data={'title': 'Office closed Friday',
+                                 'slug': 'office-closed',
+                                 'body': 'See you **Monday**.',
+                                 'visibility': 'public', 'action': 'publish'})
+    assert response.status_code == 302
+    archive = client.get('/announcements', base_url=ACME)
+    assert archive.status_code == 200
+    assert b'Office closed Friday' in archive.data
+    # And it lands in the Home feed.
+    assert b'Office closed Friday' in client.get('/dashboard', base_url=ACME).data
+
+
+def test_newsletter_archive_members_only(app, client, acme, user):
+    anon = app.test_client()
+    assert anon.get('/newsletters', base_url=ACME).status_code == 404
+    login_as(client, user)
+    page = client.get('/newsletters', base_url=ACME)
+    assert page.status_code == 200
+    assert b'No newsletters have gone out yet.' in page.data
+
+
+def test_newsletter_archive_lists_sent_issues(app, client, acme, user):
+    from app.models.base import utcnow
+    from app.models.newsletter import Delivery
+    login_as(client, user)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        post = Content.query.filter_by(type='article').first()
+        delivery = Delivery(org_id=acme.id, post_id=post.id, status='done',
+                            recipients_total=3, sent_count=3,
+                            finished_at=utcnow())
+        db.session.add(delivery)
+        db.session.commit()
+        title = post.title.encode()
+    page = client.get('/newsletters', base_url=ACME)
+    assert title in page.data
+    assert b'Sent ' in page.data

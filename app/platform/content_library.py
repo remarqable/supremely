@@ -25,7 +25,7 @@ def register_library_types() -> None:
     register_content_type(ContentType(
         slug='recording', singular='Recording', plural='Recordings',
         description='Video recordings: webinars, talks, member deep dives.',
-        base='/recordings',
+        base='/recordings', group='learn',
         fields=(
             FieldSpec(key='video_url', type='url', label='Video URL',
                       required=True,
@@ -39,7 +39,7 @@ def register_library_types() -> None:
     register_content_type(ContentType(
         slug='episode', singular='Episode', plural='Podcast',
         description='Podcast episodes with an audio link and episode number.',
-        base='/podcast',
+        base='/podcast', group='learn',
         fields=(
             FieldSpec(key='audio_url', type='url', label='Audio URL',
                       required=True),
@@ -49,9 +49,14 @@ def register_library_types() -> None:
         ),
     ))
     register_content_type(ContentType(
+        slug='announcement', singular='Announcement', plural='Announcements',
+        description='Official updates from the team.',
+        base='/announcements',
+    ))
+    register_content_type(ContentType(
         slug='resource', singular='Resource', plural='Resources',
         description='Reports, guides, and documents members can download.',
-        base='/resources',
+        base='/resources', group='learn',
         fields=(
             FieldSpec(key='resource_url', type='url', label='Resource URL',
                       required=True,

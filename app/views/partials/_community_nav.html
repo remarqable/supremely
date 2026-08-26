@@ -1,12 +1,43 @@
-{# The member shell's left sidebar: org switcher + community navigation.
-   `active` is one of: home, posts, discussions, members, newsletters,
-   events, settings — or '' for pages outside the sidebar's map. #}
+{# The member shell's left sidebar: org switcher, manage-mode pill, then the
+   grouped community navigation (Community / Meet / Learn). Content-type rows
+   render from the registry — each type declares its group — so the sidebar
+   mirrors what this organization publishes. Empty groups hide. #}
 
 {% macro nav_item(label, href, active=false) %}
 <a href="{{ href }}" {{ 'aria-current=page' if active }}
    class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {{ 'bg-brand-50 font-semibold text-brand-700' if active else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
   <span class="{{ 'text-brand-700' if active else 'text-slate-400' }}">{{ caller() }}</span>
   {{ label }}</a>
+{% endmacro %}
+
+{% macro type_icon(slug) %}
+{% if slug == 'event' %}
+<svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14M7 3v3M13 3v3"/></svg>
+{% elif slug == 'article' %}
+<svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h8"/></svg>
+{% elif slug == 'announcement' %}
+<svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5v3a1 1 0 001 1h2l5 3.5V4L6 7.5H4a1 1 0 00-1 1z"/><path d="M13.5 7a4 4 0 010 6M15.5 5a7 7 0 010 10"/></svg>
+{% elif slug == 'recording' %}
+<svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="10" height="10" rx="2"/><path d="M13 8.5l4-2.5v8l-4-2.5"/></svg>
+{% elif slug == 'episode' %}
+<svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5"/><path d="M4.5 10a5.5 5.5 0 0011 0M10 15.5V18"/></svg>
+{% else %}
+<svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3h6L16 7.5V16a1 1 0 01-1 1H5.5a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M11 3v5h5"/></svg>
+{% endif %}
+{% endmacro %}
+
+{% macro type_items(group_name) %}
+{% for ct in content_types().values() if ct.has_archive and ct.group == group_name %}
+{% call nav_item(ct.plural, ct.base,
+                 active=(request.path == ct.base
+                         or request.path.startswith(ct.base + '/'))) %}
+  {{ type_icon(ct.slug) }}
+{% endcall %}
+{% endfor %}
+{% endmacro %}
+
+{% macro group_label(text) %}
+<div class="mb-1 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ text }}</div>
 {% endmacro %}
 
 {% macro community_nav(active='') %}
@@ -35,41 +66,49 @@
     </form>
     {% endif %}
 
-    <nav class="mt-4 space-y-0.5" aria-label="{{ _('community.nav') }}">
+    <nav class="mt-4" aria-label="{{ _('community.nav') }}">
       {% call nav_item(_('community.home'), url_for('orgs.dashboard'), active=(active == 'home')) %}
         <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L10 3l7 6.5V16a1 1 0 01-1 1h-3.5v-4.5h-5V17H4a1 1 0 01-1-1V9.5z"/></svg>
       {% endcall %}
-      {% call nav_item(_('discussions.title'), '/discussions', active=(active == 'discussions')) %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
-      {% endcall %}
-      {# One section per feed content type: the sidebar mirrors what this
-         organization publishes (the content-type library made visible). #}
-      {% for ct in content_types().values() if ct.has_archive %}
-      {% call nav_item(ct.plural, ct.base,
-                       active=(request.path == ct.base
-                               or request.path.startswith(ct.base + '/'))) %}
-        {% if ct.slug == 'event' %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14M7 3v3M13 3v3"/></svg>
-        {% elif ct.slug == 'article' %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h8"/></svg>
-        {% elif ct.slug == 'recording' %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="10" height="10" rx="2"/><path d="M13 8.5l4-2.5v8l-4-2.5"/></svg>
-        {% elif ct.slug == 'episode' %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5"/><path d="M4.5 10a5.5 5.5 0 0011 0M10 15.5V18"/></svg>
-        {% else %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3h6L16 7.5V16a1 1 0 01-1 1H5.5a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M11 3v5h5"/></svg>
+
+      {{ group_label(_('community.group_community')) }}
+      <div class="space-y-0.5">
+        {% if start_here_page() %}
+        {% call nav_item(_('community.start_here'), '/about', active=(request.path == '/about')) %}
+          <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6.5v.01M10 9.5V14"/></svg>
+        {% endcall %}
         {% endif %}
-      {% endcall %}
-      {% endfor %}
-      {% call nav_item(_('members.directory_title'), '/members', active=(active == 'members')) %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7" r="3"/><path d="M4 17c.8-2.9 3.2-4.5 6-4.5s5.2 1.6 6 4.5"/></svg>
-      {% endcall %}
-      {% call nav_item(_('community.newsletters'), '/subscribe', active=(active == 'newsletters')) %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="11" rx="1.5"/><path d="M3 6l7 5 7-5"/></svg>
-      {% endcall %}
-      {% call nav_item(_('community.settings'), url_for('members.profile'), active=(active == 'settings')) %}
-        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 3.5V5m0 10v1.5M16.5 10H15M5 10H3.5m11-4.5l-1 1m-9 7l-1 1m11 0l-1-1m-9-7l-1-1"/></svg>
-      {% endcall %}
+        {% call nav_item(_('discussions.title'), '/discussions', active=(active == 'discussions')) %}
+          <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
+        {% endcall %}
+        {{ type_items('community') }}
+        {% call nav_item(_('community.newsletters'), '/newsletters', active=(active == 'newsletters')) %}
+          <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="11" rx="1.5"/><path d="M3 6l7 5 7-5"/></svg>
+        {% endcall %}
+      </div>
+
+      {{ group_label(_('community.group_meet')) }}
+      <div class="space-y-0.5">
+        {{ type_items('meet') }}
+        {% call nav_item(_('members.directory_title'), '/members', active=(active == 'members')) %}
+          <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7" r="3"/><path d="M4 17c.8-2.9 3.2-4.5 6-4.5s5.2 1.6 6 4.5"/></svg>
+        {% endcall %}
+      </div>
+
+      {% set learn_types = content_types().values()
+           | selectattr('has_archive') | selectattr('group', 'equalto', 'learn') | list %}
+      {% if learn_types %}
+      {{ group_label(_('community.group_learn')) }}
+      <div class="space-y-0.5">
+        {{ type_items('learn') }}
+      </div>
+      {% endif %}
+
+      <div class="mt-6 border-t border-slate-100 pt-3">
+        {% call nav_item(_('community.settings'), url_for('members.profile'), active=(active == 'settings')) %}
+          <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 3.5V5m0 10v1.5M16.5 10H15M5 10H3.5m11-4.5l-1 1m-9 7l-1 1m11 0l-1-1m-9-7l-1-1"/></svg>
+        {% endcall %}
+      </div>
     </nav>
   </div>
 </aside>

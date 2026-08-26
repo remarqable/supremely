@@ -161,6 +161,14 @@ def _init_context(app):
             from .models.notification import Notification
             return Notification.unread_count(current_user.id)
 
+        def start_here_page():
+            """The community sidebar's Start Here target: the published About
+            page, if any. Making this configurable is future Manage work."""
+            if getattr(g, 'org', None) is None:
+                return None
+            from .models import Content
+            return Content.published_page('about')
+
         def managing():
             """Manage mode: presentation only — surfaces controls the user
             already has permission for. Never consulted for authorization."""
@@ -177,6 +185,7 @@ def _init_context(app):
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,
             'managing': managing,
+            'start_here_page': start_here_page,
             'content_types': lambda: CONTENT_TYPES,
         }
 

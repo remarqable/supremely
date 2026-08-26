@@ -18,6 +18,10 @@ from app.platform.errors import ValidationError
 
 FIELD_TYPES = ('string', 'text', 'url', 'number', 'boolean', 'date')
 
+# Sidebar sections of the community surface. Feed types declare where they
+# live; empty groups are hidden.
+NAV_GROUPS = ('community', 'meet', 'learn')
+
 _SLUG_RE = re.compile(r'[a-z][a-z0-9_]{0,49}')
 _BASE_RE = re.compile(r'/[a-z0-9]([a-z0-9-]{0,48})?')
 
@@ -83,6 +87,7 @@ class ContentType:
     has_archive: bool = True
     base: str = ''                  # public URL base for feed types, e.g. /blog
     show_in_nav: bool = False       # seed a nav entry for this type
+    group: str = 'community'        # community-sidebar section (NAV_GROUPS)
 
     @property
     def is_page(self) -> bool:
@@ -96,6 +101,8 @@ class ContentType:
         if self.has_archive and not _BASE_RE.fullmatch(self.base or ''):
             raise ValueError(
                 f'Feed content type {self.slug} needs a URL base like /blog')
+        if self.group not in NAV_GROUPS:
+            raise ValueError(f'Unknown nav group: {self.group!r}')
         seen = set()
         for spec in self.fields:
             if not isinstance(spec, FieldSpec):
@@ -169,7 +176,7 @@ def register_core_types() -> None:
     register_content_type(ContentType(
         slug='event', singular='Event', plural='Events',
         description='A vertical example: dated events with a location.',
-        base='/events', show_in_nav=True,
+        base='/events', show_in_nav=True, group='meet',
         fields=(
             FieldSpec(key='starts_on', type='date', label='Date', required=True),
             FieldSpec(key='location', type='string', label='Location'),

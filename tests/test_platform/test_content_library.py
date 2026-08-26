@@ -9,7 +9,8 @@ from app.platform.errors import ValidationError
 
 def test_library_types_registered(app):
     for slug, base in (('recording', '/recordings'), ('episode', '/podcast'),
-                       ('resource', '/resources')):
+                       ('resource', '/resources'),
+                       ('announcement', '/announcements')):
         ct = CONTENT_TYPES[slug]
         assert ct.has_archive
         assert ct.base == base
@@ -50,3 +51,13 @@ def test_count_by_type_is_tenant_scoped(app, acme, globex):
         counts = dict(Content.count_by_type())
     # Seeded content for ONE org only: 3 pages, 1 article, 1 event.
     assert counts == {'page': 3, 'article': 1, 'event': 1}
+
+
+def test_nav_groups_declared(app):
+    groups = {slug: ct.group for slug, ct in CONTENT_TYPES.items()
+              if ct.has_archive}
+    assert groups['article'] == 'community'
+    assert groups['announcement'] == 'community'
+    assert groups['event'] == 'meet'
+    assert {groups['recording'], groups['episode'], groups['resource']} == {'learn'}
+    assert groups['definition'] == 'learn'          # plugin-declared

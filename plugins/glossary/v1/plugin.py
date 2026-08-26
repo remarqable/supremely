@@ -17,7 +17,7 @@ class GlossaryPlugin(Plugin):
         return [ContentType(
             slug='definition', singular='Definition', plural='Definitions',
             description='A glossary definition, publishable as content.',
-            base='/definitions',
+            base='/definitions', group='learn',
             fields=(
                 FieldSpec(key='term', type='string', label='Term',
                           required=True),
