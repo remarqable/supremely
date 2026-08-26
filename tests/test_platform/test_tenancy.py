@@ -73,3 +73,37 @@ def test_unscoped_escape_hatch(app, acme, globex):
         with unscoped():
             assert ScopedProbe.query.count() == 2
         assert ScopedProbe.query.count() == 1
+
+
+def test_loopback_ip_serves_default_org_when_base_is_localhost(tmp_path):
+    """http://127.0.0.1:8000 must behave like http://localhost:8000 in dev:
+    a loopback IP is the same machine, not a foreign custom domain."""
+    from app import create_app
+    from app.config import TestConfig
+    from app.models import Organization
+    from tests.conftest import make_user
+
+    class Cfg(TestConfig):
+        DATA_DIR = str(tmp_path)
+        BASE_DOMAIN = 'localhost'
+        SERVER_NAME = 'localhost'
+
+    app = create_app(Cfg)
+    with app.app_context():
+        db.create_all()
+        try:
+            owner = make_user()
+            Organization.provision(name='Solo', slug='solo', owner=owner)
+            client = app.test_client()
+            assert client.get('/', base_url='http://localhost').status_code == 200
+            assert client.get('/', base_url='http://127.0.0.1').status_code == 200
+            assert client.get('/', base_url='http://[::1]').status_code == 200
+        finally:
+            db.session.remove()
+            db.drop_all()
+
+
+def test_loopback_ip_stays_foreign_for_real_base_domains(client, acme):
+    # BASE_DOMAIN is example.test here: a loopback IP is NOT the bare domain
+    # and must keep resolving as an (unknown) custom domain.
+    assert client.get('/', base_url='http://127.0.0.1').status_code == 404

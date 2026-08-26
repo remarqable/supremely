@@ -74,7 +74,17 @@ def init_tenant(app):
 
 
 def _request_host() -> str:
-    return request.host.split(':')[0]
+    host = request.host
+    if host.startswith('['):                    # IPv6 literal: [::1]:8000
+        host = host[1:host.find(']')]
+    else:
+        host = host.split(':')[0]
+    # Loopback IPs are the same machine as localhost. Without this, opening
+    # http://127.0.0.1:8000 in dev resolves as a foreign host (custom-domain
+    # lookup) and 404s while http://localhost:8000 works.
+    if host in ('127.0.0.1', '::1') and _base_domain() == 'localhost':
+        return 'localhost'
+    return host
 
 
 def _base_domain() -> str:
