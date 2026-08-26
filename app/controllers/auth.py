@@ -120,7 +120,11 @@ def logout():
     if current_user.is_authenticated:
         log.info('user_logged_out', user_id=current_user.id)
     logout_user()
+    # Keep the marker logout_user() set to delete the remember cookie.
+    remember = session.get('_remember')
     session.clear()
+    if remember is not None:
+        session['_remember'] = remember
     flash(t('auth.logged_out'), 'success')
     return redirect(url_for('main.index'))
 

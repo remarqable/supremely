@@ -45,6 +45,17 @@ def test_logout(client, user):
     assert response.status_code == 302
 
 
+def test_logout_clears_remember_cookie(client, user):
+    client.post('/auth/login', data={'email': user.email,
+                                     'password': PASSWORD})
+    client.post('/auth/logout', follow_redirects=False)
+
+    cookies = {c.key for c in client._cookies.values() if c.value}
+    assert 'remember_token' not in cookies
+
+    assert client.get('/auth/login').status_code == 200
+
+
 def test_change_password(client, user):
     login_as(client, user)
     response = client.post('/auth/password', data={
