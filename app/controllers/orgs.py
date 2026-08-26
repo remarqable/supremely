@@ -106,7 +106,7 @@ def _latest_published():
     if not type_slugs:
         return []
     return (Content.published_query()
-            .filter(Content.type.in_(type_slugs)).limit(4).all())
+            .filter(Content.type.in_(type_slugs)).limit(6).all())
 
 
 def _upcoming_event():
