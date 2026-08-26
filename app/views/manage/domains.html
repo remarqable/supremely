@@ -1,15 +1,14 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header, empty_state with context %}
 
 {% block manage_content %}
 <div class="mx-auto max-w-xl">
+  {{ page_header(_('domains.title'), _('domains.hint')) }}
   <div class="card">
-    <h3 class="mb-2 text-lg font-semibold">{{ _('domains.title') }}</h3>
-    <p class="mb-4 text-sm text-slate-600">{{ _('domains.hint') }}</p>
-
-    <ul class="space-y-2">
+    <ul class="divide-y divide-slate-100">
       {% for domain in domains %}
-      <li class="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-        <span class="font-mono">{{ domain.domain }}</span>
+      <li class="flex items-center gap-2.5 py-2.5 text-sm first:pt-0">
+        <span class="font-mono text-xs font-medium text-slate-900">{{ domain.domain }}</span>
         {% if domain.status == 'active' %}
         <span class="badge-green">{{ _('domains.active') }}</span>
         {% else %}
@@ -17,15 +16,15 @@
         {% endif %}
         <form method="POST" action="{{ url_for('manage.delete_domain', domain_id=domain.id) }}" class="ms-auto">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="text-red-600 hover:underline">{{ _('common.remove') }}</button>
+          <button type="submit" class="text-slate-400 hover:text-red-600">{{ _('common.remove') }}</button>
         </form>
       </li>
       {% else %}
-      <li class="text-sm text-slate-500">{{ _('common.none') }}</li>
+      <li>{{ empty_state(_('common.none')) }}</li>
       {% endfor %}
     </ul>
 
-    <form method="POST" class="mt-6 flex items-end gap-3 border-t border-slate-100 pt-4">
+    <form method="POST" class="mt-5 flex items-end gap-3 border-t border-slate-100 pt-4">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="flex-1">
         <label for="domain" class="label">{{ _('domains.add_label') }}</label>

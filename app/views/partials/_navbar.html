@@ -1,53 +1,76 @@
+{% from 'partials/_ui.html' import avatar with context %}
 <nav x-data="{ mobile: false }"
      class="border-b border-slate-200 bg-white">
-  <div class="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
-    <a href="/" class="font-semibold">
+  <div class="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
+    <a href="/" class="text-[15px] font-semibold tracking-tight">
       {% if g.org %}{{ g.org.name }}{% else %}{{ installation_name }}{% endif %}
     </a>
 
-    <div class="hidden gap-4 md:flex">
+    <div class="hidden items-center gap-1 md:flex">
       {% if g.org and (is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin)) %}
-        <a href="{{ url_for('orgs.dashboard') }}" class="text-sm hover:text-brand-600">{{ _('nav.dashboard') }}</a>
+        <a href="{{ url_for('orgs.dashboard') }}"
+           class="rounded-md px-2.5 py-1.5 text-sm {{ 'font-medium text-slate-900' if request.blueprint == 'orgs' else 'text-slate-500 hover:bg-slate-50 hover:text-slate-900' }}">
+          {{ _('nav.dashboard') }}</a>
       {% endif %}
       {% if g.org and can('content.write') %}
-        <a href="{{ url_for('manage.index') }}" class="text-sm hover:text-brand-600">{{ _('nav.manage') }}</a>
+        <a href="{{ url_for('manage.index') }}"
+           class="rounded-md px-2.5 py-1.5 text-sm {{ 'font-medium text-slate-900' if request.blueprint == 'manage' else 'text-slate-500 hover:bg-slate-50 hover:text-slate-900' }}">
+          {{ _('nav.manage') }}</a>
       {% endif %}
     </div>
 
-    <div class="ms-auto flex items-center gap-2">
+    <div class="ms-auto flex items-center gap-1">
       {% if g.org and is_org_member() %}
       {% set unread = unread_notifications() %}
       <a href="{{ url_for('notifications.index') }}"
-         class="relative rounded-md px-2 py-1.5 text-sm hover:bg-slate-100"
+         class="relative rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
          aria-label="{{ _('nav.notifications') }}">
-        🔔{% if unread %}<span class="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">{{ unread }}</span>{% endif %}
+        <svg class="h-[18px] w-[18px]" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10 3a4.5 4.5 0 00-4.5 4.5c0 3.2-1 4.4-1.7 5.1a.6.6 0 00.44 1.02h11.52a.6.6 0 00.44-1.02c-.7-.7-1.7-1.9-1.7-5.1A4.5 4.5 0 0010 3z"/>
+          <path d="M8.4 16.5a1.75 1.75 0 003.2 0"/>
+        </svg>
+        {% if unread %}<span class="absolute end-1 top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-brand-600 px-1 text-[9px] font-bold text-white">{{ unread }}</span>{% endif %}
       </a>
       {% endif %}
       {% if current_user.is_authenticated %}
       <div x-data="{ open: false }" class="relative">
         <button @click="open = !open" @keydown.escape="open = false"
                 :aria-expanded="open" aria-haspopup="menu"
-                class="btn-secondary">{{ current_user.name }}</button>
+                class="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-slate-100">
+          {{ avatar(current_user.name, current_user.avatar_url, size='h-6.5 w-6.5') }}
+          <span class="hidden text-sm font-medium text-slate-700 sm:block">{{ current_user.name }}</span>
+          <svg class="h-3 w-3 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 6l4 4 4-4"/>
+          </svg>
+        </button>
 
         <div x-show="open" @click.outside="open = false" x-cloak x-transition
              role="menu"
-             class="absolute end-0 z-20 mt-2 w-56 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5">
+             class="absolute end-0 z-20 mt-1.5 w-56 rounded-lg bg-white py-1 shadow-lg ring-1 ring-slate-900/10">
+          <div class="border-b border-slate-100 px-3.5 pb-2 pt-1.5">
+            <p class="truncate text-sm font-medium text-slate-900">{{ current_user.name }}</p>
+            <p class="truncate text-xs text-slate-500">{{ current_user.email }}</p>
+          </div>
           <a href="{{ url_for('orgs.launcher') }}" role="menuitem"
-             class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.launcher') }}</a>
+             class="block px-3.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50">{{ _('nav.launcher') }}</a>
           <a href="{{ url_for('members.profile') }}" role="menuitem"
-             class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.profile') }}</a>
+             class="block px-3.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50">{{ _('nav.profile') }}</a>
           <a href="{{ url_for('auth.change_password') }}" role="menuitem"
-             class="block px-4 py-2 text-sm hover:bg-slate-50">{{ _('nav.change_password') }}</a>
+             class="block px-3.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50">{{ _('nav.change_password') }}</a>
           {% if current_user.is_platform_admin %}
           <a href="{{ url_for('admin.dashboard') }}" role="menuitem"
-             class="block px-4 py-2 text-sm font-medium text-brand-700 hover:bg-slate-50">{{ _('nav.administration') }}</a>
+             class="block px-3.5 py-1.5 text-sm font-medium text-brand-700 hover:bg-slate-50">{{ _('nav.administration') }}</a>
           {% endif %}
-          <form action="{{ url_for('auth.logout') }}" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" role="menuitem"
-                    class="block w-full px-4 py-2 text-start text-sm hover:bg-slate-50">
-              {{ _('nav.logout') }}</button>
-          </form>
+          <div class="mt-1 border-t border-slate-100 pt-1">
+            <form action="{{ url_for('auth.logout') }}" method="POST">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" role="menuitem"
+                      class="block w-full px-3.5 py-1.5 text-start text-sm text-slate-700 hover:bg-slate-50">
+                {{ _('nav.logout') }}</button>
+            </form>
+          </div>
         </div>
       </div>
       {% else %}
@@ -56,7 +79,7 @@
 
       {% if g.org and (is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin)) %}
       <button @click="mobile = !mobile" :aria-expanded="mobile"
-              aria-controls="mobile-menu" class="btn-secondary md:hidden">
+              aria-controls="mobile-menu" class="btn-ghost md:hidden">
         <span class="sr-only">{{ _('nav.toggle_menu') }}</span>&#9776;
       </button>
       {% endif %}

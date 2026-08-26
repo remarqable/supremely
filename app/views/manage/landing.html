@@ -14,12 +14,10 @@
 {% endmacro %}
 
 {% block manage_content %}
-<div class="mb-4">
-  <h1 class="text-xl font-bold">{{ _('manage.landing') }}</h1>
-  <p class="text-sm text-slate-600">{{ _('landing.intro', theme=theme_name) }}</p>
-</div>
+{% from 'partials/_ui.html' import page_header with context %}
+{{ page_header(_('manage.landing'), _('landing.intro', theme=theme_name)) }}
 
-<form method="POST" class="space-y-6">
+<form method="POST" class="space-y-5">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <div class="card space-y-4">

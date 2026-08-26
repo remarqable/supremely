@@ -1,7 +1,10 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header, empty_state with context %}
 
 {% block manage_content %}
-<div class="card mb-6">
+{{ page_header(_('manage.media'), _('manage.upload_hint')) }}
+
+<div class="card mb-5">
   <form method="POST" enctype="multipart/form-data" class="flex items-end gap-3">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="flex-1">
@@ -11,29 +14,30 @@
     </div>
     <button type="submit" class="btn-primary">{{ _('manage.upload') }}</button>
   </form>
-  <p class="mt-2 text-xs text-slate-500">{{ _('manage.upload_hint') }}</p>
 </div>
 
+{% if uploads %}
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
   {% for upload in uploads %}
-  <div class="card p-3">
+  <div class="card p-2.5">
     {% if upload.is_image %}
     <img src="{{ upload.url('thumb' if upload.has_variants else 'original') }}"
-         alt="{{ upload.filename }}" class="mb-2 h-32 w-full rounded object-cover">
+         alt="{{ upload.filename }}" class="mb-2 h-32 w-full rounded-md object-cover ring-1 ring-slate-900/5">
     {% else %}
-    <div class="mb-2 flex h-32 items-center justify-center rounded bg-slate-100 text-slate-400">{{ upload.content_type }}</div>
+    <div class="mb-2 flex h-32 items-center justify-center rounded-md bg-slate-100 font-mono text-xs text-slate-400">{{ upload.content_type }}</div>
     {% endif %}
-    <div class="truncate text-xs font-medium" title="{{ upload.filename }}">{{ upload.filename }}</div>
-    <div class="mt-1 flex items-center justify-between text-xs text-slate-500">
-      <span>{{ (upload.size / 1024) | round(1) }} KB</span>
+    <div class="truncate px-0.5 text-xs font-medium text-slate-900" title="{{ upload.filename }}">{{ upload.filename }}</div>
+    <div class="mt-1 flex items-center justify-between px-0.5 text-xs text-slate-400">
+      <span class="tabular-nums">{{ (upload.size / 1024) | round(1) }} KB</span>
       <form method="POST" action="{{ url_for('manage.delete_media', upload_id=upload.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="text-red-600 hover:underline">{{ _('common.delete') }}</button>
+        <button type="submit" class="hover:text-red-600">{{ _('common.delete') }}</button>
       </form>
     </div>
   </div>
-  {% else %}
-  <p class="text-sm text-slate-500">{{ _('common.none') }}</p>
   {% endfor %}
 </div>
+{% else %}
+<div class="card">{{ empty_state(_('common.none')) }}</div>
+{% endif %}
 {% endblock %}

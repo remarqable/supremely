@@ -1,0 +1,46 @@
+{# Shared UI patterns. Every Manage/admin screen uses the same page header,
+   empty state, status badge, and avatar so the whole area reads as one
+   product. #}
+
+{% macro page_header(title, description=None) %}
+<div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="page-title">{{ title }}</h1>
+    {% if description %}<p class="page-desc">{{ description }}</p>{% endif %}
+  </div>
+  {% if caller is defined %}<div class="flex shrink-0 items-center gap-2">{{ caller() }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro empty_state(message, cta_url=None, cta_label=None) %}
+<div class="empty-state">
+  <div class="empty-state-icon">
+    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 6.5A2.5 2.5 0 016.5 4h7A2.5 2.5 0 0116 6.5v7a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 014 13.5v-7z"/>
+      <path d="M7.5 10h5"/>
+    </svg>
+  </div>
+  <p class="text-sm text-slate-500">{{ message }}</p>
+  {% if cta_url %}
+  <a href="{{ cta_url }}" class="mt-2 btn-secondary">{{ cta_label }}</a>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro status_badge(status) %}
+{%- if status == 'published' -%}<span class="badge-green">{{ _('manage.published') }}</span>
+{%- elif status == 'archived' -%}<span class="badge-red">{{ _('manage.archived') }}</span>
+{%- else -%}<span class="badge-slate">{{ _('manage.draft') }}</span>
+{%- endif -%}
+{% endmacro %}
+
+{% macro avatar(name, url=None, size='h-6 w-6', text='text-[10px]') %}
+{%- if url -%}
+<img src="{{ url }}" alt="" class="{{ size }} shrink-0 rounded-full object-cover ring-1 ring-slate-900/5">
+{%- else -%}
+<span class="{{ size }} {{ text }} flex shrink-0 select-none items-center justify-center
+             rounded-full bg-slate-200 font-semibold uppercase text-slate-600"
+      aria-hidden="true">{{ (name or '?')[:1] }}</span>
+{%- endif -%}
+{% endmacro %}

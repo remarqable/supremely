@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+{# The member shell: what a logged-in member sees around COMMUNITY pages
+   (discussions, members, events, subscribe). render_site() picks this layout
+   over the theme's when the viewer has a membership, so the same URLs serve
+   the public theme to visitors and the app shell to members. Block names
+   (title/meta/head/content/scripts) match the theme layouts, so theme
+   content templates render here unchanged. #}
+{% from 'partials/_community_nav.html' import community_nav with context %}
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ g.org.name }}{% endblock %}</title>
+  {% block meta %}{% endblock %}
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  {% set favicon = g.org.favicon() %}
+  {% if favicon %}<link rel="icon" href="{{ favicon.url('original') }}">{% endif %}
+  {% if g.org.brand_primary %}
+  <style>
+    :root {
+      --color-brand-500: {{ g.org.brand_primary }};
+      --color-brand-600: {{ g.org.brand_primary }};
+      --color-brand-700: {{ g.org.brand_primary }};
+    }
+  </style>
+  {% endif %}
+  <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/alpine-focus.min.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-900"
+      hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:m-3
+                         focus:rounded focus:bg-white focus:p-3">
+    {{ _('nav.skip_to_content') }}
+  </a>
+
+  {% include 'partials/_navbar.html' %}
+
+  {% set path = request.path %}
+  {% set section = ('discussions' if path.startswith('/discussions')
+                    else 'members' if path.startswith('/members')
+                    else 'newsletters' if path.startswith('/subscribe')
+                    else 'events' if path.startswith('/events')
+                    else 'settings' if path.startswith('/profile')
+                    else '') %}
+  <div class="mx-auto flex max-w-[1400px] flex-col lg:flex-row">
+    {{ community_nav(section) }}
+    <main id="main" class="min-w-0 flex-1 px-4 py-6 sm:px-8">
+      {% include 'partials/_flash.html' %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

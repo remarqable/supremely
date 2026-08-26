@@ -1,12 +1,14 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import status_badge with context %}
 
 {% block manage_content %}
-<div class="mb-4 flex items-center gap-2">
+<div class="mb-5 flex items-center gap-2.5">
+  <h1 class="page-title">{{ content.title if content and content.title else _('manage.new_of', name=content_type.singular) }}</h1>
   <span class="badge-brand">{{ content_type.singular }}</span>
-  {% if content_type.description %}<span class="text-sm text-slate-500">{{ content_type.description }}</span>{% endif %}
+  {% if content and content.id %}{{ status_badge(content.status) }}{% endif %}
 </div>
 
-<form method="POST" class="grid gap-6 lg:grid-cols-3">
+<form method="POST" class="grid gap-5 lg:grid-cols-3">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <div class="card space-y-4 lg:col-span-2">
@@ -53,7 +55,7 @@
     {% endif %}
   </div>
 
-  <div class="space-y-6">
+  <div class="space-y-5">
     <div class="card space-y-4">
       <div>
         <label for="visibility" class="label">{{ _('manage.visibility') }}</label>

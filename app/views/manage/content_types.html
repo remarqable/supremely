@@ -1,0 +1,50 @@
+{% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-2xl">
+  {{ page_header(_('manage.content_types'), _('manage.content_types_intro')) }}
+  <div class="space-y-6">
+
+  <div class="space-y-4">
+    {% for ct in types %}
+    <div class="card">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold tracking-tight">{{ ct.plural }}
+            {% if ct.base %}<span class="ms-2 font-mono text-xs font-normal text-slate-400">{{ ct.base }}</span>
+            {% else %}<span class="badge-slate ms-2">{{ _('manage.ct_standalone') }}</span>{% endif %}
+          </h3>
+          {% if ct.description %}<p class="text-sm text-slate-600">{{ ct.description }}</p>{% endif %}
+          {% if ct.fields %}
+          <p class="mt-1 text-xs text-slate-500">
+            {% for spec in ct.fields %}{{ spec.label or spec.key }}{{ ', ' if not loop.last }}{% endfor %}
+          </p>
+          {% endif %}
+        </div>
+        <a href="{{ url_for('manage.content_list', type_slug=ct.slug) }}" class="btn-secondary">
+          {{ counts.get(ct.slug, 0) }} {{ _('manage.ct_items') }}</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="pt-2">
+    <h2 class="section-title">{{ _('manage.coming_soon') }}</h2>
+    <p class="mt-1 text-sm text-slate-500">{{ _('manage.coming_soon_intro') }}</p>
+  </div>
+
+  <div class="space-y-4">
+    {% for planned in coming_soon %}
+    <div class="card opacity-70">
+      <h3 class="text-sm font-semibold tracking-tight text-slate-500">{{ planned.plural }}
+        <span class="badge-slate ms-2">{{ _('manage.coming_soon') }}</span>
+      </h3>
+      <p class="text-sm text-slate-600">{{ planned.description }}</p>
+      <p class="mt-1 text-xs text-slate-500">{{ _('manage.ct_waiting', needs=planned.needs) }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  </div>
+</div>
+{% endblock %}

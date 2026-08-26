@@ -147,11 +147,12 @@ def clean_theme_config(theme: str, submitted: dict) -> dict:
     return cleaned
 
 
-def render_site(candidates: list[str], **context) -> str:
+def render_site(candidates: list[str], member_shell: bool = True,
+                **context) -> str:
     """Render through the WordPress-style template hierarchy: for each
     candidate in specificity order, try the active theme, then Origin (the
     fallback theme), then core/plugin templates by bare name."""
-    from flask import render_template
+    from flask import g, render_template
     theme = current_theme()
     names = []
     for candidate in candidates:
@@ -161,6 +162,12 @@ def render_site(candidates: list[str], **context) -> str:
         names.append(candidate)        # core partials and plugin templates
     names = list(dict.fromkeys(names))
     context.setdefault('theme_settings', theme_config())
+    # Members see community pages inside the member shell; visitors get the
+    # theme. Same URLs, viewer-appropriate chrome. The front page opts out
+    # (member_shell=False) and previews always show the public look.
+    if (member_shell and not context.get('preview')
+            and getattr(g, 'membership', None) is not None):
+        context.setdefault('site_layout', 'layouts/community.html')
     # Site templates extend {{ site_layout }} so a theme's layout override
     # applies even to pages the theme does not override itself.
     context.setdefault('site_layout', themed('layout.html'))

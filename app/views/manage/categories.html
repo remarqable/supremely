@@ -1,25 +1,28 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header, empty_state with context %}
 
 {% block manage_content %}
 <div class="mx-auto max-w-xl">
+  {{ page_header(_('manage.categories')) }}
   <div class="card">
-    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.categories') }}</h3>
-    <ul class="space-y-2">
+    {% if categories %}
+    <ul class="divide-y divide-slate-100">
       {% for category in categories %}
-      <li class="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-        <span class="font-medium">{{ category.name }}</span>
-        <span class="text-slate-500">/posts/category/{{ category.slug }}</span>
+      <li class="flex items-center gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
+        <span class="font-medium text-slate-900">{{ category.name }}</span>
+        <span class="font-mono text-xs text-slate-400">/posts/category/{{ category.slug }}</span>
         <form method="POST" action="{{ url_for('manage.delete_category', category_id=category.id) }}" class="ms-auto">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="text-red-600 hover:underline">{{ _('common.delete') }}</button>
+          <button type="submit" class="text-sm text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
         </form>
       </li>
-      {% else %}
-      <li class="text-sm text-slate-500">{{ _('common.none') }}</li>
       {% endfor %}
     </ul>
+    {% else %}
+    {{ empty_state(_('common.none')) }}
+    {% endif %}
 
-    <form method="POST" class="mt-6 flex items-end gap-3 border-t border-slate-100 pt-4">
+    <form method="POST" class="mt-5 flex items-end gap-3 border-t border-slate-100 pt-4">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="flex-1">
         <label for="name" class="label">{{ _('common.name') }}</label>

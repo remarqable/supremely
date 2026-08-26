@@ -1,23 +1,58 @@
+{% macro is_active(item, current) -%}
+  {%- set args = item.get('args', {}) -%}
+  {%- set endpoint_active = current == item.endpoint or current in item.get('also', []) -%}
+  {%- set match_key = item.get('match') -%}
+  {%- if endpoint_active and (not match_key
+        or request.view_args.get(match_key) == args.get(match_key)) -%}1{%- endif -%}
+{%- endmacro %}
+
+{% macro nav_link(item, current, indent=false, tight=false) %}
+{% set active = is_active(item, current)|trim %}
+<a href="{{ url_for(item.endpoint, **item.get('args', {})) }}"
+   class="block rounded-md py-1.5 text-sm {{ 'ps-8 pe-3' if indent else ('ps-3 pe-1.5' if tight else 'px-3') }} {{ 'bg-white font-medium text-slate-900 ring-1 ring-slate-200' if active else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}"
+   {{ 'aria-current=page' if active }}>
+  {{ item.label }}</a>
+{% endmacro %}
+
 {% macro nav_groups(groups, current) %}
 <nav class="space-y-5" aria-label="{{ _('nav.section_nav') }}">
   {% for group_label, items in groups %}
   <div>
     {% if group_label %}
-    <div class="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{{ group_label }}</div>
+    <div class="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ group_label }}</div>
     {% endif %}
     <ul class="space-y-0.5">
       {% for item in items %}
-      {% set args = item.get('args', {}) %}
-      {% set endpoint_active = current == item.endpoint or current in item.get('also', []) %}
-      {% set match_key = item.get('match') %}
-      {% set active = endpoint_active and (not match_key
-                        or request.view_args.get(match_key) == args.get(match_key)) %}
-      <li>
-        <a href="{{ url_for(item.endpoint, **args) }}"
-           class="block rounded-md px-3 py-1.5 text-sm {{ 'bg-brand-50 font-medium text-brand-700' if active else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}"
-           {{ 'aria-current=page' if active }}>
-          {{ item.label }}</a>
+      {% if item.get('children') %}
+      {# Open by default when the current page is this item or inside it. #}
+      {% set ns = namespace(open = is_active(item, current)|trim != '') %}
+      {% for child in item['children'] %}
+        {% if is_active(child, current)|trim %}{% set ns.open = true %}{% endif %}
+      {% endfor %}
+      <li x-data="{ open: {{ 'true' if ns.open else 'false' }} }">
+        <div class="flex items-center">
+          {{ nav_link(item, current, tight=true) }}
+          <button type="button" @click="open = !open" :aria-expanded="open"
+                  aria-label="{{ item.label }}"
+                  class="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <svg class="h-3.5 w-3.5 transition-transform rtl:-scale-x-100"
+                 :class="open && 'rotate-90'" viewBox="0 0 16 16"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 4l4 4-4 4"/>
+            </svg>
+          </button>
+        </div>
+        <ul class="mt-0.5 space-y-0.5" x-show="open"
+            {% if not ns.open %}style="display:none"{% endif %}>
+          {% for child in item['children'] %}
+          <li>{{ nav_link(child, current, indent=true) }}</li>
+          {% endfor %}
+        </ul>
       </li>
+      {% else %}
+      <li>{{ nav_link(item, current) }}</li>
+      {% endif %}
       {% endfor %}
     </ul>
   </div>
@@ -35,7 +70,7 @@
   </details>
   {# Desktop: a sticky left column #}
   <div class="sticky top-6 hidden md:block">
-    <div class="mb-3 px-3 text-lg font-bold">{{ title }}</div>
+    <div class="mb-3 px-3 text-base font-semibold tracking-tight">{{ title }}</div>
     {{ nav_groups(groups, current) }}
   </div>
 </aside>

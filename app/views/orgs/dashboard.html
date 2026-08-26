@@ -1,122 +1,136 @@
 {% extends 'layouts/base.html' %}
+{% from 'partials/_ui.html' import avatar, empty_state with context %}
+{% from 'partials/_community_nav.html' import community_nav with context %}
 
 {% block title %}{{ _('community.home') }} — {{ org.name }}{% endblock %}
 
-{% block main_class %}mx-auto max-w-7xl px-4 py-8{% endblock %}
+{% block main_class %}{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-6 lg:flex-row lg:gap-10">
+<div class="mx-auto flex max-w-[1400px] flex-col lg:flex-row">
 
-  {# --- Left rail: community navigation ------------------------------------ #}
-  <aside class="lg:w-56 lg:shrink-0">
-    <div class="lg:sticky lg:top-6">
-      <div class="mb-3 px-3 text-lg font-bold">{{ org.name }}</div>
-      <nav class="space-y-5" aria-label="{{ _('community.nav') }}">
-        <ul class="space-y-0.5">
-          <li><a href="{{ url_for('orgs.dashboard') }}"
-                 class="block rounded-md bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700"
-                 aria-current="page">{{ _('community.home') }}</a></li>
-          <li><a href="/" class="block rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">{{ _('community.public_site') }}</a></li>
-          <li><a href="{{ url_for('notifications.index') }}"
-                 class="block rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">
-                 {{ _('nav.notifications') }}{% set unread = unread_notifications() %}{% if unread %}
-                 <span class="badge-brand ms-1">{{ unread }}</span>{% endif %}</a></li>
-          {% if org.setting('member_directory') %}
-          <li><a href="/members" class="block rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">{{ _('members.directory_title') }}</a></li>
-          {% endif %}
-        </ul>
+  {{ community_nav('posts' if tab == 'posts' else 'home') }}
 
-        <div>
-          <div class="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{{ _('discussions.spaces') }}</div>
-          <ul class="space-y-0.5">
-            {% for space in spaces %}
-            <li><a href="/discussions/{{ space.slug }}"
-                   class="block rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">{{ space.name }}</a></li>
-            {% else %}
-            <li class="px-3 text-sm text-slate-400">{{ _('common.none') }}</li>
-            {% endfor %}
-            <li><a href="/discussions" class="block rounded-md px-3 py-1.5 text-sm text-brand-600 hover:bg-slate-100">{{ _('community.all_discussions') }} →</a></li>
-          </ul>
-        </div>
+  {# --- Center: composer, tabs, feed ----------------------------------------- #}
+  <div class="min-w-0 flex-1 px-4 py-6 sm:px-8">
+    {% include 'partials/_flash.html' %}
+    <h1 class="mb-5 text-2xl font-bold tracking-tight text-slate-900">{{ _('community.home') }}</h1>
 
-        {% if can('content.write') %}
-        <div>
-          <div class="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{{ _('community.admin') }}</div>
-          <ul class="space-y-0.5">
-            <li><a href="{{ url_for('manage.index') }}" class="block rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">{{ _('nav.manage') }}</a></li>
-          </ul>
-        </div>
-        {% endif %}
-      </nav>
-    </div>
-  </aside>
-
-  {# --- Center: activity feed ------------------------------------------------ #}
-  <div class="min-w-0 flex-1">
-    <div class="mb-4 flex items-center justify-between">
-      <h1 class="text-xl font-bold">{{ _('community.recent_activity') }}</h1>
-      {% if spaces and can('discuss') %}
-      <a href="/discussions/{{ spaces[0].slug }}" class="btn-primary">{{ _('discussions.new_post') }}</a>
-      {% endif %}
-    </div>
-
-    <div class="space-y-3">
-      {% for post in recent_posts %}
-      <a href="{{ post.url }}" class="card block p-4 transition hover:ring-brand-500">
+    {% if spaces and can('discuss') %}
+    <form method="POST" x-data="{ open: false, space: '{{ spaces[0].slug }}' }"
+          :action="'/discussions/' + space + '/new'"
+          class="rounded-xl bg-white p-3 ring-1 ring-slate-200">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="flex items-center gap-3">
+        {{ avatar(current_user.name, current_user.avatar_url, size='h-8.5 w-8.5', text='text-xs') }}
+        <input type="text" name="title" maxlength="200" required
+               placeholder="{{ _('community.share_prompt') }}" @focus="open = true"
+               class="min-w-0 flex-1 border-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0">
+        <svg x-show="!open" class="h-5 w-5 shrink-0 text-slate-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M3 14l4-3.5 3 2.5 3-3 4 4"/></svg>
+      </div>
+      <div x-show="open" x-cloak x-transition class="mt-3 space-y-3 border-t border-slate-100 pt-3">
+        <textarea name="body" rows="3" required
+                  placeholder="{{ _('community.post_body_placeholder') }}"
+                  class="textarea"></textarea>
         <div class="flex items-center gap-2">
-          {% if post.is_pinned %}<span aria-hidden="true">📌</span>{% endif %}
-          {% if post.is_locked %}<span aria-hidden="true">🔒</span>{% endif %}
-          <span class="font-medium">{{ post.title }}</span>
-          <span class="badge-slate ms-auto shrink-0">{{ post.space.name }}</span>
+          <label for="composer-space" class="text-xs font-medium text-slate-500">{{ _('community.choose_space') }}</label>
+          <select id="composer-space" x-model="space" class="select w-auto min-w-32">
+            {% for space in spaces %}<option value="{{ space.slug }}">{{ space.name }}</option>{% endfor %}
+          </select>
+          <button type="button" @click="open = false" class="btn-ghost ms-auto">{{ _('common.cancel') }}</button>
+          <button type="submit" class="btn-primary">{{ _('community.post_button') }}</button>
         </div>
-        <p class="mt-1 text-xs text-slate-500">
-          {{ post.comment_count }} {{ _('discussions.comments') }}
-          · {{ post.last_activity_at|localdatetime }}
-          {% if post.author %} · {{ post.author.name }}{% endif %}
-        </p>
-      </a>
+      </div>
+    </form>
+    {% endif %}
+
+    <nav class="mb-4 mt-5 flex gap-6 border-b border-slate-200/70" aria-label="{{ _('community.recent_activity') }}">
+      {% for key in ('all', 'posts', 'discussions', 'announcements') %}
+      <a href="{{ url_for('orgs.dashboard', tab=None if key == 'all' else key) }}"
+         {{ 'aria-current=page' if tab == key }}
+         class="-mb-px pb-2.5 text-sm {{ 'border-b-2 border-brand-600 font-semibold text-brand-700' if tab == key else 'text-slate-500 hover:text-slate-900' }}">
+        {{ _('community.tab_' + key) }}</a>
+      {% endfor %}
+    </nav>
+
+    <div class="space-y-3.5">
+      {% for kind, when, item in feed %}
+      <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
+        <div class="flex items-center gap-2.5">
+          {{ avatar(item.author.name if item.author else '?',
+                    item.author.avatar_url if item.author else None,
+                    size='h-8.5 w-8.5', text='text-xs') }}
+          <div class="min-w-0">
+            <div class="truncate text-sm font-semibold text-slate-900">{{ item.author.name if item.author else org.name }}</div>
+            <div class="text-xs text-slate-400">{{ when|timeago }}</div>
+          </div>
+          <span class="badge-slate ms-auto shrink-0 uppercase tracking-wide">
+            {{ item.space.name if kind == 'discussion' else item.content_type.singular }}</span>
+        </div>
+        <h2 class="mt-3 text-lg font-semibold tracking-tight">
+          <a href="{{ item.url if kind == 'discussion' else item.permalink }}"
+             class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>
+        </h2>
+        {% set summary = (item.body or '') if kind == 'discussion' else item.excerpt_or_summary() %}
+        {% if summary %}<p class="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary[:280] }}</p>{% endif %}
+        <div class="mt-3.5 flex items-center gap-4 text-sm text-slate-500">
+          {% if kind == 'discussion' %}
+          <a href="{{ item.url }}" class="inline-flex items-center gap-1.5 hover:text-slate-900">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
+            {{ _('community.comments_count', n=item.comment_count) }}</a>
+          {% if item.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
+          {% else %}
+          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_post') }} →</a>
+          {% endif %}
+        </div>
+      </article>
       {% else %}
-      <div class="card p-8 text-center text-slate-500">
-        <p>{{ _('community.empty_feed') }}</p>
+      <div class="rounded-xl bg-white ring-1 ring-slate-200">
         {% if spaces and can('discuss') %}
-        <a href="/discussions/{{ spaces[0].slug }}" class="btn-primary mt-4">{{ _('community.start_first_post') }}</a>
+        {{ empty_state(_('community.empty_feed'), '/discussions/' + spaces[0].slug, _('community.start_first_post')) }}
+        {% else %}
+        {{ empty_state(_('community.empty_feed')) }}
         {% endif %}
       </div>
       {% endfor %}
     </div>
   </div>
 
-  {# --- Right rail: announcements + about ------------------------------------ #}
-  <aside class="lg:w-72 lg:shrink-0">
-    <div class="space-y-6 lg:sticky lg:top-6">
-      <div class="card p-4">
-        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{{ _('community.announcements') }}</h2>
-        <div class="space-y-3">
-          {% for post in announcements %}
-          <a href="{{ post.permalink }}" class="block">
-            <div class="text-sm font-medium hover:text-brand-600">{{ post.title }}</div>
-            <div class="text-xs text-slate-500">
-              {{ post.published_at|localdate }}{% if post.author %} · {{ post.author.name }}{% endif %}
-            </div>
-          </a>
-          {% else %}
-          <p class="text-sm text-slate-500">{{ _('common.none') }}</p>
+  {# --- Right rail: members + upcoming event ---------------------------------- #}
+  <aside class="w-full shrink-0 px-4 py-6 sm:px-8 lg:w-80 lg:ps-0 lg:pe-6">
+    <div class="space-y-4 lg:sticky lg:top-6">
+      <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+        <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.members_card') }}</h2>
+        <div class="mt-3.5 flex items-center">
+          {% for member in recent_members %}
+          <span class="{{ '-ms-2.5' if not loop.first }} rounded-full ring-[2.5px] ring-white">
+            {{ avatar(member.name, member.avatar_url, size='h-9 w-9', text='text-[11px]') }}</span>
           {% endfor %}
+          {% if member_count > recent_members|length %}
+          <span class="-ms-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-700 ring-[2.5px] ring-white">+{{ member_count - recent_members|length }}</span>
+          {% endif %}
         </div>
-        <a href="/posts" class="mt-3 block text-sm text-brand-600 hover:underline">{{ _('community.all_posts') }} →</a>
+        <a href="/members" class="mt-3 block text-sm text-slate-500 hover:text-slate-900">{{ _('community.member_count', n=member_count) }}</a>
       </div>
 
-      <div class="card p-4">
-        <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">{{ org.name }}</h2>
-        {% if org.description %}<p class="text-sm text-slate-600">{{ org.description }}</p>{% endif %}
-        <dl class="mt-3 space-y-1 text-sm">
-          <div class="flex justify-between"><dt class="text-slate-500">{{ _('orgs.members') }}</dt><dd class="font-medium">{{ member_count }}</dd></div>
-          {% if g.membership %}
-          <div class="flex justify-between"><dt class="text-slate-500">{{ _('orgs.your_role') }}</dt><dd class="font-medium">{{ _('roles.' + g.membership.role) }}</dd></div>
-          <div class="flex justify-between"><dt class="text-slate-500">{{ _('members.joined') }}</dt><dd class="font-medium">{{ g.membership.created_at|localdate }}</dd></div>
-          {% endif %}
-        </dl>
+      {% if upcoming_event %}
+      <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+        <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.upcoming_event') }}</h2>
+        {% set starts = upcoming_event.fields.get('starts_on', '') %}
+        <div class="mt-3.5 flex items-start gap-3.5">
+          <div class="min-w-[52px] overflow-hidden rounded-[10px] text-center ring-1 ring-slate-200">
+            <div class="bg-red-500 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{{ starts|month_abbr }}</div>
+            <div class="py-1 text-xl font-bold tabular-nums text-slate-900">{{ starts[8:10].lstrip('0') or '?' }}</div>
+          </div>
+          <div class="min-w-0">
+            <a href="{{ upcoming_event.permalink }}"
+               class="block truncate text-[15px] font-semibold text-slate-900 hover:text-brand-700">{{ upcoming_event.title }}</a>
+            <p class="mt-0.5 text-sm text-slate-500">{{ starts }}{% if upcoming_event.fields.get('location') %} · {{ upcoming_event.fields.location }}{% endif %}</p>
+          </div>
+        </div>
+        <a href="/events" class="btn-secondary mt-4 w-full">{{ _('community.view_all_events') }}</a>
       </div>
+      {% endif %}
     </div>
   </aside>
 </div>

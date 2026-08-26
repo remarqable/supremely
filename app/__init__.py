@@ -77,6 +77,8 @@ def create_app(config_class=Config):
 
     from .platform.content_types import register_core_types
     register_core_types()
+    from .platform.content_library import register_library_types
+    register_library_types()
 
     from .controllers import (
         admin,
@@ -180,6 +182,34 @@ def _init_context(app):
         if value is None:
             return ''
         return value.strftime(fmt)
+
+    @app.template_filter('month_abbr')
+    def month_abbr(value):
+        """'2026-05-24' -> 'MAY' (locale-independent, for the event date chip)."""
+        import calendar
+        try:
+            return calendar.month_abbr[int(str(value)[5:7])].upper()
+        except (ValueError, IndexError):
+            return '?'
+
+    @app.template_filter('timeago')
+    def timeago(value):
+        """Feed-style relative time; falls back to the date past a week."""
+        from .models.base import utcnow
+        from .platform.i18n import t
+        if value is None:
+            return ''
+        delta = utcnow() - value
+        seconds = int(delta.total_seconds())
+        if seconds < 60:
+            return t('time.just_now')
+        if seconds < 3600:
+            return t('time.minutes_ago', n=seconds // 60)
+        if seconds < 86400:
+            return t('time.hours_ago', n=seconds // 3600)
+        if seconds < 7 * 86400:
+            return t('time.days_ago', n=seconds // 86400)
+        return value.strftime('%Y-%m-%d')
 
 
 def _init_security_headers(app):

@@ -170,6 +170,19 @@ def preview_content(content_id):
                        page=content, preview=True)
 
 
+@bp.route('/content-types')
+@org_required
+@require('content.write')
+def content_types_page():
+    """The content-type library: what this organization can publish today,
+    and the premade types that are on the way."""
+    from app.platform.content_library import COMING_SOON
+    counts = dict(Content.count_by_type())
+    return render_template('manage/content_types.html',
+                           types=CONTENT_TYPES.values(), counts=counts,
+                           coming_soon=COMING_SOON)
+
+
 @bp.route('/categories', methods=['GET', 'POST'])
 @org_required
 @require('content.write')

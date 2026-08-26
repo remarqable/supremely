@@ -1,13 +1,16 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
 
 {% block manage_content %}
-<div class="mx-auto max-w-2xl space-y-4">
+<div class="mx-auto max-w-2xl">
+{{ page_header(_('manage.plugins')) }}
+<div class="space-y-4">
   {% for slug, manifest in manifests.items() %}
   {% set row = rows.get(slug) %}
   <div class="card">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 class="text-lg font-semibold">{{ manifest.name }}
+        <h3 class="text-sm font-semibold tracking-tight">{{ manifest.name }}
           {% if row and row.is_enabled %}<span class="badge-green ms-2">{{ _('plugins.enabled') }} · v{{ row.version }}</span>
           {% elif row %}<span class="badge-slate ms-2">{{ _('plugins.status_disabled') }}</span>{% endif %}
         </h3>
@@ -58,5 +61,6 @@
   {% else %}
   <p class="text-sm text-slate-500">{{ _('plugins.none_available') }}</p>
   {% endfor %}
+</div>
 </div>
 {% endblock %}

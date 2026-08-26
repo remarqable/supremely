@@ -1,16 +1,17 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header, empty_state with context %}
 
 {% block manage_content %}
 <div class="mx-auto max-w-2xl">
+  {{ page_header(_('manage.flag_queue')) }}
   <div class="card">
-    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.flag_queue') }}</h3>
     <div class="space-y-3">
       {% for flag in flags %}
       {% set target = flag.target() %}
       <div class="rounded-md bg-slate-50 p-4 text-sm ring-1 ring-slate-200">
         <div class="flex items-center gap-2">
           <span class="badge-red">{{ flag.target_type }}</span>
-          <span class="text-slate-500">{{ flag.created_at|localdatetime }}</span>
+          <span class="font-mono text-xs text-slate-400">{{ flag.created_at|localdatetime }}</span>
         </div>
         {% if target %}
         <p class="mt-2">
@@ -28,7 +29,7 @@
         </form>
       </div>
       {% else %}
-      <p class="text-sm text-slate-500">{{ _('manage.no_flags') }}</p>
+      {{ empty_state(_('manage.no_flags')) }}
       {% endfor %}
     </div>
   </div>

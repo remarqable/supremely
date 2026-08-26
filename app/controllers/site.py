@@ -40,7 +40,10 @@ def render_org_home():
     """The organization home page is the active theme's front page, whose copy
     is theme-declared content (Manage → Home page). One concept, every theme —
     there is no separate 'homepage' Page that can shadow it."""
-    return render_site(['front-page.html'], org=g.org, content=None, page=None)
+    # The front page is the org's public landing: always themed, even for
+    # members — the member home is /dashboard.
+    return render_site(['front-page.html'], member_shell=False,
+                       org=g.org, content=None, page=None)
 
 
 def _visible(query):

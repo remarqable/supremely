@@ -1,24 +1,26 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
 
 {% block manage_content %}
+{{ page_header(_('manage.newsletter')) }}
 {% if not email_configured %}
 <div class="mb-6 rounded-md bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
   {{ _('newsletter.no_email_banner') }}
 </div>
 {% endif %}
 
-<div class="mb-6 grid gap-4 sm:grid-cols-3">
+<div class="mb-5 grid gap-4 sm:grid-cols-3">
   {% for key, value in stats.items() %}
-  <div class="card">
-    <div class="text-sm text-slate-600">{{ _('newsletter.stat_' + key) }}</div>
-    <div class="mt-1 text-3xl font-bold">{{ value }}</div>
+  <div class="card py-4">
+    <div class="text-[11px] font-medium uppercase tracking-wider text-slate-400">{{ _('newsletter.stat_' + key) }}</div>
+    <div class="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{{ value }}</div>
   </div>
   {% endfor %}
 </div>
 
-<div class="grid gap-6 lg:grid-cols-2">
+<div class="grid gap-5 lg:grid-cols-2">
   <div class="card">
-    <h3 class="mb-4 text-lg font-semibold">{{ _('newsletter.subscribers') }}</h3>
+    <h3 class="mb-4 section-title">{{ _('newsletter.subscribers') }}</h3>
     <form method="POST" action="{{ url_for('manage.add_subscriber') }}"
           class="mb-4 flex items-end gap-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -39,11 +41,11 @@
             {% elif subscriber.status == 'pending' %}<span class="badge-slate">{{ _('newsletter.status_pending') }}</span>
             {% else %}<span class="badge-red">{{ _('newsletter.status_unsubscribed') }}</span>{% endif %}
           </td>
-          <td>{{ subscriber.created_at|localdate }}</td>
+          <td class="font-mono text-xs text-slate-500">{{ subscriber.created_at|localdate }}</td>
           <td>
             <form method="POST" action="{{ url_for('manage.remove_subscriber', subscriber_id=subscriber.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="text-sm text-red-600 hover:underline">{{ _('common.remove') }}</button>
+              <button type="submit" class="text-sm text-slate-500 hover:text-red-600">{{ _('common.remove') }}</button>
             </form>
           </td>
         </tr>
@@ -56,7 +58,7 @@
   </div>
 
   <div class="card">
-    <h3 class="mb-4 text-lg font-semibold">{{ _('newsletter.deliveries') }}</h3>
+    <h3 class="mb-4 section-title">{{ _('newsletter.deliveries') }}</h3>
     <table class="table-plain">
       <thead><tr><th>{{ _('manage.page_title') }}</th><th>{{ _('common.status') }}</th><th>{{ _('newsletter.sent') }}</th><th>{{ _('common.created') }}</th></tr></thead>
       <tbody>
@@ -69,7 +71,7 @@
             {% else %}<span class="badge-slate">{{ delivery.status }}</span>{% endif %}
           </td>
           <td>{{ delivery.sent_count }}/{{ delivery.recipients_total }}{% if delivery.failed_count %} ({{ delivery.failed_count }} {{ _('newsletter.failed') }}){% endif %}</td>
-          <td>{{ delivery.created_at|localdatetime }}</td>
+          <td class="font-mono text-xs text-slate-500">{{ delivery.created_at|localdatetime }}</td>
         </tr>
         {% else %}
         <tr><td colspan="4" class="text-slate-500">{{ _('common.none') }}</td></tr>

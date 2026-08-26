@@ -1,9 +1,11 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
 
 {% block manage_content %}
-<div class="grid gap-6 lg:grid-cols-2">
+{{ page_header(_('manage.settings')) }}
+<div class="grid gap-5 lg:grid-cols-2">
   <div class="card">
-    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.branding') }}</h3>
+    <h3 class="mb-4 section-title">{{ _('manage.branding') }}</h3>
     <form method="POST" class="space-y-4">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="section" value="branding">
@@ -51,13 +53,13 @@
   </div>
 
   <div class="card">
-    <h3 class="mb-4 text-lg font-semibold">{{ _('manage.theme') }}</h3>
+    <h3 class="mb-4 section-title">{{ _('manage.theme') }}</h3>
     <form method="POST" class="space-y-4" x-data="{ theme: '{{ org.theme }}' }">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="section" value="theme">
       <div class="space-y-2">
         {% for slug, info in themes.items() %}
-        <label class="flex items-center gap-3 rounded-md ring-1 ring-slate-200 px-3 py-2">
+        <label class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 ring-1 ring-slate-200 transition-colors has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 hover:bg-slate-50">
           <input type="radio" name="theme" value="{{ slug }}" x-model="theme">
           <span class="flex-1">
             <span class="font-medium">{{ info.name }}</span>

@@ -1,4 +1,6 @@
-{% extends 'layouts/base.html' %}
+{# Members edit their profile inside the community shell; the layout falls
+   back to the app chrome when there is no membership (platform admins). #}
+{% extends 'layouts/community.html' if g.membership else 'layouts/base.html' %}
 
 {% block title %}{{ _('members.profile_title') }} — {{ installation_name }}{% endblock %}
 

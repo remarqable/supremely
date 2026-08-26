@@ -1,0 +1,47 @@
+{# The member shell's left sidebar: org switcher + community navigation.
+   `active` is one of: home, posts, discussions, members, newsletters,
+   events, settings — or '' for pages outside the sidebar's map. #}
+
+{% macro nav_item(label, href, active=false) %}
+<a href="{{ href }}" {{ 'aria-current=page' if active }}
+   class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {{ 'bg-brand-50 font-semibold text-brand-700' if active else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
+  <span class="{{ 'text-brand-700' if active else 'text-slate-400' }}">{{ caller() }}</span>
+  {{ label }}</a>
+{% endmacro %}
+
+{% macro community_nav(active='') %}
+<aside class="shrink-0 border-b border-slate-200/70 bg-white px-3.5 py-5 lg:min-h-[calc(100vh-3.5rem)] lg:w-60 lg:border-b-0 lg:border-e">
+  <div class="lg:sticky lg:top-6">
+    <a href="{{ url_for('orgs.launcher') }}" title="{{ _('nav.switch_org') }}"
+       class="flex items-center gap-2.5 rounded-xl p-1.5 hover:bg-slate-100">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-slate-900 text-base font-bold text-white">{{ g.org.name[:1]|upper }}</span>
+      <span class="truncate text-[15px] font-bold tracking-tight text-slate-900">{{ g.org.name }}</span>
+      <svg class="h-3.5 w-3.5 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+    </a>
+
+    <nav class="mt-5 space-y-0.5" aria-label="{{ _('community.nav') }}">
+      {% call nav_item(_('community.home'), url_for('orgs.dashboard'), active=(active == 'home')) %}
+        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L10 3l7 6.5V16a1 1 0 01-1 1h-3.5v-4.5h-5V17H4a1 1 0 01-1-1V9.5z"/></svg>
+      {% endcall %}
+      {% call nav_item(_('community.posts'), url_for('orgs.dashboard', tab='posts'), active=(active == 'posts')) %}
+        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h8"/></svg>
+      {% endcall %}
+      {% call nav_item(_('discussions.title'), '/discussions', active=(active == 'discussions')) %}
+        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
+      {% endcall %}
+      {% call nav_item(_('members.directory_title'), '/members', active=(active == 'members')) %}
+        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7" r="3"/><path d="M4 17c.8-2.9 3.2-4.5 6-4.5s5.2 1.6 6 4.5"/></svg>
+      {% endcall %}
+      {% call nav_item(_('community.newsletters'), '/subscribe', active=(active == 'newsletters')) %}
+        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="11" rx="1.5"/><path d="M3 6l7 5 7-5"/></svg>
+      {% endcall %}
+      {% call nav_item(_('community.events'), '/events', active=(active == 'events')) %}
+        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="13" rx="1.5"/><path d="M3 8h14M7 3v3M13 3v3"/></svg>
+      {% endcall %}
+      {% call nav_item(_('community.settings'), url_for('members.profile'), active=(active == 'settings')) %}
+        <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 3.5V5m0 10v1.5M16.5 10H15M5 10H3.5m11-4.5l-1 1m-9 7l-1 1m11 0l-1-1m-9-7l-1-1"/></svg>
+      {% endcall %}
+    </nav>
+  </div>
+</aside>
+{% endmacro %}

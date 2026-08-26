@@ -200,6 +200,14 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         return cls.query.filter_by(type=type_slug)
 
     @classmethod
+    def count_by_type(cls):
+        """(type_slug, count) pairs for this org's content, tenant-scoped."""
+        import sqlalchemy as sa
+        from app.extensions import db
+        return (db.session.query(cls.type, sa.func.count(cls.id))
+                .group_by(cls.type).all())
+
+    @classmethod
     def published_query(cls, type_slug: str | None = None):
         q = cls.query.filter_by(status='published')
         if type_slug:

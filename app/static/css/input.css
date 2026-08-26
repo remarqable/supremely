@@ -34,7 +34,10 @@
   --color-brand-700: oklch(0.45 0.18 275);
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --radius-card: 0.75rem;
+  /* Radius system: 8px surfaces, 6px controls. Depth comes from 1px borders
+     and surface shifts (white on slate-50), not shadows — floating elements
+     (menus, popovers) are the only things that cast one. */
+  --radius-card: 0.5rem;
 }
 
 @layer base {
@@ -43,15 +46,15 @@
 
 /* Base pieces are @utility so the component layer below can @apply them. */
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5
          text-sm font-medium transition-colors
          focus-visible:outline-2 focus-visible:outline-offset-2
          disabled:pointer-events-none disabled:opacity-50;
 }
 
 @utility input {
-  @apply block w-full rounded-md border-0 px-3 py-2 text-slate-900 bg-white
-         ring-1 ring-inset ring-slate-300 placeholder:text-slate-400
+  @apply block w-full rounded-md border-0 px-3 py-1.5 text-sm text-slate-900
+         bg-white ring-1 ring-inset ring-slate-300 placeholder:text-slate-400
          focus:ring-2 focus:ring-inset focus:ring-brand-600;
 }
 
@@ -63,8 +66,10 @@
 @layer components {
   .btn-primary   { @apply btn bg-brand-600 text-white hover:bg-brand-700
                           focus-visible:outline-brand-600; }
-  .btn-secondary { @apply btn bg-white text-slate-700 ring-1 ring-slate-300
-                          hover:bg-slate-50; }
+  .btn-secondary { @apply btn bg-white text-slate-700 ring-1 ring-slate-200
+                          hover:bg-slate-50 hover:text-slate-900; }
+  .btn-ghost     { @apply btn text-slate-600 hover:bg-slate-100
+                          hover:text-slate-900; }
   .btn-danger    { @apply btn bg-red-600 text-white hover:bg-red-700; }
 
   .label { @apply block text-sm font-medium text-slate-700; }
@@ -73,13 +78,27 @@
   .form-error { @apply mt-1 text-sm text-red-600; }
 
   .card {
-    @apply rounded-[--radius-card] bg-white p-6 shadow-sm ring-1 ring-slate-200;
+    @apply rounded-[--radius-card] bg-white p-5 ring-1 ring-slate-200;
   }
 
-  .table-plain { @apply w-full text-sm; }
-  .table-plain th { @apply border-b border-slate-200 px-3 py-2 text-start
-                           font-medium text-slate-600; }
-  .table-plain td { @apply border-b border-slate-100 px-3 py-2; }
+  /* Page furniture: one title/description/action pattern for every screen. */
+  .page-title { @apply text-lg font-semibold tracking-tight text-slate-900; }
+  .page-desc  { @apply mt-0.5 text-sm text-slate-500; }
+  .section-title { @apply text-sm font-semibold tracking-tight text-slate-900; }
+
+  .table-plain { @apply w-full text-sm tabular-nums; }
+  .table-plain th { @apply border-b border-slate-200 px-3 pb-2 pt-1 text-start
+                           text-[11px] font-medium uppercase tracking-wider
+                           text-slate-400; }
+  .table-plain td { @apply border-b border-slate-100 px-3 py-2.5 align-middle
+                           text-slate-700; }
+  .table-plain tbody tr:last-child td { @apply border-b-0; }
+  .table-plain tbody tr { @apply transition-colors hover:bg-slate-50/60; }
+
+  /* Crafted emptiness beats a lonely table row. */
+  .empty-state { @apply flex flex-col items-center gap-1 py-10 text-center; }
+  .empty-state-icon { @apply mb-2 flex h-9 w-9 items-center justify-center
+                             rounded-md bg-slate-100 text-slate-400; }
 
   .badge-green { @apply badge bg-green-50 text-green-700 ring-green-200; }
   .badge-red   { @apply badge bg-red-50 text-red-700 ring-red-200; }

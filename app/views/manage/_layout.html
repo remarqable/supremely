@@ -5,18 +5,23 @@
 
 {% block main_class %}mx-auto max-w-7xl px-4 py-8{% endblock %}
 
-{# One Content group entry per registered content type (Pages, Blog, Events,
-   plugin types). content editor/preview highlight their type's entry. #}
-{% set content_items = [] %}
+{# The type entries (Pages, Blog, Events, plugin types) nest as indented
+   children under Content types; the content editor/preview highlights its
+   type's entry. #}
+{% set type_items = [] %}
 {% for slug, ct in content_types().items() %}
-  {% do content_items.append({
+  {% do type_items.append({
       'endpoint': 'manage.content_list', 'label': ct.plural,
       'args': {'type_slug': slug}, 'match': 'type_slug',
       'also': ['manage.content_list']}) %}
 {% endfor %}
-{% do content_items.append({'endpoint': 'manage.categories', 'label': _('manage.categories')}) %}
-{% do content_items.append({'endpoint': 'manage.media', 'label': _('manage.media')}) %}
-{% do content_items.append({'endpoint': 'manage.navigation', 'label': _('manage.navigation')}) %}
+{% set content_items = [
+  {'endpoint': 'manage.content_types_page', 'label': _('manage.content_types'),
+   'children': type_items},
+  {'endpoint': 'manage.categories', 'label': _('manage.categories')},
+  {'endpoint': 'manage.media', 'label': _('manage.media')},
+  {'endpoint': 'manage.navigation', 'label': _('manage.navigation')},
+] %}
 
 {# Site group: the Landing editor appears only for themes that declare an
    editable content schema (theme.json "content"), so it's never a dead link. #}
