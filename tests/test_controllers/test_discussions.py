@@ -50,7 +50,7 @@ def test_reaction_htmx_swaps_bar_only(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client)
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
 
     # HTMX request gets the reaction-bar fragment, not a full page or redirect
     response = owner_client.post('/discussions/react', base_url=ACME,
@@ -114,7 +114,7 @@ def test_second_level_nesting_rejected(app, client, acme, globex, user):
     make_group(app, acme)
     alice_client, _alice = member_client(app, acme, 'a2@example.com')
     create_post(alice_client)
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
     alice_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                       data={'body': 'level 1'})
     first = Reply.query.first()
@@ -141,7 +141,7 @@ def test_public_space_readable_not_writable(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client, title='Open thread')
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
 
     anon_view = client.get(f'/discussions/general/{post.id}', base_url=ACME)
     assert anon_view.status_code == 200
@@ -158,7 +158,7 @@ def test_lock_stops_replies(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client)
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
 
     owner_client.post(f'/discussions/general/{post.id}/lock', base_url=ACME)
     assert db.session.get(Post, post.id).is_locked
@@ -174,7 +174,7 @@ def test_hidden_topic_invisible_to_members(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client, title='Bad post')
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
     owner_client.post(f'/discussions/general/{post.id}/hide', base_url=ACME)
 
     member, _ = member_client(app, acme, 'm4@example.com')
@@ -192,7 +192,7 @@ def test_member_cannot_moderate(app, client, acme, globex, user):
     owner_client = app.test_client()
     login_as(owner_client, user)
     create_post(owner_client)
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
     member, _ = member_client(app, acme, 'm5@example.com')
     assert member.post(f'/discussions/general/{post.id}/lock',
                        base_url=ACME).status_code == 403
@@ -203,7 +203,7 @@ def test_edit_own_only(app, client, acme, globex, user):
     alice_client, _alice = member_client(app, acme, 'a6@example.com')
     bob_client, _bob = member_client(app, acme, 'b6@example.com')
     create_post(alice_client, title='Mine')
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
 
     assert bob_client.post(f'/discussions/general/{post.id}/edit',
                            base_url=ACME,
@@ -219,7 +219,7 @@ def test_mention_notification(app, client, acme, globex, user):
     alice_client, alice = member_client(app, acme, 'alice7@example.com')
     bob_client, _bob = member_client(app, acme, 'bob7@example.com')
     create_post(alice_client, title='T')
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
     # Bob mentions alice7 by email local part
     bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'ping @alice7 what do you think?'})
@@ -235,7 +235,7 @@ def test_follow_notification_and_unread_flow(app, client, acme, globex, user):
     carol_client, carol = member_client(app, acme, 'c8@example.com')
 
     create_post(alice_client)
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
     # Carol follows without replying
     carol_client.post(f'/discussions/general/{post.id}/follow', base_url=ACME)
     bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
@@ -256,7 +256,7 @@ def test_flag_and_moderation_queue(app, client, acme, globex, user):
     make_group(app, acme)
     alice_client, _alice = member_client(app, acme, 'a9@example.com')
     create_post(alice_client, title='Spammy')
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
     alice_client.post('/discussions/flag', base_url=ACME, data={
         'target_type': 'post', 'target_id': post.id, 'reason': 'spam'})
     assert Flag.query.filter_by(resolved_at=None).count() == 1
@@ -301,7 +301,7 @@ def test_email_job_enqueued_only_when_configured(app, client, acme, globex, user
     alice_client, _alice = member_client(app, acme, 'a10@example.com')
     bob_client, _bob = member_client(app, acme, 'b10@example.com')
     create_post(alice_client)
-    post = Post.query.first()
+    post = Post.query.order_by(Post.id.desc()).first()
 
     bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'no email configured'})
@@ -324,7 +324,7 @@ def test_index_is_a_group_directory(app, client, acme, globex, user):
     page = owner_client.get('/discussions/', base_url=ACME)
     # Group row with post count and last-activity meta; no composer here.
     assert b'General' in page.data
-    assert b'1 posts' in page.data
+    assert b'3 posts' in page.data
     assert b'Latest thing' in page.data          # last-activity line
     assert b'New Post' in page.data              # modal trigger
 

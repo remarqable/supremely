@@ -204,6 +204,8 @@
   "discussions.create_post": "Create post",
   "discussions.replies": "replies",
   "discussions.pinned": "Pinned",
+  "discussions.seeded": "Starter",
+  "discussions.seeded_hint": "Seeded at setup — only you can see this badge. Edit or delete it like any post.",
   "discussions.locked_badge": "Locked",
   "discussions.reply": "Reply",
   "discussions.add_reply": "Add a reply",

@@ -101,6 +101,7 @@
         <span class="text-sm font-semibold text-slate-900">{{ post.author.name if post.author else g.org.name }}</span>
         <span class="text-xs text-slate-400">{{ post.created_at|timeago }}</span>
         {% if post.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
+        {% if post.is_seeded and g.membership and g.membership.role == 'owner' %}<span class="badge-slate shrink-0" title="{{ _('discussions.seeded_hint') }}">{{ _('discussions.seeded') }}</span>{% endif %}
         {% if post.is_locked %}<span class="badge-slate">{{ _('discussions.locked_badge') }}</span>{% endif %}
         {% if post.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
       </div>

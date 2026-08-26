@@ -1,8 +1,8 @@
 """Initial schema
 
-Revision ID: 1bd6805544d1
+Revision ID: b3c718ef3736
 Revises: 
-Create Date: 2026-08-26 13:42:36.697531
+Create Date: 2026-08-26 14:26:10.777135
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '1bd6805544d1'
+revision = 'b3c718ef3736'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -342,6 +342,7 @@ def upgrade():
     sa.Column('is_locked', sa.Boolean(), nullable=False),
     sa.Column('is_pinned', sa.Boolean(), nullable=False),
     sa.Column('is_hidden', sa.Boolean(), nullable=False),
+    sa.Column('is_seeded', sa.Boolean(), nullable=False),
     sa.Column('reply_count', sa.Integer(), nullable=False),
     sa.Column('last_activity_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('org_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),

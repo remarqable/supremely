@@ -76,6 +76,10 @@ class Post(OrgScoped, AuditMixin, BaseModel):
     is_locked = db.Column(db.Boolean, nullable=False, default=False)
     is_pinned = db.Column(db.Boolean, nullable=False, default=False)
     is_hidden = db.Column(db.Boolean, nullable=False, default=False)
+    # Provisioning seed marker: shown as a quiet badge to the OWNER only,
+    # so they know which starter posts to make their own. Members never see
+    # it, and the post is otherwise a completely ordinary post.
+    is_seeded = db.Column(db.Boolean, nullable=False, default=False)
     reply_count = db.Column(db.Integer, nullable=False, default=0)
     last_activity_at = db.Column(TZDateTime, nullable=False, default=utcnow)
 

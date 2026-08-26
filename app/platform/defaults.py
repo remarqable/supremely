@@ -69,11 +69,12 @@ Happy publishing!
 """
 
 
-def seed_default_content(session, org, owner_id=None) -> None:
+def seed_default_content(session, org, owner_id=None,
+                         vertical=None) -> None:
     """Idempotent-enough for fresh orgs: only ever called at provisioning."""
     from app.models.base import utcnow
     from app.models.content import Content
-    from app.models.discussion import DiscussionGroup
+    from app.models.discussion import DiscussionGroup, Post
     from app.models.navigation import NavigationItem
 
     now = utcnow()
@@ -159,6 +160,21 @@ def seed_default_content(session, org, owner_id=None) -> None:
                                 'location': 'Online'},
                         created_by_id=owner_id))
 
-    session.add(DiscussionGroup(org_id=org.id, name='General', slug='general',
-                      visibility='members', position=1,
-                      description='Introductions, questions, and everything else.'))
+    # The starter forum: three groups, six owner-authored posts — enough to
+    # demonstrate the model without feeling padded. Structure comes from the
+    # community_seed resolver so vertical overlays can reshape it.
+    from app.platform.community_seed import resolve_seed
+    for group_spec in resolve_seed(vertical)['groups']:
+        group = DiscussionGroup(org_id=org.id, name=group_spec['name'],
+                                slug=group_spec['slug'],
+                                visibility=group_spec['visibility'],
+                                position=group_spec['position'])
+        session.add(group)
+        session.flush()                          # need group.id for posts
+        for post_spec in group_spec['posts']:
+            session.add(Post(org_id=org.id, group_id=group.id,
+                             title=post_spec['title'],
+                             body=post_spec['body'],
+                             is_pinned=bool(post_spec.get('pinned')),
+                             is_seeded=bool(post_spec.get('seeded')),
+                             created_by_id=owner_id))

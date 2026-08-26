@@ -59,7 +59,8 @@ class Organization(BaseModel):
 
     @classmethod
     def provision(cls, name: str, slug: str, owner,
-                  seed_defaults: bool = True) -> 'Organization':
+                  seed_defaults: bool = True,
+                  vertical: str | None = None) -> 'Organization':
         """Create an organization with its owner membership and starter
         content (homepage, About, navigation, first post, General space),
         atomically."""
@@ -72,7 +73,8 @@ class Organization(BaseModel):
             db.session.add(Membership(user_id=owner.id, org_id=org.id, role='owner'))
             if seed_defaults:
                 from app.platform.defaults import seed_default_content
-                seed_default_content(db.session, org, owner_id=owner.id)
+                seed_default_content(db.session, org, owner_id=owner.id,
+                                     vertical=vertical)
         return org
 
     def suspend(self):
