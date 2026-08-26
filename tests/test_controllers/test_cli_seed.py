@@ -27,3 +27,29 @@ def test_seed_uses_existing_admin(app, runner, platform_admin):
     assert 'Platform Admin created' not in result.output
     org = Organization.get_by_slug('getsupremely')
     assert org.memberships[0].user_id == platform_admin.id
+
+
+def test_reseeding_never_clobbers_owner_edits(app, runner):
+    """Idempotent means heal, not reset: copy edited under Manage survives."""
+    from flask import g
+
+    from app.models import Organization
+    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    with app.test_request_context():
+        org = Organization.get_by_slug('getsupremely')
+        g.org = org
+        store = dict(org.setting('theme_content'))
+        store['supremely'] = {**store['supremely'],
+                              'headline_accent': 'my own words.'}
+        org.update_settings(theme_content=store)
+        org.description = 'Custom description'
+        org.theme = 'midnight'
+        org.save()
+
+    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    with app.test_request_context():
+        org = Organization.get_by_slug('getsupremely')
+        assert org.theme == 'midnight'
+        assert org.description == 'Custom description'
+        content = org.setting('theme_content')['supremely']
+        assert content['headline_accent'] == 'my own words.'

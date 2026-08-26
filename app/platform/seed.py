@@ -93,29 +93,40 @@ def seed_getsupremely_org():
             raise RuntimeError('Run the setup wizard (or users create-admin) first')
         org = Organization.provision(name='Supremely', slug='getsupremely',
                                      owner=owner, seed_defaults=False)
-    org.description = ('The open-source platform for publishing, memberships, '
-                       'newsletters, and community.')
-    org.brand_primary = '#4f46e5'
+    # Branding/theme/copy are DEFAULTS, applied once: a re-run must heal
+    # missing pieces, never clobber edits made under Manage — that's what
+    # "idempotent" promises. (Earlier versions reset these on every run.)
+    if not org.description:
+        org.description = ('The open-source platform for publishing, '
+                           'memberships, newsletters, and community.')
+    if not org.brand_primary:
+        org.brand_primary = '#4f46e5'
     # Dogfood the marketing theme: getsupremely.org runs on the Supremely
     # theme, and its home page is that theme's designed landing, filled in
     # with our own copy via theme-declared content.
-    org.theme = 'supremely'
+    if org.theme in (None, '', 'origin'):
+        org.theme = 'supremely'
     org.save()
-    org.update_settings(theme_content={'supremely': {
-        'headline_lead': 'The open-source',
-        'headline_accent': 'community platform.',
-        'subhead': 'A simple home for your members, content, newsletters '
-                   'and discussions.',
-        'primary_label': 'Get Started',
-        'secondary_label': 'View Demo',
-        'secondary_url': '/discussions',
-        'features': [
-            {'title': 'Publish', 'desc': 'Share updates and articles'},
-            {'title': 'Newsletter', 'desc': 'Send beautiful emails'},
-            {'title': 'Discussions', 'desc': 'Connect and talk with your members'},
-            {'title': 'Membership', 'desc': 'Offer access and grow your community'},
-        ],
-    }})
+    theme_content = dict(org.setting('theme_content') or {})
+    if 'supremely' not in theme_content:
+        theme_content['supremely'] = {
+            'headline_lead': 'The open-source',
+            'headline_accent': 'community platform.',
+            'subhead': 'A simple home for your members, content, newsletters '
+                       'and discussions.',
+            'primary_label': 'Get Started',
+            'secondary_label': 'View Demo',
+            'secondary_url': '/discussions',
+            'features': [
+                {'title': 'Publish', 'desc': 'Share updates and articles'},
+                {'title': 'Newsletter', 'desc': 'Send beautiful emails'},
+                {'title': 'Discussions',
+                 'desc': 'Connect and talk with your members'},
+                {'title': 'Membership',
+                 'desc': 'Offer access and grow your community'},
+            ],
+        }
+        org.update_settings(theme_content=theme_content)
 
     owner_membership = (Membership.query
                         .filter_by(org_id=org.id, role='owner').first())
