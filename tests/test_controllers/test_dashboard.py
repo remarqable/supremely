@@ -166,3 +166,27 @@ def test_preview_stays_themed_for_members(app, client, acme, user):
     response = client.get(f'/manage/content/{page_id}/preview', base_url=ACME)
     assert response.status_code == 200
     assert SHELL_MARKER not in response.data
+
+
+# --- Identity chrome ----------------------------------------------------------
+
+def test_shell_navbar_centers_name_and_drops_section_links(client, acme, user):
+    login_as(client, user)
+    page = client.get('/dashboard', base_url=ACME).data
+    assert b'>Acme</a>' in page                    # centered name -> public site
+    assert b'href="/manage"' not in page           # sidebar owns navigation
+    assert b'/launcher' not in page                # single membership: no switcher
+
+
+def test_switcher_appears_with_multiple_memberships(app, client, acme, globex, user):
+    from app.models import Membership
+    Membership.add(user.id, globex.id, role='member')
+    login_as(client, user)
+    page = client.get('/dashboard', base_url=ACME).data
+    assert b'/launcher' in page                    # avatar menu shows it now
+
+
+def test_console_keeps_full_navbar(client, acme, user):
+    login_as(client, user)
+    page = client.get('/manage/content/page', base_url=ACME).data
+    assert b'href="/dashboard"' in page            # console navbar unchanged
