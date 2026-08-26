@@ -21,5 +21,8 @@ __pycache__
 htmlcov
 .DS_Store
 config/local.env
+.env
+*.env
+**/*.env
 scripts/smoke-*.sh
 tests
