@@ -19,7 +19,23 @@
       <svg class="h-3.5 w-3.5 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
     </a>
 
-    <nav class="mt-5 space-y-0.5" aria-label="{{ _('community.nav') }}">
+    {% if can('content.write') or can('content.moderate') %}
+    <form method="POST" action="{{ url_for('orgs.toggle_manage_mode') }}" class="mt-3 px-1.5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+      <button type="submit"
+              class="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-sm font-medium ring-1 transition-colors {{ 'bg-brand-50 text-brand-700 ring-brand-600/30' if managing() else 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 hover:text-slate-900' }}">
+        {% if managing() %}
+        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.5 3.5L13 4.5"/></svg>
+        {{ _('community.managing') }}
+        {% else %}
+        {{ _('community.manage') }}
+        {% endif %}
+      </button>
+    </form>
+    {% endif %}
+
+    <nav class="mt-4 space-y-0.5" aria-label="{{ _('community.nav') }}">
       {% call nav_item(_('community.home'), url_for('orgs.dashboard'), active=(active == 'home')) %}
         <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L10 3l7 6.5V16a1 1 0 01-1 1h-3.5v-4.5h-5V17H4a1 1 0 01-1-1V9.5z"/></svg>
       {% endcall %}

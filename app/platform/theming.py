@@ -56,6 +56,7 @@ def init_theming(app) -> None:
     app.jinja_env.globals['current_theme'] = current_theme
     # Resolved editable content for the active theme (defaults filled in).
     app.jinja_env.globals['theme_content'] = lambda: resolve_content(current_theme())
+    app.jinja_env.globals['community_tokens'] = community_tokens
 
 
 def scan_themes() -> None:
@@ -147,14 +148,52 @@ def clean_theme_config(theme: str, submitted: dict) -> dict:
     return cleaned
 
 
+# The community shell is app-owned: themes may tint it through this approved
+# whitelist only — never templates or layout. Values are interpolated into a
+# <style> block, so anything but #RRGGBB is discarded (CSS injection guard,
+# same rationale as Organization.validate).
+COMMUNITY_TOKEN_KEYS = ('brand-500', 'brand-600', 'brand-700')
+_HEX_RE = re.compile(r'#[0-9a-fA-F]{6}')
+
+
+def community_tokens() -> dict:
+    """The active theme's approved brand tokens for the community shell."""
+    declared = AVAILABLE_THEMES.get(current_theme(), {}).get(
+        'community_tokens', {})
+    if not isinstance(declared, dict):
+        return {}
+    return {key: value for key, value in declared.items()
+            if key in COMMUNITY_TOKEN_KEYS
+            and isinstance(value, str) and _HEX_RE.fullmatch(value)}
+
+
+def _member_shell_active(member_shell: bool, context: dict) -> bool:
+    """Members see community pages inside the app-owned member shell;
+    visitors get the theme. Same URLs, viewer-appropriate chrome. The front
+    page opts out (member_shell=False) and previews always show the public
+    look."""
+    from flask import g
+    return (member_shell and not context.get('preview')
+            and getattr(g, 'membership', None) is not None)
+
+
 def render_site(candidates: list[str], member_shell: bool = True,
                 **context) -> str:
     """Render through the WordPress-style template hierarchy: for each
     candidate in specificity order, try the active theme, then Origin (the
-    fallback theme), then core/plugin templates by bare name."""
-    from flask import g, render_template
+    fallback theme), then core/plugin templates by bare name.
+
+    When the member shell is active, app-owned community templates
+    (app/views/community/) win over theme templates: the community surface
+    is the application and is never theme-resolvable — themes control the
+    public site only (see the UI architecture direction doc)."""
+    from flask import render_template
     theme = current_theme()
-    names = []
+    shell = _member_shell_active(member_shell, context)
+    # Any community template beats any theme template — the shell is never
+    # theme-resolvable. Themes remain the fallback for pages that have no
+    # community version yet (e.g. subscribe).
+    names = [f'community/{candidate}' for candidate in candidates] if shell else []
     for candidate in candidates:
         if theme != 'origin':
             names.append(f'themes/{theme}/{candidate}')
@@ -162,11 +201,7 @@ def render_site(candidates: list[str], member_shell: bool = True,
         names.append(candidate)        # core partials and plugin templates
     names = list(dict.fromkeys(names))
     context.setdefault('theme_settings', theme_config())
-    # Members see community pages inside the member shell; visitors get the
-    # theme. Same URLs, viewer-appropriate chrome. The front page opts out
-    # (member_shell=False) and previews always show the public look.
-    if (member_shell and not context.get('preview')
-            and getattr(g, 'membership', None) is not None):
+    if shell:
         context.setdefault('site_layout', 'layouts/community.html')
     # Site templates extend {{ site_layout }} so a theme's layout override
     # applies even to pages the theme does not override itself.

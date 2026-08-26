@@ -15,12 +15,20 @@
   <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
   {% set favicon = g.org.favicon() %}
   {% if favicon %}<link rel="icon" href="{{ favicon.url('original') }}">{% endif %}
-  {% if g.org.brand_primary %}
+  {# Approved brand tokens only: theme-declared community_tokens (validated
+     #RRGGBB in theming.community_tokens), then the org's own brand color on
+     top. Themes never restyle the shell beyond this whitelist. #}
+  {% set tokens = community_tokens() %}
+  {% if tokens or g.org.brand_primary %}
   <style>
     :root {
+      {% for key, value in tokens.items() %}--color-{{ key }}: {{ value }};
+      {% endfor %}
+      {%- if g.org.brand_primary %}
       --color-brand-500: {{ g.org.brand_primary }};
       --color-brand-600: {{ g.org.brand_primary }};
       --color-brand-700: {{ g.org.brand_primary }};
+      {%- endif %}
     }
   </style>
   {% endif %}

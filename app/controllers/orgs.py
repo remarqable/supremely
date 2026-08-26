@@ -1,6 +1,7 @@
 """Organization launcher, creation, and member-facing org pages."""
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request
+from flask import (Blueprint, abort, flash, g, redirect, render_template,
+                   request, url_for)
 from flask_login import current_user, login_required
 
 from app.models import InstallationSetting, Membership, Organization
@@ -53,6 +54,23 @@ def create():
             flash(e.message, 'error')
 
     return render_template('orgs/new.html')
+
+
+@bp.route('/manage-mode', methods=['POST'])
+@org_required
+@login_required
+def toggle_manage_mode():
+    """Flip manage mode: a PRESENTATION state that surfaces the management
+    controls the user is already authorized for. It grants nothing — every
+    control stays individually permission-gated, and the backend enforces
+    each action regardless of this flag."""
+    from flask import session
+
+    from app.platform.authz import can
+    if not (can('content.write') or can('content.moderate')):
+        abort(403)
+    session['manage_mode'] = not session.get('manage_mode')
+    return redirect(request.form.get('next') or url_for('orgs.dashboard'))
 
 
 FEED_TABS = ('all', 'posts', 'discussions', 'announcements')

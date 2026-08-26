@@ -71,6 +71,7 @@ def test_member_lands_in_community_after_login(app, client, acme, globex, user):
 
     home = client.get('/dashboard', base_url=ACME)
     assert home.status_code == 200
-    assert b'Recent activity' in home.data
-    assert b'General' in home.data              # seeded space in the left rail
-    assert b'Hello, World!' in home.data        # seeded post in announcements
+    # The community shell: sidebar nav + feed with the seeded first post.
+    assert b'aria-label="Community navigation"' in home.data
+    assert b'Discussions' in home.data
+    assert b'Hello, World!' in home.data        # seeded article in the feed

@@ -1,0 +1,77 @@
+{# Building blocks for the community surface (app-owned; never
+   theme-resolvable). Feed cards and the composer keep every community page
+   in one visual language. #}
+{% from 'partials/_ui.html' import avatar with context %}
+
+{% macro composer(spaces) %}
+{# Inline post composer: collapsed single line, expands on focus. Posts
+   through discussions.new_post. With one space the target is fixed; with
+   several, a picker appears. #}
+{% if spaces and can('discuss') %}
+<form method="POST" x-data="{ open: false, space: '{{ spaces[0].slug }}' }"
+      :action="'/discussions/' + space + '/new'"
+      action="/discussions/{{ spaces[0].slug }}/new"
+      class="rounded-xl bg-white p-3 ring-1 ring-slate-200">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="flex items-center gap-3">
+    {{ avatar(current_user.name, current_user.avatar_url, size='h-8.5 w-8.5', text='text-xs') }}
+    <input type="text" name="title" maxlength="200" required
+           placeholder="{{ _('community.share_prompt') }}" @focus="open = true"
+           class="min-w-0 flex-1 border-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0">
+    <svg x-show="!open" class="h-5 w-5 shrink-0 text-slate-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M3 14l4-3.5 3 2.5 3-3 4 4"/></svg>
+  </div>
+  <div x-show="open" x-cloak x-transition class="mt-3 space-y-3 border-t border-slate-100 pt-3">
+    <textarea name="body" rows="3" required
+              placeholder="{{ _('community.post_body_placeholder') }}"
+              class="textarea"></textarea>
+    <div class="flex items-center gap-2">
+      {% if spaces|length > 1 %}
+      <label for="composer-space" class="text-xs font-medium text-slate-500">{{ _('community.choose_space') }}</label>
+      <select id="composer-space" x-model="space" class="select w-auto min-w-32">
+        {% for space in spaces %}<option value="{{ space.slug }}">{{ space.name }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <button type="button" @click="open = false" class="btn-ghost ms-auto">{{ _('common.cancel') }}</button>
+      <button type="submit" class="btn-primary">{{ _('community.post_button') }}</button>
+    </div>
+  </div>
+</form>
+{% endif %}
+{% endmacro %}
+
+{% macro discussion_card(post, show_space=true) %}
+<article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300 {{ 'opacity-60' if post.is_hidden }}">
+  <div class="flex items-center gap-2.5">
+    {{ avatar(post.author.name if post.author else '?',
+              post.author.avatar_url if post.author else None,
+              size='h-8.5 w-8.5', text='text-xs') }}
+    <div class="min-w-0">
+      <div class="truncate text-sm font-semibold text-slate-900">{{ post.author.name if post.author else g.org.name }}</div>
+      <div class="text-xs text-slate-400">{{ post.last_activity_at|timeago }}</div>
+    </div>
+    {% if show_space %}
+    <span class="badge-slate ms-auto shrink-0 uppercase tracking-wide">{{ post.space.name }}</span>
+    {% endif %}
+  </div>
+  <h2 class="mt-3 text-lg font-semibold tracking-tight">
+    <a href="{{ post.url }}" class="text-slate-900 hover:text-brand-700">{{ post.title }}</a>
+  </h2>
+  {% if post.body %}<p class="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ post.body[:280] }}</p>{% endif %}
+  <div class="mt-3.5 flex items-center gap-3 text-sm text-slate-500">
+    <a href="{{ post.url }}" class="inline-flex items-center gap-1.5 hover:text-slate-900">
+      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
+      {{ _('community.comments_count', n=post.comment_count) }}</a>
+    {% if post.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
+    {% if post.is_locked %}<span class="badge-slate">{{ _('discussions.locked_badge') }}</span>{% endif %}
+    {% if post.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
+  </div>
+</article>
+{% endmacro %}
+
+{% macro search_box(q, placeholder) %}
+<form method="GET" class="flex gap-2">
+  <input type="search" name="q" value="{{ q }}" class="input max-w-52"
+         placeholder="{{ placeholder }}" aria-label="{{ placeholder }}">
+  <button type="submit" class="btn-secondary">{{ _('common.search') }}</button>
+</form>
+{% endmacro %}

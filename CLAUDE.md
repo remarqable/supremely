@@ -36,6 +36,13 @@ Non-negotiables from the blueprint:
 - Migrations only via the deploy path, never inside `create_app`. Dev uses `flask dev sync-db` (schema from models); author Alembic migrations only for prod/CI.
 - Plugin templates use `plugin_url_for`, never `url_for`.
 
+## UI architecture: one surface, two modes, plus a console
+
+Authority: `../supremely-dev/Supremely UI Architecture Direction — One Surface, Two Modes, Plus a Console.md`. The community is the application: members and admins share the same routes and layouts. Before building management UI, ask two questions — *acting on the object in front of you?* → inline on the community surface (visible per `can()`, surfaced prominently by manage mode); *rules, queues, bulk ops, or configuration?* → the console (`/manage` for orgs, `/admin` for the platform). Never build a parallel `/manage` CRUD for content that can be managed where it lives.
+
+- **Manage mode** (`session['manage_mode']`, `managing()` template helper) is presentation state, never authorization — every control is individually permission-gated and the backend enforces each action regardless.
+- **Themes style the public site only.** The authenticated community shell (`app/views/layouts/community.html` + `app/views/community/*`) is app-owned and never theme-resolvable; themes may tint it only through the approved token whitelist (`theming.community_tokens`). `render_site` picks community templates and the shell layout for members; visitors always get the theme.
+
 ## Architecture
 
 MVC with fat models, thin controllers, dumb templates. Server-rendered Jinja (`app/views/` — note `template_folder='views'`) + HTMX + Alpine; no SPA, no npm.

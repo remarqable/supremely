@@ -161,6 +161,14 @@ def _init_context(app):
             from .models.notification import Notification
             return Notification.unread_count(current_user.id)
 
+        def managing():
+            """Manage mode: presentation only — surfaces controls the user
+            already has permission for. Never consulted for authorization."""
+            from flask import session
+            return bool(session.get('manage_mode')
+                        and getattr(g, 'membership', None) is not None
+                        and (can('content.write') or can('content.moderate')))
+
         return {
             'installation_name': installation_name,
             'can': can,
@@ -168,6 +176,7 @@ def _init_context(app):
             'app_version': APP_VERSION,
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,
+            'managing': managing,
             'content_types': lambda: CONTENT_TYPES,
         }
 

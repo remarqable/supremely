@@ -1,0 +1,76 @@
+{% extends site_layout %}
+{% from 'partials/_ui.html' import avatar, empty_state with context %}
+
+{% block title %}{{ archive_title }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+  <div class="min-w-0">
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ archive_title }}</h1>
+    {% if content_type.description %}<p class="mt-0.5 text-sm text-slate-500">{{ content_type.description }}</p>{% endif %}
+  </div>
+  {# Creation is permission-driven and visible in both modes: the "big form"
+     lives in the console, but publishing starts from the community surface. #}
+  {% if can('content.write') %}
+  <a href="{{ url_for('manage.new_content', type_slug=content_type.slug) }}"
+     class="btn-primary">{{ _('manage.new_of', name=content_type.singular) }}</a>
+  {% endif %}
+</div>
+
+<div class="space-y-3.5">
+  {% for item in items %}
+  <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
+    <div class="flex items-start gap-3.5">
+      {% if content_type.slug == 'event' and item.fields.get('starts_on') %}
+      {% set starts = item.fields.get('starts_on', '') %}
+      <div class="min-w-[52px] overflow-hidden rounded-[10px] text-center ring-1 ring-slate-200">
+        <div class="bg-red-500 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{{ starts|month_abbr }}</div>
+        <div class="py-1 text-xl font-bold tabular-nums text-slate-900">{{ starts[8:10].lstrip('0') or '?' }}</div>
+      </div>
+      {% else %}
+      {{ avatar(item.author.name if item.author else g.org.name,
+                item.author.avatar_url if item.author else None,
+                size='h-8.5 w-8.5', text='text-xs') }}
+      {% endif %}
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold text-slate-900">{{ item.author.name if item.author else g.org.name }}</span>
+          <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
+          <span class="badge-slate ms-auto shrink-0 uppercase tracking-wide">{{ content_type.singular }}</span>
+        </div>
+        <h2 class="mt-1.5 text-lg font-semibold tracking-tight">
+          <a href="{{ item.permalink }}" class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>
+        </h2>
+        {% set summary = item.excerpt_or_summary() %}
+        {% if summary %}<p class="mt-1 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
+        <div class="mt-2.5 flex items-center gap-3 text-sm text-slate-500">
+          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_post') }} →</a>
+          {% if content_type.slug == 'event' and item.fields.get('location') %}
+          <span>· {{ item.fields.location }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <div class="rounded-xl bg-white ring-1 ring-slate-200">
+    {% if can('content.write') %}
+    {{ empty_state(_('posts.none'), url_for('manage.new_content', type_slug=content_type.slug), _('manage.new_of', name=content_type.singular)) }}
+    {% else %}
+    {{ empty_state(_('posts.none')) }}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if pagination and pagination.pages > 1 %}
+<nav class="mt-6 flex items-center justify-between text-sm" aria-label="{{ _('posts.pagination') }}">
+  {% if pagination.has_prev %}
+  <a href="?page={{ pagination.prev_num }}" class="btn-secondary">{{ _('posts.newer') }}</a>
+  {% else %}<span></span>{% endif %}
+  {% if pagination.has_next %}
+  <a href="?page={{ pagination.next_num }}" class="btn-secondary">{{ _('posts.older') }}</a>
+  {% endif %}
+</nav>
+{% endif %}
+{% endblock %}

@@ -1,6 +1,7 @@
 {% extends 'layouts/base.html' %}
 {% from 'partials/_ui.html' import avatar, empty_state with context %}
 {% from 'partials/_community_nav.html' import community_nav with context %}
+{% from 'community/_macros.html' import composer with context %}
 
 {% block title %}{{ _('community.home') }} — {{ org.name }}{% endblock %}
 
@@ -16,33 +17,7 @@
     {% include 'partials/_flash.html' %}
     <h1 class="mb-5 text-2xl font-bold tracking-tight text-slate-900">{{ _('community.home') }}</h1>
 
-    {% if spaces and can('discuss') %}
-    <form method="POST" x-data="{ open: false, space: '{{ spaces[0].slug }}' }"
-          :action="'/discussions/' + space + '/new'"
-          class="rounded-xl bg-white p-3 ring-1 ring-slate-200">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="flex items-center gap-3">
-        {{ avatar(current_user.name, current_user.avatar_url, size='h-8.5 w-8.5', text='text-xs') }}
-        <input type="text" name="title" maxlength="200" required
-               placeholder="{{ _('community.share_prompt') }}" @focus="open = true"
-               class="min-w-0 flex-1 border-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0">
-        <svg x-show="!open" class="h-5 w-5 shrink-0 text-slate-300" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M3 14l4-3.5 3 2.5 3-3 4 4"/></svg>
-      </div>
-      <div x-show="open" x-cloak x-transition class="mt-3 space-y-3 border-t border-slate-100 pt-3">
-        <textarea name="body" rows="3" required
-                  placeholder="{{ _('community.post_body_placeholder') }}"
-                  class="textarea"></textarea>
-        <div class="flex items-center gap-2">
-          <label for="composer-space" class="text-xs font-medium text-slate-500">{{ _('community.choose_space') }}</label>
-          <select id="composer-space" x-model="space" class="select w-auto min-w-32">
-            {% for space in spaces %}<option value="{{ space.slug }}">{{ space.name }}</option>{% endfor %}
-          </select>
-          <button type="button" @click="open = false" class="btn-ghost ms-auto">{{ _('common.cancel') }}</button>
-          <button type="submit" class="btn-primary">{{ _('community.post_button') }}</button>
-        </div>
-      </div>
-    </form>
-    {% endif %}
+    {{ composer(spaces) }}
 
     <nav class="mb-4 mt-5 flex gap-6 border-b border-slate-200/70" aria-label="{{ _('community.recent_activity') }}">
       {% for key in ('all', 'posts', 'discussions', 'announcements') %}

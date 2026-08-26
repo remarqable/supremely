@@ -1,0 +1,218 @@
+{% extends site_layout %}
+{% from 'partials/_ui.html' import avatar with context %}
+
+{% block title %}{{ post.title }} — {{ g.org.name }}{% endblock %}
+
+{% macro reaction_bar(target_type, target_id) %}
+{% set counts = reactions[target_type].get(target_id, {}) if target_type == 'comment' else reactions['post'] %}
+{% include 'partials/_reaction_bar.html' %}
+{% endmacro %}
+
+{% macro action_form(url, label, style='text-slate-600 hover:bg-slate-50') %}
+<form method="POST" action="{{ url }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="block w-full rounded px-3 py-1.5 text-start text-sm {{ style }}">{{ label }}</button>
+</form>
+{% endmacro %}
+
+{% macro comment_form(parent_id=None) %}
+<form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/comment" class="mt-3 space-y-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if parent_id %}<input type="hidden" name="parent_id" value="{{ parent_id }}">{% endif %}
+  <textarea name="body" class="textarea min-h-20" required
+            placeholder="{{ _('discussions.comment_placeholder') }}"
+            aria-label="{{ _('discussions.comment') }}"></textarea>
+  <button type="submit" class="btn-primary">{{ _('discussions.comment') }}</button>
+</form>
+{% endmacro %}
+
+{% macro render_comment(comment, nested=False) %}
+<div id="comment-{{ comment.id }}"
+     class="rounded-xl bg-white p-4 ring-1 ring-slate-200 {{ 'ms-10' if nested }} {{ 'opacity-60 ring-red-200' if comment.is_hidden }}">
+  {% if comment.is_hidden %}<span class="badge-red mb-2">{{ _('discussions.hidden') }}</span>{% endif %}
+  <div class="flex items-center gap-2.5">
+    {{ avatar(comment.author.name if comment.author else '?',
+              comment.author.avatar_url if comment.author else None,
+              size='h-7 w-7', text='text-[10px]') }}
+    <span class="text-sm font-semibold text-slate-900">{{ comment.author.name if comment.author else g.org.name }}</span>
+    <span class="text-xs text-slate-400">{{ comment.created_at|timeago }}</span>
+  </div>
+  <div class="prose-supremely mt-2 text-[15px]">{{ comment.html | safe }}</div>
+  {{ reaction_bar('comment', comment.id) }}
+  <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
+    {% if can('discuss') and not post.is_locked and not nested %}
+    <details><summary class="cursor-pointer text-slate-500 hover:text-slate-900">{{ _('discussions.comment') }}</summary>
+      {{ comment_form(parent_id=comment.id) }}
+    </details>
+    {% endif %}
+    {% if comment.can_edit() %}
+    <details><summary class="cursor-pointer text-slate-500 hover:text-slate-900">{{ _('discussions.edit') }}</summary>
+      <form method="POST" action="/discussions/comments/{{ comment.id }}/edit" class="mt-2 space-y-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <textarea name="body" class="textarea min-h-20">{{ comment.body }}</textarea>
+        <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+      </form>
+    </details>
+    <form method="POST" action="/discussions/comments/{{ comment.id }}/delete" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
+    </form>
+    {% endif %}
+    {% if can('content.moderate') and managing() %}
+    <form method="POST" action="/discussions/comments/{{ comment.id }}/hide" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="text-amber-600 hover:text-amber-700">
+        {{ _('discussions.unhide') if comment.is_hidden else _('discussions.hide') }}</button>
+    </form>
+    {% endif %}
+    {% if can('discuss') %}
+    <form method="POST" action="/discussions/flag" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="target_type" value="comment">
+      <input type="hidden" name="target_id" value="{{ comment.id }}">
+      <button type="submit" class="text-slate-400 hover:text-slate-700">{{ _('discussions.flag') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<nav class="mb-3 text-sm text-slate-400" aria-label="{{ _('discussions.breadcrumb') }}">
+  <a href="/discussions" class="hover:text-slate-900">{{ _('discussions.title') }}</a>
+  <span class="mx-1">/</span>
+  <a href="/discussions/{{ space.slug }}" class="hover:text-slate-900">{{ space.name }}</a>
+</nav>
+
+<article class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
+  <div class="flex items-start gap-3">
+    {{ avatar(post.author.name if post.author else '?',
+              post.author.avatar_url if post.author else None,
+              size='h-9 w-9', text='text-xs') }}
+    <div class="min-w-0 flex-1">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-semibold text-slate-900">{{ post.author.name if post.author else g.org.name }}</span>
+        <span class="text-xs text-slate-400">{{ post.created_at|timeago }}</span>
+        {% if post.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
+        {% if post.is_locked %}<span class="badge-slate">{{ _('discussions.locked_badge') }}</span>{% endif %}
+        {% if post.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
+      </div>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ post.title }}</h1>
+    </div>
+
+    <div class="flex shrink-0 items-center gap-2">
+      {% if is_org_member() %}
+      <form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/follow">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-secondary">
+          {{ _('discussions.unfollow') if following else _('discussions.follow') }}</button>
+      </form>
+      {% endif %}
+      {# Normal mode keeps the page clean: the viewer's own actions live in a
+         quiet overflow menu. Manage mode surfaces moderation inline below. #}
+      {% if post.can_edit() or can('discuss') %}
+      <div x-data="{ open: false }" class="relative">
+        <button @click="open = !open" @keydown.escape="open = false"
+                :aria-expanded="open" aria-haspopup="menu" aria-label="{{ _('common.actions') }}"
+                class="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>
+        </button>
+        <div x-show="open" @click.outside="open = false" x-cloak x-transition role="menu"
+             class="absolute end-0 z-20 mt-1.5 w-44 rounded-lg bg-white py-1 shadow-lg ring-1 ring-slate-900/10">
+          {% if post.can_edit() %}
+          {{ action_form('/discussions/%s/%s/delete' % (space.slug, post.id), _('common.delete'), 'text-red-600 hover:bg-red-50') }}
+          {% endif %}
+          {% if can('discuss') %}
+          <form method="POST" action="/discussions/flag">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="target_type" value="post">
+            <input type="hidden" name="target_id" value="{{ post.id }}">
+            <button type="submit" class="block w-full rounded px-3 py-1.5 text-start text-sm text-slate-600 hover:bg-slate-50">{{ _('discussions.flag') }}</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="prose-supremely mt-4">{{ post.html | safe }}</div>
+  {{ reaction_bar('post', post.id) }}
+
+  {% if post.can_edit() and not managing() %}
+  <details class="mt-3">
+    <summary class="cursor-pointer text-xs text-slate-500 hover:text-slate-900">{{ _('discussions.edit') }}</summary>
+    <form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/edit" class="mt-2 space-y-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="text" name="title" class="input" value="{{ post.title }}">
+      <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
+      <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+    </form>
+  </details>
+  {% endif %}
+
+  {% if managing() and (post.can_edit() or can('content.moderate')) %}
+  <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+    <span class="badge-brand me-1">{{ _('community.managing') }}</span>
+    {% if post.can_edit() %}
+    <details class="min-w-0 flex-1">
+      <summary class="btn-secondary inline-flex cursor-pointer">{{ _('discussions.edit') }}</summary>
+      <form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/edit" class="mt-3 space-y-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="title" class="input" value="{{ post.title }}">
+        <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
+        <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+      </form>
+    </details>
+    {% endif %}
+    {% if can('content.moderate') %}
+    <form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/pin">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary">{{ _('discussions.unpin') if post.is_pinned else _('discussions.pin') }}</button>
+    </form>
+    <form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/lock">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary">{{ _('discussions.unlock') if post.is_locked else _('discussions.lock') }}</button>
+    </form>
+    <form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/hide">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary text-amber-700">{{ _('discussions.unhide') if post.is_hidden else _('discussions.hide') }}</button>
+    </form>
+    {% endif %}
+    {% if post.can_edit() %}
+    <form method="POST" action="/discussions/{{ space.slug }}/{{ post.id }}/delete">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary text-red-600">{{ _('common.delete') }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</article>
+
+<h2 class="mb-3 mt-7 text-[15px] font-semibold tracking-tight text-slate-900">
+  {{ post.comment_count }} {{ _('discussions.comments') }}</h2>
+<div class="space-y-3">
+  {% for comment in top_level %}
+    {{ render_comment(comment) }}
+    {% for child in children.get(comment.id, []) %}
+      {{ render_comment(child, nested=True) }}
+    {% endfor %}
+  {% endfor %}
+</div>
+
+{% if can('discuss') %}
+  {% if post.is_locked %}
+  <p class="mt-6 rounded-xl bg-white p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+    {{ _('discussions.locked') }}</p>
+  {% else %}
+  <div class="mt-6 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+    <h3 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('discussions.add_comment') }}</h3>
+    {{ comment_form() }}
+  </div>
+  {% endif %}
+{% elif not current_user.is_authenticated %}
+<p class="mt-6 text-sm text-slate-500">
+  <a href="{{ url_for('auth.login', next=request.path) }}" class="text-brand-600 hover:underline">{{ _('nav.login') }}</a>
+  {{ _('discussions.login_to_participate') }}</p>
+{% endif %}
+{% endblock %}
