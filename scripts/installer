@@ -7,8 +7,8 @@
 #   - Bump VERSION and BUILD_DATE every time you make changes to this script.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/remarqable/supremely/main/scripts/getsupremely | sudo bash
-#   sudo /opt/supremely/getsupremely --update    # Re-run to update
+#   curl -fsSL https://raw.githubusercontent.com/remarqable/supremely/main/scripts/installer | sudo bash
+#   sudo /opt/supremely/installer --update    # Re-run to update
 #
 
 set -e
@@ -18,8 +18,8 @@ export DEBIAN_FRONTEND=noninteractive
 # Version info (BUMP THESE ON EVERY CHANGE)
 #===============================================================================
 
-GETSUPREMELY_VERSION="1.0.0"  # <--- bump this on each script update
-BUILD_DATE="2026-08-25"       # <--- update this date when the version changes
+INSTALLER_VERSION="1.1.0"  # <--- bump this on each script update
+BUILD_DATE="2026-08-26"       # <--- update this date when the version changes
 
 #===============================================================================
 # Config
@@ -33,7 +33,7 @@ NC=$'\033[0m'
 VERBOSE=false
 
 SUPREMELY_DIR="/opt/supremely"
-SCRIPT_PATH="${SUPREMELY_DIR}/getsupremely"
+SCRIPT_PATH="${SUPREMELY_DIR}/installer"
 DATA_DIR="${SUPREMELY_DIR}/data"
 ENV_FILE="${SUPREMELY_DIR}/supremely.env"
 BACKUP_DIR="${SUPREMELY_DIR}/backups"
@@ -57,11 +57,11 @@ PORT=8000
 CONTAINER="supremely"
 WORKER_CONTAINER="supremely-worker"
 
-INSTALLER_FILE="${SUPREMELY_DIR}/INSTALLER"
-if [ -f "$INSTALLER_FILE" ]; then
-  REMOTE_URL="$(tr -d '[:space:]' < "$INSTALLER_FILE")"
+INSTALLER_URL_FILE="${SUPREMELY_DIR}/INSTALLER_URL"
+if [ -f "$INSTALLER_URL_FILE" ]; then
+  REMOTE_URL="$(tr -d '[:space:]' < "$INSTALLER_URL_FILE")"
 else
-  REMOTE_URL="https://raw.githubusercontent.com/remarqable/supremely/main/scripts/getsupremely"
+  REMOTE_URL="https://raw.githubusercontent.com/remarqable/supremely/main/scripts/installer"
 fi
 
 FORCE_RESET=false
@@ -79,8 +79,8 @@ ROLLBACK_IMAGE_TAG="${IMAGE_REPO}:rollback"
 # Self-install + self-update
 #===============================================================================
 
-# 1) Ensure we are running as ./getsupremely inside SUPREMELY_DIR
-# Resolve our own path BEFORE any cd: $0 may be relative (bash ./getsupremely)
+# 1) Ensure we are running as ./installer inside SUPREMELY_DIR
+# Resolve our own path BEFORE any cd: $0 may be relative (bash ./installer)
 # and would stop resolving once the working directory changes.
 SELF_PATH="$(readlink -f "$0" 2>/dev/null || true)"
 # Canonicalise the target too: if any component of /opt/supremely is a
@@ -91,13 +91,13 @@ if [ "$SELF_PATH" != "$SCRIPT_PATH" ] && [ "$SELF_PATH" != "$CANON_SCRIPT_PATH" 
   mkdir -p "$SUPREMELY_DIR"
   cd "$SUPREMELY_DIR"
 
-  echo "[getsupremely] Installing to ${SCRIPT_PATH}..."
+  echo "[installer] Installing to ${SCRIPT_PATH}..."
 
   # Two ways to arrive here:
   #
   #   curl ... | sudo bash   - $0 is the shell, there is no local script to
   #                            copy, so fetch it from REMOTE_URL.
-  #   bash ./getsupremely    - a real copy is already on disk. Install THAT,
+  #   bash ./installer    - a real copy is already on disk. Install THAT,
   #                            so installing from a git checkout, an
   #                            air-gapped copy, or a local test build works
   #                            without reaching the network at all.
@@ -105,16 +105,16 @@ if [ "$SELF_PATH" != "$SCRIPT_PATH" ] && [ "$SELF_PATH" != "$CANON_SCRIPT_PATH" 
   # The version marker distinguishes a genuine copy of this script from the
   # shell binary that $0 points at under a pipe.
   if [ -n "$SELF_PATH" ] && [ -f "$SELF_PATH" ] \
-     && grep -q '^GETSUPREMELY_VERSION=' "$SELF_PATH" 2>/dev/null; then
-    logger -t getsupremely "Self-installing to ${SCRIPT_PATH} from local copy ${SELF_PATH}"
+     && grep -q '^INSTALLER_VERSION=' "$SELF_PATH" 2>/dev/null; then
+    logger -t supremely-installer "Self-installing to ${SCRIPT_PATH} from local copy ${SELF_PATH}"
     cp "$SELF_PATH" "$SCRIPT_PATH"
   else
-    logger -t getsupremely "Self-installing to ${SCRIPT_PATH} from ${REMOTE_URL}"
+    logger -t supremely-installer "Self-installing to ${SCRIPT_PATH} from ${REMOTE_URL}"
     if ! curl -fsSL "$REMOTE_URL" -o "$SCRIPT_PATH"; then
       echo "Error: could not download the installer from ${REMOTE_URL}" >&2
       echo "       Copy the script to this server and run it directly:" >&2
-      echo "         scp scripts/getsupremely root@HOST:/root/" >&2
-      echo "         ssh root@HOST 'bash /root/getsupremely --update'" >&2
+      echo "         scp scripts/installer root@HOST:/root/" >&2
+      echo "         ssh root@HOST 'bash /root/installer --update'" >&2
       rm -f "$SCRIPT_PATH"
       exit 1
     fi
@@ -141,16 +141,16 @@ if [ -z "${SUPREMELY_NO_SELF_UPDATE:-}" ]; then
       # A truncated download, a proxy error page or an HTML 200 must never
       # replace a working installer: that bricks --update, --backup and
       # --restore on this host with no way back except a manual re-install.
-      if grep -q '^GETSUPREMELY_VERSION=' "$TMP_SCRIPT" \
+      if grep -q '^INSTALLER_VERSION=' "$TMP_SCRIPT" \
          && bash -n "$TMP_SCRIPT" 2>/dev/null; then
-        echo "[getsupremely] Installer update available, updating..."
-        logger -t getsupremely "Self-updating installer from ${REMOTE_URL}"
+        echo "[installer] Installer update available, updating..."
+        logger -t supremely-installer "Self-updating installer from ${REMOTE_URL}"
         mv "$TMP_SCRIPT" "$SCRIPT_PATH"
         chmod +x "$SCRIPT_PATH"
         SUPREMELY_NO_SELF_UPDATE=1 exec "$SCRIPT_PATH" "$@"
       else
-        echo "[getsupremely] Ignoring corrupt installer download from ${REMOTE_URL}" >&2
-        logger -t getsupremely "Rejected corrupt installer download"
+        echo "[installer] Ignoring corrupt installer download from ${REMOTE_URL}" >&2
+        logger -t supremely-installer "Rejected corrupt installer download"
       fi
     fi
   fi
@@ -168,7 +168,7 @@ cleanup() {
   kill $(jobs -p) 2>/dev/null || true
   rm -f "$STEP_FILE" 2>/dev/null || true
   printf "\r\033[K${RED}✗${NC} Interrupted\n"
-  logger -t getsupremely "Interrupted by user"
+  logger -t supremely-installer "Interrupted by user"
   exit 130
 }
 trap cleanup INT TERM
@@ -180,7 +180,7 @@ trap 'rm -f "$STEP_FILE" 2>/dev/null || true' EXIT
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-  logger -t getsupremely "$*"
+  logger -t supremely-installer "$*"
 }
 
 # Convert YYYY-MM-DD to human readable (Mon D)
@@ -246,13 +246,13 @@ _spin_step() {
 
   if [ $status -eq 0 ]; then
     printf "\r\033[K${GREEN}✓${NC} ${msg}\n"
-    logger -t getsupremely "OK: ${msg}"
+    logger -t supremely-installer "OK: ${msg}"
     if [ "$VERBOSE" = "true" ]; then
       cat "$log_file"
     fi
   else
     printf "\r\033[K${RED}✗${NC} ${msg}\n"
-    logger -t getsupremely "FAIL: ${msg} (status ${status})"
+    logger -t supremely-installer "FAIL: ${msg} (status ${status})"
     STEP_LOG="$(cat "$log_file")"
   fi
 
@@ -275,7 +275,7 @@ run_step() {
 require_root() {
   if [ "$EUID" -ne 0 ]; then
     echo "Error: this script must be run as root (use sudo)." >&2
-    logger -t getsupremely "ABORT: not running as root"
+    logger -t supremely-installer "ABORT: not running as root"
     exit 1
   fi
 }
@@ -290,13 +290,13 @@ require_ubuntu() {
 
   if [ "$ID" != "ubuntu" ]; then
     echo "Error: unsupported OS ($ID). Ubuntu 22.04/24.04 LTS required." >&2
-    logger -t getsupremely "ABORT: unsupported OS ($ID)"
+    logger -t supremely-installer "ABORT: unsupported OS ($ID)"
     exit 1
   fi
 
   if [[ "$VERSION_ID" != "22.04" && "$VERSION_ID" != "24.04" ]]; then
     echo "Error: unsupported Ubuntu version ($VERSION_ID). 22.04 or 24.04 LTS required." >&2
-    logger -t getsupremely "ABORT: unsupported Ubuntu version ($VERSION_ID)"
+    logger -t supremely-installer "ABORT: unsupported Ubuntu version ($VERSION_ID)"
     exit 1
   fi
 }
@@ -351,7 +351,7 @@ ensure_env_file() {
   if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" << 'ENV_EOF'
 # Supremely operator configuration.
-# Written by getsupremely. These are real environment variables and take
+# Written by the Supremely installer. These are real environment variables and take
 # precedence over anything the in-app setup wizard writes.
 
 APP_ENV=production
@@ -361,7 +361,7 @@ TRUSTED_PROXIES=1
 
 # SQLite on the data volume is the default and needs no configuration.
 # To use PostgreSQL instead, uncomment and point this at your server, then
-# run: sudo /opt/supremely/getsupremely --update
+# run: sudo /opt/supremely/installer --update
 # DATABASE_URL=postgresql+psycopg://user:password@host:5432/supremely
 ENV_EOF
     chmod 600 "$ENV_FILE"
@@ -474,7 +474,7 @@ _install_docker_inner() {
 install_docker() {
   if command -v docker >/dev/null 2>&1; then
     printf "${GREEN}✓${NC} Docker already installed\n"
-    logger -t getsupremely "Docker already installed — skipping"
+    logger -t supremely-installer "Docker already installed — skipping"
     return
   fi
 
@@ -487,7 +487,7 @@ ensure_docker_running() {
 
   if ! systemctl is-active docker >/dev/null 2>&1; then
     echo "Error: Docker service failed to start." >&2
-    logger -t getsupremely "ABORT: Docker service failed to start"
+    logger -t supremely-installer "ABORT: Docker service failed to start"
     exit 1
   fi
 }
@@ -523,7 +523,7 @@ _install_caddy_inner() {
 install_caddy() {
   if command -v caddy >/dev/null 2>&1; then
     printf "${GREEN}✓${NC} Caddy already installed\n"
-    logger -t getsupremely "Caddy already installed — skipping"
+    logger -t supremely-installer "Caddy already installed — skipping"
     return
   fi
 
@@ -959,7 +959,7 @@ _run_containers_inner() {
 perform_rollback() {
   echo ""
   echo "  ${YELLOW}Rolling back to the previous image...${NC}"
-  logger -t getsupremely "Rolling back to ${ROLLBACK_IMAGE_TAG}"
+  logger -t supremely-installer "Rolling back to ${ROLLBACK_IMAGE_TAG}"
 
   if ! docker image inspect "$ROLLBACK_IMAGE_TAG" >/dev/null 2>&1; then
     echo "  ${RED}No rollback image available.${NC}"
@@ -971,7 +971,7 @@ perform_rollback() {
   IMAGE="$ROLLBACK_IMAGE_TAG"
   if _start_containers >/dev/null 2>&1 && wait_for_healthy >/dev/null 2>&1; then
     echo "  ${GREEN}✓${NC} Rolled back successfully. The previous version is running."
-    logger -t getsupremely "Rollback succeeded"
+    logger -t supremely-installer "Rollback succeeded"
     IMAGE="$saved_image"
     return 0
   fi
@@ -1224,7 +1224,7 @@ LOG="/var/log/supremely-watchdog.log"
 # Health only. This runs as root every minute; it deliberately has no
 # update trigger, because the data directory is writable by the container
 # and any file-creation bug there would become "root fetches and executes
-# remote code". Updates are an operator action: getsupremely --update.
+# remote code". Updates are an operator action: installer --update.
 for name in supremely supremely-worker; do
   status=$(docker inspect --format="{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" "$name" 2>/dev/null || echo "not-running")
   if [ "$status" = "unhealthy" ] || [ "$status" = "not-running" ] || [ "$status" = "exited" ]; then
@@ -1293,7 +1293,7 @@ show_status() {
   echo "  Supremely is running"
   echo "============================================================"
   echo ""
-  echo "  Installer:       v${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+  echo "  Installer:       v${INSTALLER_VERSION} ($(format_installer_date "$BUILD_DATE"))"
   if [ "$ROLLED_BACK" = "true" ]; then
     echo "  Image:           ${ROLLBACK_IMAGE_TAG}  ${YELLOW}(rolled back - update failed)${NC}"
   else
@@ -1366,7 +1366,7 @@ check_for_update() {
 show_info() {
   ensure_docker_running
   echo ""
-  echo "  Installer version:  ${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+  echo "  Installer version:  ${INSTALLER_VERSION} ($(format_installer_date "$BUILD_DATE"))"
   echo "  App version:        $(installed_version)"
   echo "  Image:              ${IMAGE}"
   echo "  URL:                $(current_url)"
@@ -1383,7 +1383,7 @@ show_info() {
 do_update() {
   require_root
   require_ubuntu
-  log "Starting update (installer v${GETSUPREMELY_VERSION}, force_reset=${FORCE_RESET})"
+  log "Starting update (installer v${INSTALLER_VERSION}, force_reset=${FORCE_RESET})"
 
   install_docker
   ensure_docker_running
@@ -1464,21 +1464,21 @@ do_uninstall() {
 
 show_help() {
   echo "Supremely Installer / Updater"
-  echo "Version: ${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+  echo "Version: ${INSTALLER_VERSION} ($(format_installer_date "$BUILD_DATE"))"
   echo ""
   echo "Usage:"
-  echo "  getsupremely --update             Install or update Supremely"
-  echo "  getsupremely --configure          Change domain / HTTPS settings"
-  echo "  getsupremely --check              Check for updates"
-  echo "  getsupremely --info               Show version and status"
-  echo "  getsupremely --backup             Create a backup"
-  echo "  getsupremely --restore [FILE]     Restore from a backup"
-  echo "  getsupremely --rollback           Roll back to the previous image"
-  echo "  getsupremely --reset              Update and wipe all data (no prompt)"
-  echo "  getsupremely --uninstall          Remove Supremely and its data"
+  echo "  installer --update             Install or update Supremely"
+  echo "  installer --configure          Change domain / HTTPS settings"
+  echo "  installer --check              Check for updates"
+  echo "  installer --info               Show version and status"
+  echo "  installer --backup             Create a backup"
+  echo "  installer --restore [FILE]     Restore from a backup"
+  echo "  installer --rollback           Roll back to the previous image"
+  echo "  installer --reset              Update and wipe all data (no prompt)"
+  echo "  installer --uninstall          Remove Supremely and its data"
   echo ""
   echo "First-time install:"
-  echo "  curl -fsSL https://raw.githubusercontent.com/remarqable/supremely/main/scripts/getsupremely | sudo bash"
+  echo "  curl -fsSL https://raw.githubusercontent.com/remarqable/supremely/main/scripts/installer | sudo bash"
   echo ""
   echo "Unattended install (no prompts):"
   echo "  SUPREMELY_DOMAIN=example.com SUPREMELY_EMAIL=you@example.com \\"
@@ -1528,7 +1528,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-echo "getsupremely v${GETSUPREMELY_VERSION} ($(format_installer_date "$BUILD_DATE"))"
+echo "supremely-installer v${INSTALLER_VERSION} ($(format_installer_date "$BUILD_DATE"))"
 
 case "$COMMAND" in
   check)
