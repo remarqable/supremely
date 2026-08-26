@@ -33,8 +33,6 @@ def test_unknown_job_rejected(app):
 
 
 def test_backoff_moves_run_at_forward(app):
-    from app.models.base import utcnow
-
     @job('test.always_fails')
     def boom(payload):
         raise RuntimeError('nope')
@@ -49,6 +47,7 @@ def test_backoff_moves_run_at_forward(app):
 
 def test_cleanup_reenqueues_and_purges(app):
     from datetime import timedelta
+
     from app.models.base import utcnow
     from app.platform.jobs import DONE_RETENTION
 

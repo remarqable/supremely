@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
 from .membership import ROLES
 from .types import TZDateTime
@@ -76,6 +77,7 @@ class Invitation(OrgScoped, AuditMixin, BaseModel):
 
     def url(self, token: str) -> str:
         from app.platform.tenant import org_url
+
         from .organization import Organization
         org = Organization.get_by_id(self.org_id)
         return org_url(org, f'/invite/{token}')

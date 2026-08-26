@@ -1,10 +1,10 @@
 """Flask extensions and database setup."""
 
 import sqlalchemy as sa
-from sqlalchemy import event
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
 
 # Named constraints are required for SQLite migrations. Set this before the
 # first migration or Alembic will want to rename every constraint you have.

@@ -4,8 +4,8 @@ an example Event, and a General discussion space."""
 
 from flask import g
 
-from app.models import Content, NavigationItem, Organization, Space
-from tests.conftest import login_as, make_user
+from app.models import Content, NavigationItem, Space
+from tests.conftest import login_as
 
 ACME = 'http://acme.example.test'
 

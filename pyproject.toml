@@ -19,7 +19,11 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest", "pytest-cov"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff==0.16.4",
+]
 
 [tool.uv]
 package = false
@@ -33,3 +37,25 @@ addopts = "--tb=short"
 [tool.coverage.run]
 source = ["app"]
 omit = ["app/config.py", "*/migrations/*"]
+
+[tool.ruff]
+target-version = "py312"
+# Alembic writes versions/ from script.py.mako; linting them means hand-editing
+# every generated migration. blueprint/ is a submodule with its own config.
+exclude = ["blueprint", "migrations/versions"]
+
+[tool.ruff.lint]
+# Pinned explicitly: ruff's default select has widened across releases, and an
+# implicit set turns a version bump into a red build on untouched code.
+select = [
+    "E4", "E7", "E9",  # pycodestyle, minus the line-length/whitespace rules
+    "F",               # pyflakes
+    "I",               # import sorting
+    "UP",              # pyupgrade
+    "B",               # bugbear
+    "C4",              # comprehensions
+    "SIM",             # simplify
+    "RET",             # return
+    "BLE",             # blind except
+    "RUF",             # ruff-specific
+]

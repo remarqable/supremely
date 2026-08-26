@@ -1,18 +1,18 @@
 """Base model, tenancy mixin, and audit mixin."""
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import declared_attr
 
 from app.extensions import db
-from app.models.types import BigIntPK, BigIntFK, TZDateTime
+from app.models.types import BigIntFK, BigIntPK, TZDateTime
 
 
 def utcnow() -> datetime:
     """Timezone-aware UTC now. Never use datetime.utcnow() -- it is deprecated
     in Python 3.12+ and returns a naive datetime that claims to be UTC."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @contextmanager

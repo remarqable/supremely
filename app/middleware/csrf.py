@@ -2,7 +2,7 @@
 
 import secrets
 
-from flask import session, request, abort
+from flask import abort, request, session
 
 
 def generate_csrf_token() -> str:

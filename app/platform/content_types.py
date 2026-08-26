@@ -49,8 +49,9 @@ class FieldSpec:
         if self.type == 'number':
             try:
                 number = float(value)
-            except (TypeError, ValueError):
-                raise ValidationError(f'{self.label or self.key} must be a number')
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(
+                    f'{self.label or self.key} must be a number') from exc
             return int(number) if number == int(number) else number
         if self.type == 'boolean':
             if isinstance(value, bool):

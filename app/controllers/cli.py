@@ -94,13 +94,14 @@ def sync_db():
     for an incompatible model change. Migrations remain the source of truth for
     prod/CI/smoke (`flask db upgrade`); regenerate the baseline at a milestone.
     """
-    import app.models  # noqa: F401  (populate db.metadata for create_all)
     from flask_migrate import stamp
+
+    import app.models  # noqa: F401  (populate db.metadata for create_all)
 
     db.create_all()
     try:
         stamp()                 # so a later `flask db upgrade` is a clean no-op
-    except Exception as exc:    # a missing migrations dir shouldn't block dev
+    except Exception as exc:    # noqa: BLE001 -- a missing migrations dir shouldn't block dev
         click.echo(f'(schema built; alembic stamp skipped: {exc})')
         return
     click.echo('Schema synced from models (create_all) and stamped at head.')

@@ -2,8 +2,7 @@
 platform administration."""
 
 from app.extensions import db
-from app.models import (InstallationSetting, Membership, OrgDomain,
-                        Organization, User)
+from app.models import InstallationSetting, Membership, Organization, OrgDomain, User
 from tests.conftest import login_as, make_user
 
 BARE = 'http://example.test'
@@ -141,6 +140,7 @@ def test_member_cannot_manage_domains(app, client, acme, globex):
 
 def test_admin_org_detail_shows_state(admin_client, app, acme, globex, user):
     from flask import g
+
     from app.models import Content
     with app.test_request_context():
         g.org = acme

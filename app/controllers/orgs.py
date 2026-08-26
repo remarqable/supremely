@@ -1,7 +1,6 @@
 """Organization launcher, creation, and member-facing org pages."""
 
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
-                   request, url_for)
+from flask import Blueprint, abort, flash, g, redirect, render_template, request
 from flask_login import current_user, login_required
 
 from app.models import InstallationSetting, Membership, Organization
@@ -64,7 +63,7 @@ def dashboard():
     if g.membership is None and not current_user.is_platform_admin:
         abort(404)
     from app.models import Content
-    from app.models.discussion import Space, DiscussionPost
+    from app.models.discussion import DiscussionPost, Space
 
     spaces = [space for space in
               Space.query.order_by(Space.position, Space.name).all()

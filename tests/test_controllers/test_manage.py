@@ -197,7 +197,8 @@ def test_theme_switch(app, client, acme, globex, user):
 
 
 def test_landing_editor_saves_copy(app, client, acme, globex, user):
-    acme.theme = 'supremely'; acme.save()        # editor uses the active theme's schema
+    acme.theme = 'supremely'        # editor uses the active theme's schema
+    acme.save()
     login_as(client, user)
     response = client.post('/manage/landing', base_url=ACME, data={
         'headline_lead': 'The open-source',
@@ -217,11 +218,14 @@ def test_landing_editor_saves_copy(app, client, acme, globex, user):
 def test_landing_nav_gated_by_content_schema(app, client, acme, globex, user):
     login_as(client, user)
     # Origin and Supremely both declare content -> editor entry present.
-    acme.theme = 'origin'; acme.save()
+    acme.theme = 'origin'
+    acme.save()
     assert b'/manage/landing' in client.get('/manage/settings', base_url=ACME).data
-    acme.theme = 'supremely'; acme.save()
+    acme.theme = 'supremely'
+    acme.save()
     assert b'/manage/landing' in client.get('/manage/settings', base_url=ACME).data
     # Midnight declares none -> no editor, and the route itself 404s.
-    acme.theme = 'midnight'; acme.save()
+    acme.theme = 'midnight'
+    acme.save()
     assert b'/manage/landing' not in client.get('/manage/settings', base_url=ACME).data
     assert client.get('/manage/landing', base_url=ACME).status_code == 404

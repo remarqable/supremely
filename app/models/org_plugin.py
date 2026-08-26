@@ -6,6 +6,7 @@ separate from the thing that gates it. See blueprint/patterns/plugins.md.
 """
 
 from app.extensions import db
+
 from .base import BaseModel, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 

@@ -5,7 +5,7 @@ import pytest
 from app import create_app
 from app.config import TestConfig
 from app.extensions import db
-from app.models import Membership, Organization, User
+from app.models import Organization, User
 
 # Imported for its side effect: registers an OrgScoped model so tenant
 # isolation is testable before the first real scoped business model exists.
@@ -82,6 +82,7 @@ def admin_client(client, platform_admin):
 
 def make_png(width=600, height=400, color=(120, 90, 200)) -> bytes:
     import io
+
     from PIL import Image
     buf = io.BytesIO()
     Image.new('RGB', (width, height), color).save(buf, 'PNG')

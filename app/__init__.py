@@ -1,12 +1,13 @@
 """Supremely application factory."""
 
+import contextlib
 from pathlib import Path
 
-from flask import Flask, request, redirect, abort, g, render_template
+from flask import Flask, abort, g, redirect, render_template, request
 
 from .config import Config
-from .extensions import db, migrate, login_manager, init_sqlite_pragmas
-from .platform.logger import init_logger, get_logger
+from .extensions import db, init_sqlite_pragmas, login_manager, migrate
+from .platform.logger import get_logger, init_logger
 
 APP_VERSION = '0.1.0'
 
@@ -77,13 +78,25 @@ def create_app(config_class=Config):
     from .platform.content_types import register_core_types
     register_core_types()
 
-    # noqa below: imported for their side effect of registering job handlers.
-    from .platform import notify as _notify              # noqa: F401
-    from .platform import newsletter as _newsletter      # noqa: F401
+    from .controllers import (
+        admin,
+        auth,
+        cli,
+        discussions,
+        main,
+        manage,
+        members,
+        newsletter,
+        notifications,
+        orgs,
+        setup,
+        site,
+    )
 
-    from .controllers import (main, auth, setup, admin, orgs, cli, manage,
-                              site, members, discussions,
-                              notifications, newsletter)
+    # Imported only for the side effect of registering their job handlers;
+    # the bindings are deliberately unused.
+    from .platform import newsletter as _newsletter  # noqa: F401
+    from .platform import notify as _notify  # noqa: F401
     for module in (main, auth, setup, admin, orgs, manage, members,
                    discussions, notifications, newsletter, site):
         app.register_blueprint(module.bp)
@@ -114,29 +127,29 @@ def _init_setup_gate(app):
         # certificate never issues and the install is unreachable over HTTPS.
         if (request.path.startswith('/static/')
                 or request.path in ('/health', '/tls-check')):
-            return
+            return None
         installed = installation_ready(app)
         if not installed and not request.path.startswith('/setup'):
             return redirect('/setup')
         if installed and request.path.startswith('/setup'):
             abort(404)
+        return None
 
 
 def _init_context(app):
-    from .platform.authz import can, is_org_member
     from .models import InstallationSetting
+    from .platform.authz import can, is_org_member
 
     @app.context_processor
     def inject_globals():
         installation_name = 'Supremely'
         if app.config.get('SETUP_COMPLETE'):
-            try:
+            # pre-migration states must still render
+            with contextlib.suppress(Exception):
                 installation_name = InstallationSetting.get_value(
                     'installation.name', 'Supremely') or 'Supremely'
-            except Exception:       # pre-migration states must still render
-                pass
-        from flask import g
         from flask_login import current_user
+
         from .models import NavigationItem
         from .platform.content_types import CONTENT_TYPES
 

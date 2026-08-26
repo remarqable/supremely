@@ -6,10 +6,11 @@ import re
 from typing import Optional
 
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import BaseModel
 
 

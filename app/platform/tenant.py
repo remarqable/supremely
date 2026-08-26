@@ -8,7 +8,7 @@ content visibility is a model-layer concern.
 from contextlib import contextmanager
 from urllib.parse import quote
 
-from flask import g, request, abort, current_app, has_request_context
+from flask import abort, current_app, g, has_request_context, request
 from flask_login import current_user
 from sqlalchemy import event
 from sqlalchemy.orm import Session, with_loader_criteria
@@ -147,7 +147,6 @@ def org_for_host(host: str):
 def org_for_request_host():
     """Resolve the organization the current host serves, without aborting.
     For installation paths (like /auth) where resolve_tenant skips."""
-    from app.models import Organization
     from app.models.domain import OrgDomain
     host = _request_host()
     base = _base_domain()

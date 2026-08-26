@@ -1,7 +1,15 @@
 """Main controller: installation landing, organization home, health."""
 
-from flask import (Blueprint, abort, current_app, g, redirect,
-                   render_template, request, url_for)
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    g,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask.typing import ResponseReturnValue
 from flask_login import current_user
 
@@ -29,7 +37,9 @@ def health():
     return {'status': 'ok', 'version': APP_VERSION}
 
 
-@bp.route('/tls-check')
+# RET503 is suppressed below: the function ends in abort(), which always
+# raises, but ruff does not resolve flask.abort as NoReturn.
+@bp.route('/tls-check')  # noqa: RET503
 @rate_limit(limit=300, window=60)
 def tls_check() -> ResponseReturnValue:
     """Caddy's on-demand TLS gate (`ask`): may this host get a certificate?

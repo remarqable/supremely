@@ -1,8 +1,6 @@
 """The tests that matter most: prove the tenant filter holds."""
 
 from app.extensions import db
-from app.models import Membership
-from tests.conftest import login_as, make_user
 from tests.scoped_probe import ScopedProbe
 
 
@@ -22,6 +20,7 @@ def test_tenant_cannot_read_other_tenants_rows(app, client, acme, globex, user):
     # Simulate a request-scoped query on acme's subdomain.
     with app.test_request_context(base_url='http://acme.example.test'):
         from flask import g
+
         from app.models import Organization
         g.org = db.session.get(Organization, acme_id)
         rows = ScopedProbe.query.all()

@@ -4,8 +4,7 @@ Everything works without email: with no SMTP configured, subscriptions are
 immediate (no double opt-in to deliver); publishing remains fully operable.
 """
 
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
-                   request, url_for)
+from flask import Blueprint, abort, flash, g, redirect, request
 
 from app.middleware.ratelimit import rate_limit
 from app.models.newsletter import Subscriber

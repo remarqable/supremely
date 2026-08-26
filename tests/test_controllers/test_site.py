@@ -1,7 +1,7 @@
 from flask import g
 
 from app.extensions import db
-from app.models import Content, Membership, NavigationItem
+from app.models import Content, NavigationItem
 from tests.conftest import login_as, make_user
 
 

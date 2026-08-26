@@ -11,6 +11,7 @@ from flask import g
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import AuditMixin, BaseModel, OrgScoped
 
 # Sniffed from magic bytes -- extensions and client headers are untrusted.
@@ -124,6 +125,7 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
 
     def make_variants(self, data: bytes) -> None:
         from PIL import Image, ImageOps
+
         from app.platform.storage import storage
 
         Image.MAX_IMAGE_PIXELS = 30_000_000     # decompression-bomb guard

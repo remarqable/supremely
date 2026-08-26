@@ -4,8 +4,15 @@ as its primary asynchronous community discussion system."""
 from flask import g
 
 from app.extensions import db
-from app.models import (Comment, DiscussionPost, Flag, Membership,
-                        Notification, PostFollow, Space, User)
+from app.models import (
+    Comment,
+    DiscussionPost,
+    Flag,
+    Membership,
+    Notification,
+    PostFollow,
+    Space,
+)
 from tests.conftest import login_as, make_user
 
 ACME = 'http://acme.example.test'
@@ -66,7 +73,7 @@ def test_full_discussion_flow(app, client, acme, globex, user):
     """Owner creates a space; two members hold a threaded conversation."""
     make_space(app, acme)
     alice_client, alice = member_client(app, acme, 'alice@example.com')
-    bob_client, bob = member_client(app, acme, 'bob@example.com')
+    bob_client, _bob = member_client(app, acme, 'bob@example.com')
 
     # Alice starts a topic
     response = create_post(alice_client, title='Welcome thread',
@@ -105,7 +112,7 @@ def test_full_discussion_flow(app, client, acme, globex, user):
 
 def test_second_level_nesting_rejected(app, client, acme, globex, user):
     make_space(app, acme)
-    alice_client, alice = member_client(app, acme, 'a2@example.com')
+    alice_client, _alice = member_client(app, acme, 'a2@example.com')
     create_post(alice_client)
     topic = DiscussionPost.query.first()
     alice_client.post(f'/discussions/general/{topic.id}/comment', base_url=ACME,
@@ -193,8 +200,8 @@ def test_member_cannot_moderate(app, client, acme, globex, user):
 
 def test_edit_own_only(app, client, acme, globex, user):
     make_space(app, acme)
-    alice_client, alice = member_client(app, acme, 'a6@example.com')
-    bob_client, bob = member_client(app, acme, 'b6@example.com')
+    alice_client, _alice = member_client(app, acme, 'a6@example.com')
+    bob_client, _bob = member_client(app, acme, 'b6@example.com')
     create_post(alice_client, title='Mine')
     topic = DiscussionPost.query.first()
 
@@ -210,7 +217,7 @@ def test_edit_own_only(app, client, acme, globex, user):
 def test_mention_notification(app, client, acme, globex, user):
     make_space(app, acme)
     alice_client, alice = member_client(app, acme, 'alice7@example.com')
-    bob_client, bob = member_client(app, acme, 'bob7@example.com')
+    bob_client, _bob = member_client(app, acme, 'bob7@example.com')
     create_post(alice_client, title='T')
     topic = DiscussionPost.query.first()
     # Bob mentions alice7 by email local part
@@ -223,8 +230,8 @@ def test_mention_notification(app, client, acme, globex, user):
 
 def test_follow_notification_and_unread_flow(app, client, acme, globex, user):
     make_space(app, acme)
-    alice_client, alice = member_client(app, acme, 'a8@example.com')
-    bob_client, bob = member_client(app, acme, 'b8@example.com')
+    alice_client, _alice = member_client(app, acme, 'a8@example.com')
+    bob_client, _bob = member_client(app, acme, 'b8@example.com')
     carol_client, carol = member_client(app, acme, 'c8@example.com')
 
     create_post(alice_client)
@@ -247,7 +254,7 @@ def test_follow_notification_and_unread_flow(app, client, acme, globex, user):
 
 def test_flag_and_moderation_queue(app, client, acme, globex, user):
     make_space(app, acme)
-    alice_client, alice = member_client(app, acme, 'a9@example.com')
+    alice_client, _alice = member_client(app, acme, 'a9@example.com')
     create_post(alice_client, title='Spammy')
     topic = DiscussionPost.query.first()
     alice_client.post('/discussions/flag', base_url=ACME, data={
@@ -291,8 +298,8 @@ def test_discussions_tenant_isolated(app, client, acme, globex, user):
 def test_email_job_enqueued_only_when_configured(app, client, acme, globex, user):
     from app.models import InstallationSetting, Job
     make_space(app, acme)
-    alice_client, alice = member_client(app, acme, 'a10@example.com')
-    bob_client, bob = member_client(app, acme, 'b10@example.com')
+    alice_client, _alice = member_client(app, acme, 'a10@example.com')
+    bob_client, _bob = member_client(app, acme, 'b10@example.com')
     create_post(alice_client)
     topic = DiscussionPost.query.first()
 

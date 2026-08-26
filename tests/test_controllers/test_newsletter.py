@@ -4,8 +4,14 @@ simultaneously to its website and its subscriber audience."""
 from flask import g
 
 from app.extensions import db
-from app.models import (Delivery, DeliveryRecipient, InstallationSetting,
-                        Content, Job, Subscriber)
+from app.models import (
+    Content,
+    Delivery,
+    DeliveryRecipient,
+    InstallationSetting,
+    Job,
+    Subscriber,
+)
 from app.platform import mailer
 from app.platform.jobs import run_pending_jobs
 from tests.conftest import login_as
@@ -185,9 +191,8 @@ def test_subscribers_tenant_isolated(app, client, acme, globex):
                data={'email': 'r@example.com'})
     # Same email may subscribe to both orgs: two rows, each org sees one
     from app.platform.tenant import unscoped
-    with app.test_request_context():
-        with unscoped():
-            assert Subscriber.query.count() == 2
+    with app.test_request_context(), unscoped():
+        assert Subscriber.query.count() == 2
     with app.test_request_context(base_url=ACME):
         g.org = acme
         assert Subscriber.query.count() == 1

@@ -5,6 +5,7 @@ from sqlalchemy.orm import backref
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import BaseModel, OrgScoped
 from .types import BigIntFK
 

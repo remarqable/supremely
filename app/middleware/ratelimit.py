@@ -3,7 +3,7 @@
 import time
 from functools import wraps
 
-from flask import request, current_app
+from flask import current_app, request
 
 from app.platform.errors import RateLimitError
 

@@ -1,6 +1,5 @@
-from app.platform.plugins import Plugin
 from app.platform.content_types import ContentType, FieldSpec
-
+from app.platform.plugins import Plugin
 from plugins.glossary.__manifest__ import manifest
 
 

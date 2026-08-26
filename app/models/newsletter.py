@@ -10,6 +10,7 @@ import secrets
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 

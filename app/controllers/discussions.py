@@ -2,19 +2,37 @@
 moderation, flags. URLs stay /discussions/<space>/<post_id>."""
 
 import sqlalchemy as sa
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
-                   request, url_for)
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.models.discussion import (Comment, DiscussionPost, Flag, PostFollow,
-                                   Reaction, Space, REACTION_EMOJI)
-from app.platform.authz import can, is_org_member, org_required, require
+from app.models.discussion import (
+    REACTION_EMOJI,
+    Comment,
+    DiscussionPost,
+    Flag,
+    PostFollow,
+    Reaction,
+    Space,
+)
+from app.platform.authz import can, org_required, require
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
-from app.platform.notify import (notify_comment_created, notify_moderation,
-                                 notify_post_mentions)
+from app.platform.notify import (
+    notify_comment_created,
+    notify_moderation,
+    notify_post_mentions,
+)
 from app.platform.theming import render_site
 
 bp = Blueprint('discussions', __name__, url_prefix='/discussions')

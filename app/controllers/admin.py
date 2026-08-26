@@ -6,13 +6,11 @@ import platform as _platform
 import sys
 
 import sqlalchemy as sa
-from flask import (Blueprint, flash, redirect, render_template, request,
-                   url_for)
+from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from app.extensions import db
-from app.models import (InstallationSetting, Job, Membership, Organization,
-                        User)
+from app.models import InstallationSetting, Job, Membership, Organization, User
 from app.platform.authz import platform_admin_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -82,7 +80,7 @@ def new_org():
 
 @bp.route('/orgs/<int:org_id>')
 def org_detail(org_id):
-    from app.models import Content, Subscriber, DiscussionPost, OrgPlugin
+    from app.models import Content, DiscussionPost, OrgPlugin, Subscriber
     from app.models.domain import OrgDomain
     org = db.get_or_404(Organization, org_id)
     memberships = (Membership.query.filter_by(org_id=org.id)

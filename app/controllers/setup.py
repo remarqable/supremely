@@ -17,8 +17,16 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 
-from flask import (Blueprint, current_app, flash, redirect, render_template,
-                   request, session, url_for)
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask.typing import ResponseReturnValue
 from flask_login import login_user
 

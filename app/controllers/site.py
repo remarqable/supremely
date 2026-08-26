@@ -11,8 +11,16 @@ A single-segment path is dispatched to a feed archive if it matches a type's
 base, otherwise treated as a page slug.
 """
 
-from flask import (Blueprint, abort, g, redirect, request, send_file,
-                   send_from_directory, url_for)
+from flask import (
+    Blueprint,
+    abort,
+    g,
+    redirect,
+    request,
+    send_file,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user
 
 from app.extensions import db
@@ -146,10 +154,10 @@ def serve_upload(upload_id, variant):
         abort(404)
     if variant not in VARIANTS and variant != 'original':
         abort(404)
-    if upload.visibility != 'public':
-        if not (is_org_member() or (current_user.is_authenticated
-                                    and current_user.is_platform_admin)):
-            abort(404)
+    if upload.visibility != 'public' and not (
+            is_org_member()
+            or (current_user.is_authenticated and current_user.is_platform_admin)):
+        abort(404)
 
     from app.platform.storage import storage
     if variant != 'original' and not upload.has_variants:

@@ -3,20 +3,27 @@
 Runs on the org host under /manage; every query is tenant-scoped
 automatically."""
 
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
-                   request, url_for)
-from flask_login import current_user
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 from app.extensions import db
-from app.models import Content, Organization, Upload
+from app.models import Content, Upload
 from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
+from app.platform import theme_content as tc
 from app.platform.authz import org_required, require
 from app.platform.content_types import CONTENT_TYPES, get_content_type
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
-from app.platform import theme_content as tc
 from app.platform.theming import AVAILABLE_THEMES, current_theme
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
@@ -496,8 +503,8 @@ def plugins():
 @org_required
 @require('plugins.manage')
 def install_plugin(slug):
-    from app.platform.plugins import install
     from app.platform.errors import NotFoundError
+    from app.platform.plugins import install
     try:
         install(g.org.id, slug)
         flash(t('plugins.installed'), 'success')
@@ -523,8 +530,8 @@ def uninstall_plugin(slug):
 @org_required
 @require('plugins.manage')
 def upgrade_plugin(slug):
-    from app.platform.plugins import upgrade
     from app.platform.errors import NotFoundError
+    from app.platform.plugins import upgrade
     try:
         upgrade(g.org.id, slug, request.form.get('version', ''))
         flash(t('plugins.upgraded'), 'success')
@@ -603,8 +610,8 @@ def remove_subscriber(subscriber_id):
 @require('content.write')
 def send_post_newsletter(content_id):
     from app.models.newsletter import Delivery, Subscriber
-    from app.platform.mailer import is_email_configured
     from app.platform.jobs import enqueue
+    from app.platform.mailer import is_email_configured
 
     post = db.session.get(Content, content_id)
     if post is None:

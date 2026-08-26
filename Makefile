@@ -2,7 +2,7 @@ TAILWIND_VERSION := v4.1.14
 TAILWIND_BIN := bin/tailwindcss
 DATA_DIR ?= data
 
-.PHONY: install css css-watch run worker test migrate reset
+.PHONY: install css css-watch run worker test lint migrate reset
 
 install:
 	uv sync
@@ -43,6 +43,9 @@ worker:
 
 test:
 	uv run pytest
+
+lint:
+	uv run ruff check .
 
 # Wipe the local installation (database, wizard config, uploads) so the
 # setup wizard runs again. Stop the server first.

@@ -9,6 +9,7 @@ reverse proxy in hosted operations.
 import re
 
 from app.extensions import db
+
 from .base import BaseModel, utcnow
 from .types import BigIntFK, TZDateTime
 
@@ -33,6 +34,7 @@ class OrgDomain(BaseModel):
 
     def validate(self):
         from flask import current_app
+
         from app.platform.errors import ValidationError
         self.domain = (self.domain or '').strip().lower().rstrip('.')
         self.status = self.status or 'pending'

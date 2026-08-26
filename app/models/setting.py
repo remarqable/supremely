@@ -2,6 +2,7 @@
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import BaseModel
 
 

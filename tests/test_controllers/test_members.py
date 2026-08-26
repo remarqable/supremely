@@ -9,7 +9,7 @@ from flask import g
 from app.extensions import db
 from app.models import Content, Invitation, Membership, User
 from app.platform.mailer import is_email_configured
-from tests.conftest import PASSWORD, login_as, make_png, make_user
+from tests.conftest import login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
 
@@ -67,6 +67,7 @@ def test_invitation_accept_logged_in(app, client, acme, globex, user):
 
 def test_expired_invitation_rejected(app, client, acme, globex, user):
     from datetime import timedelta
+
     from app.models.base import utcnow
     with app.test_request_context(base_url=ACME):
         g.org = acme
@@ -121,6 +122,7 @@ def test_suspended_member_loses_access(app, client, acme, globex, user):
 def test_last_owner_cannot_be_suspended(app, acme, user):
     membership = Membership.get(user.id, acme.id)
     import pytest
+
     from app.platform.errors import ValidationError
     with pytest.raises(ValidationError, match='at least one owner'):
         membership.suspend()

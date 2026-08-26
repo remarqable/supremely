@@ -8,8 +8,8 @@ from app.platform.errors import ValidationError
 
 def make(app, org, **kwargs):
     # Slugs avoid the seeded starter content (hello-world, about, …).
-    defaults = dict(type='article', title='My Article', slug='my-article',
-                    body='First **post**.', org_id=org.id, fields={}, tags=[])
+    defaults = {'type': 'article', 'title': 'My Article', 'slug': 'my-article',
+                'body': 'First **post**.', 'org_id': org.id, 'fields': {}, 'tags': []}
     defaults.update(kwargs)
     with app.test_request_context():
         g.org = org

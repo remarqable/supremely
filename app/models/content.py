@@ -12,6 +12,7 @@ import re
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 
@@ -186,8 +187,9 @@ class Content(OrgScoped, AuditMixin, BaseModel):
     def visible_to_current_visitor(self) -> bool:
         if self.visibility == 'public':
             return True
-        from app.platform.authz import is_org_member
         from flask_login import current_user
+
+        from app.platform.authz import is_org_member
         return is_org_member() or (
             current_user.is_authenticated and current_user.is_platform_admin)
 

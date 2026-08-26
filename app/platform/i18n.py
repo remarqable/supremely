@@ -1,13 +1,14 @@
 """Internationalization with runtime-loaded JSON catalogs."""
 
+import contextlib
 import json
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, Optional
+from typing import Any
 
-from flask import Flask, g, request, session, has_request_context
+from flask import Flask, g, has_request_context, request, session
 
-_translations: Dict[str, Dict[str, str]] = {}
+_translations: dict[str, dict[str, str]] = {}
 _lock = RLock()
 
 RTL_LANGUAGES = {'ar', 'fa', 'he', 'ur'}
@@ -42,15 +43,15 @@ def init_i18n(app: Flask) -> None:
 
 def _load_language(lang_code: str, file_path: Path) -> None:
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             data = json.load(f)
         with _lock:
             _translations[lang_code] = data
-    except (json.JSONDecodeError, IOError) as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f'Error loading {lang_code}: {e}')
 
 
-def merge_translations(lang_code: str, entries: Dict[str, str]) -> None:
+def merge_translations(lang_code: str, entries: dict[str, str]) -> None:
     """Merge extra entries (plugin catalogs) into a language."""
     with _lock:
         _translations.setdefault(lang_code, {}).update(entries)
@@ -84,7 +85,7 @@ def is_rtl() -> bool:
     return get_lang() in RTL_LANGUAGES
 
 
-def t(key: str, lang: Optional[str] = None, **kwargs: Any) -> str:
+def t(key: str, lang: str | None = None, **kwargs: Any) -> str:
     """Translate a key with {name} substitution. Falls back en -> key."""
     if lang is None:
         lang = get_lang()
@@ -96,13 +97,11 @@ def t(key: str, lang: Optional[str] = None, **kwargs: Any) -> str:
         return key
 
     if kwargs:
-        try:
+        with contextlib.suppress(KeyError, IndexError):
             text = text.format(**kwargs)
-        except (KeyError, IndexError):
-            pass
     return text
 
 
-def _get_translation(lang: str, key: str) -> Optional[str]:
+def _get_translation(lang: str, key: str) -> str | None:
     with _lock:
         return _translations.get(lang, {}).get(key)

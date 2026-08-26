@@ -33,11 +33,11 @@ class TZDateTime(sa.TypeDecorator):
         if value is None:
             return None
         if value.tzinfo is not None and dialect.name == 'sqlite':
-            return value.astimezone(dt.timezone.utc).replace(tzinfo=None)
+            return value.astimezone(dt.UTC).replace(tzinfo=None)
         return value
 
     def process_result_value(self, value, dialect):
         import datetime as dt
         if value is not None and value.tzinfo is None:
-            return value.replace(tzinfo=dt.timezone.utc)
+            return value.replace(tzinfo=dt.UTC)
         return value

@@ -3,7 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv('config/local.env')
 
-from app import create_app
+# Imported after load_dotenv on purpose: the app package reads config at
+# import time, so the .env file has to be in the environment first.
+from app import create_app  # noqa: E402
 
 app = create_app()
 

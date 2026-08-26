@@ -46,7 +46,7 @@ def _escape(text: str) -> str:
 def send_delivery(payload: dict) -> None:
     from app.models import Content, Organization
     from app.models.newsletter import Delivery, DeliveryRecipient
-    from app.platform.mailer import send_email, is_email_configured
+    from app.platform.mailer import is_email_configured, send_email
 
     delivery = db.session.get(Delivery, payload.get('delivery_id'))
     if delivery is None or delivery.status == 'done':

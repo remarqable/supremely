@@ -5,7 +5,6 @@ newsletter signup, community discussions, and membership -- entirely through
 the same models any organization uses. Idempotent.
 """
 
-from app.extensions import db
 from app.platform.logger import get_logger
 
 log = get_logger()
@@ -75,8 +74,16 @@ organization gets. No private forks, no special cases.
 
 def seed_getsupremely_org():
     from flask import g
-    from app.models import (Content, InstallationSetting, Membership,
-                            NavigationItem, Organization, Space, User)
+
+    from app.models import (
+        Content,
+        InstallationSetting,
+        Membership,
+        NavigationItem,
+        Organization,
+        Space,
+        User,
+    )
 
     org = Organization.get_by_slug('getsupremely')
     if org is None:
@@ -115,8 +122,9 @@ def seed_getsupremely_org():
     owner_id = owner_membership.user_id if owner_membership else None
 
     # Everything below runs as if on the org's host.
-    from app import create_app  # noqa: F401  (context helper below)
     from flask import current_app
+
+    from app import create_app  # noqa: F401  (context helper below)
     with current_app.test_request_context():
         g.org = org
         g.membership = owner_membership

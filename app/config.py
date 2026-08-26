@@ -8,6 +8,7 @@ real environment variables. Environment always wins so operators can override.
 import os
 import re
 from pathlib import Path
+from typing import ClassVar
 
 
 def _load_runtime_env() -> None:
@@ -169,7 +170,7 @@ class TestConfig(Config):
         os.environ.get('TEST_DATABASE_URL') or 'sqlite:///:memory:')
     IS_SQLITE = SQLALCHEMY_DATABASE_URI.startswith('sqlite')
     IS_POSTGRES = SQLALCHEMY_DATABASE_URI.startswith('postgresql')
-    SQLALCHEMY_ENGINE_OPTIONS = {}
+    SQLALCHEMY_ENGINE_OPTIONS: ClassVar[dict] = {}
     SECRET_KEY = 'test-secret'
     CSRF_ENABLED = False
     RATELIMIT_ENABLED = False

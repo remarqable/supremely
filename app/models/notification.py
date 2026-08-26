@@ -2,6 +2,7 @@
 only when the installation has email configured."""
 
 from app.extensions import db
+
 from .base import BaseModel, OrgScoped, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 
@@ -48,6 +49,7 @@ class Notification(OrgScoped, BaseModel):
         # org_id explicitly. unscoped() signals to the tenant guard that
         # scoping is handled here (both user_id AND org_id are pinned).
         import sqlalchemy as sa
+
         from app.platform.tenant import unscoped
         with unscoped():
             db.session.execute(

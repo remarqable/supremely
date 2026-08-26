@@ -6,7 +6,7 @@ never roles, so adding a moderator role later stays cheap.
 
 from functools import wraps
 
-from flask import g, abort, redirect, url_for, request
+from flask import abort, g, redirect, request, url_for
 from flask_login import current_user
 
 ROLE_PERMISSIONS = {

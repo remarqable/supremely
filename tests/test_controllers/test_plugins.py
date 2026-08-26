@@ -3,7 +3,6 @@ glossary reference plugin) works end to end without editing Supremely core."""
 
 from flask import g
 
-from app.extensions import db
 from app.models import Content, Membership, OrgPlugin
 from app.platform.plugins import MANIFESTS, REGISTRY, installed_version
 from tests.conftest import login_as, make_user

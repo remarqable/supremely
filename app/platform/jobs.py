@@ -5,8 +5,8 @@ write means the job runs again.
 """
 
 import time
+from collections.abc import Callable
 from datetime import timedelta
-from typing import Callable, Optional
 
 import sqlalchemy as sa
 from flask import current_app
@@ -39,7 +39,7 @@ def enqueue(name: str, *, org_id=None, run_at=None, max_attempts: int = 3,
                run_at=run_at or utcnow(), max_attempts=max_attempts).save()
 
 
-def _claim_next() -> Optional[Job]:
+def _claim_next() -> Job | None:
     """Atomically claim one due job. Portable two-step claim: candidate
     select, then a conditional UPDATE whose rowcount detects a lost race."""
     now = utcnow()

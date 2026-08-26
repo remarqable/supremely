@@ -4,12 +4,20 @@ No flow here depends on outbound email. Recovery is `flask users
 reset-password EMAIL` -- see app/controllers/cli.py.
 """
 
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
-                   request, session, url_for)
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_login import current_user, login_required, login_user, logout_user
 
-from app.models import User
 from app.middleware.ratelimit import rate_limit
+from app.models import User
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger

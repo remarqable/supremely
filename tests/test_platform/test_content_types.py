@@ -4,12 +4,14 @@ Content subsystem."""
 import pytest
 from flask import g
 
-from app.extensions import db
 from app.models import Content
 from app.platform import content_types as ct_module
-from app.platform.errors import ValidationError
-from app.platform.content_types import (ContentType, FieldSpec,
-                                        register_content_type, type_for_base)
+from app.platform.content_types import (
+    ContentType,
+    FieldSpec,
+    register_content_type,
+    type_for_base,
+)
 
 
 @pytest.fixture
@@ -27,7 +29,7 @@ def recipe_type():
 
 
 def test_core_types_registered(app):
-    assert set(('page', 'article', 'event', 'link')) <= set(
+    assert {'page', 'article', 'event', 'link'} <= set(
         ct_module.CONTENT_TYPES)
     assert ct_module.CONTENT_TYPES['page'].is_page
     assert not ct_module.CONTENT_TYPES['article'].is_page

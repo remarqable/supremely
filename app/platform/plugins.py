@@ -8,10 +8,12 @@ public dispatcher re-matches the URL against the tenant's pinned version.
 Plugins are trusted first-party code. This is not a sandbox.
 """
 
+import contextlib
 import importlib
 import pkgutil
 from graphlib import TopologicalSorter
 from pathlib import Path
+from typing import ClassVar
 
 from flask import Blueprint, abort, current_app, g, request, url_for
 
@@ -31,11 +33,11 @@ HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 class Plugin:
     """Base class for plugin versions. Override what you provide."""
 
-    manifest: dict = {}
+    manifest: ClassVar[dict] = {}
 
     def blueprint(self):
         """The Flask blueprint for this version, or None."""
-        return None
+        return
 
     def content_types(self):
         """Content Types this version declares."""
@@ -82,8 +84,8 @@ def _in_dependency_order(slugs: list[str]) -> list[str]:
 
 def load_plugins(app) -> None:
     """Import every version of every plugin and wire up routing. Boot only."""
-    from app.platform.i18n import merge_translations
     from app.platform.content_types import CONTENT_TYPES, register_content_type
+    from app.platform.i18n import merge_translations
 
     REGISTRY.clear()
     MANIFESTS.clear()
@@ -100,10 +102,8 @@ def load_plugins(app) -> None:
 
             # Import models for EVERY version, installed or not: migrations
             # are global and Alembic must see every table.
-            try:
+            with contextlib.suppress(ModuleNotFoundError):
                 importlib.import_module(f'plugins.{slug}.v{major}.models')
-            except ModuleNotFoundError:
-                pass
 
             plugin = module.plugin
             bp = plugin.blueprint()
@@ -304,8 +304,9 @@ def upgrade(org_id: int, slug: str, to_major: str) -> None:
 
 
 def _installed_for(org_id: int) -> set[str]:
-    from app.models.org_plugin import OrgPlugin
     import sqlalchemy as sa
+
+    from app.models.org_plugin import OrgPlugin
     return set(db.session.scalars(
         sa.select(OrgPlugin.plugin_slug)
         .where(OrgPlugin.org_id == org_id, OrgPlugin.is_enabled.is_(True))))
@@ -315,6 +316,7 @@ def check_stranded_pins(app) -> None:
     """Refuse to serve tenants pinned to versions no longer on disk. Turns
     'we deleted v1 while a customer was on it' into a failed boot."""
     import sqlalchemy as sa
+
     from app.models.org_plugin import OrgPlugin
     try:
         with app.app_context():

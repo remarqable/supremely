@@ -206,8 +206,8 @@ def install_theme_zip(file) -> str:
 
     try:
         zf = zipfile.ZipFile(file)
-    except zipfile.BadZipFile:
-        raise ValidationError('Not a valid ZIP file')
+    except zipfile.BadZipFile as exc:
+        raise ValidationError('Not a valid ZIP file') from exc
 
     with zf:
         names = zf.namelist()
@@ -224,8 +224,8 @@ def install_theme_zip(file) -> str:
 
         try:
             manifest = json.loads(zf.read(prefix + 'theme.json'))
-        except (json.JSONDecodeError, KeyError):
-            raise ValidationError('theme.json is not valid JSON')
+        except (json.JSONDecodeError, KeyError) as exc:
+            raise ValidationError('theme.json is not valid JSON') from exc
 
         slug = manifest.get('slug', '')
         if not THEME_SLUG_RE.fullmatch(slug) or slug in ('default', 'origin'):
@@ -264,6 +264,7 @@ def install_theme_zip(file) -> str:
 
 def uninstall_theme(slug: str) -> None:
     import shutil
+
     from app.models import Organization
     info = AVAILABLE_THEMES.get(slug)
     if info is None or info['source'] != 'installed':

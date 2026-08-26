@@ -5,6 +5,7 @@ tenants by design. org_id is plain data here.
 """
 
 from app.extensions import db
+
 from .base import BaseModel, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 

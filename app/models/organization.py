@@ -1,9 +1,11 @@
 """Organization: the tenant. Represents the website/community being operated."""
 
 import re
+from typing import ClassVar
 
 from app.extensions import db
 from app.platform.errors import ValidationError
+
 from .base import BaseModel, transaction
 from .types import JSONColumn, TZDateTime
 
@@ -23,7 +25,7 @@ class Organization(BaseModel):
     memberships = db.relationship('Membership', back_populates='organization',
                                   cascade='all, delete-orphan', lazy='select')
 
-    RESERVED_SLUGS = {
+    RESERVED_SLUGS: ClassVar[set[str]] = {
         'www', 'api', 'admin', 'app', 'static', 'mail', 'smtp', 'status',
         'setup', 'auth', 'login', 'logout', 'launcher', 'health', 'files',
         'themes', 'assets', 'blog', 'docs', 'help', 'support',

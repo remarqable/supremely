@@ -4,8 +4,18 @@ directory, profile, avatars."""
 import io
 import secrets
 
-from flask import (Blueprint, abort, flash, g, redirect, render_template,
-                   request, send_file, session, url_for)
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    session,
+    url_for,
+)
 from flask_login import current_user, login_required, login_user
 
 from app.extensions import db
@@ -133,6 +143,7 @@ def profile():
 
 def _set_avatar(user, file) -> None:
     from PIL import Image, ImageOps
+
     from app.platform.storage import storage
 
     head = file.stream.read(5 * 1024 * 1024 + 1)
