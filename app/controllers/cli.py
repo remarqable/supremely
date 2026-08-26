@@ -108,10 +108,38 @@ def sync_db():
 
 
 @seed_bp.cli.command('getsupremely')
-def seed_getsupremely():
+@click.option('--admin-email', default='admin@getsupremely.org',
+              show_default=True,
+              help='Platform Admin to create if none exists yet.')
+def seed_getsupremely(admin_email: str):
     """Dogfood: build the Supremely project website as an Organization on
-    this installation (spec Phase 9). Idempotent."""
+    this installation (spec Phase 9). Idempotent.
+
+    On a fresh install (post `make reset`) this bootstraps what the setup
+    wizard would have created: a Platform Admin (one-time password printed)
+    and the installed marker — no wizard click-through needed."""
+    from app.platform.config_store import installation_ready, mark_installed
     from app.platform.seed import seed_getsupremely_org
+
+    if User.query.filter_by(is_platform_admin=True).first() is None:
+        email = admin_email.strip().lower()
+        password = secrets.token_urlsafe(12)
+        user = User.get_by_email(email)
+        if user is not None:
+            user.is_platform_admin = True
+            user.save()
+            click.echo(f'{user.email} promoted to Platform Admin.')
+        else:
+            user = User.create(email=email, name=email.split('@')[0],
+                               password=password, is_platform_admin=True)
+            click.echo(f'Platform Admin created: {user.email}')
+            click.echo(f'One-time password: {password}')
+            click.echo('It is shown only once. Change it after login.')
+
+    if not installation_ready(current_app):
+        mark_installed(current_app)
+        click.echo('Installation marked ready (setup wizard skipped).')
+
     org = seed_getsupremely_org()
     click.echo(f'Seeded organization "{org.name}" ({org.slug}).')
     click.echo('Visit it on the bare domain (single org) or its subdomain.')
