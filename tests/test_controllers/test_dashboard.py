@@ -104,7 +104,7 @@ def test_sidebar_lists_content_type_sections(app, client, acme, user):
     """The sidebar mirrors the org's feed content types as destinations."""
     login_as(client, user)
     response = client.get('/dashboard', base_url=ACME)
-    for base, label in ((b'/blog', b'Blog'), (b'/events', b'Events'),
+    for base, label in ((b'/blog', b'Articles'), (b'/events', b'Events'),
                         (b'/announcements', b'Announcements'),
                         (b'/recordings', b'Recordings'),
                         (b'/podcast', b'Podcast'), (b'/resources', b'Resources')):

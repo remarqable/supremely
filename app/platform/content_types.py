@@ -187,7 +187,7 @@ def register_core_types() -> None:
         has_archive=False, base='', template='page',
     ))
     register_content_type(ContentType(
-        slug='article', singular='Article', plural='Blog',
+        slug='article', singular='Article', plural='Articles',
         description='The standard blog post.',
         base='/blog', show_in_nav=True,
     ))
