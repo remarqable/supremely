@@ -20,7 +20,7 @@ from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
 from app.platform import theme_content as tc
 from app.platform.authz import org_required, require
-from app.platform.content_types import CONTENT_TYPES, get_content_type
+from app.platform.content_types import CONTENT_TYPES, active_types, get_content_type
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -50,7 +50,7 @@ def _content_or_404(content_id) -> Content:
 @org_required
 @require('content.write')
 def content_list(type_slug):
-    if type_slug not in CONTENT_TYPES:
+    if type_slug not in active_types():
         abort(404)
     ct = get_content_type(type_slug)
     items = (Content.of_type(type_slug)
@@ -92,7 +92,7 @@ def _render_content_form(content, ct):
 @org_required
 @require('content.write')
 def new_content(type_slug):
-    if type_slug not in CONTENT_TYPES:
+    if type_slug not in active_types():
         abort(404)
     ct = get_content_type(type_slug)
     if request.method == 'POST':

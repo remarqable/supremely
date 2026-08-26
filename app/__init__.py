@@ -153,7 +153,7 @@ def _init_context(app):
         from flask_login import current_user
 
         from .models import NavigationItem
-        from .platform.content_types import CONTENT_TYPES
+        from .platform.content_types import active_types
 
         def unread_notifications():
             if getattr(g, 'membership', None) is None:
@@ -186,7 +186,7 @@ def _init_context(app):
             'unread_notifications': unread_notifications,
             'managing': managing,
             'start_here_page': start_here_page,
-            'content_types': lambda: CONTENT_TYPES,
+            'content_types': active_types,
         }
 
     @app.template_filter('localdate')

@@ -146,13 +146,33 @@ def get_content_type(slug: str) -> ContentType:
     return CONTENT_TYPES.get(slug) or CONTENT_TYPES['article']
 
 
+def type_is_active(content_type: ContentType) -> bool:
+    """Active for the current tenant. Registration is global (boot-time, no
+    restarts); visibility is per-request: a plugin's types surface only where
+    that plugin is enabled for the org. Core/library types are active
+    everywhere until per-org type enablement exists."""
+    if content_type.plugin is None:
+        return True
+    from flask import has_request_context
+    if not has_request_context():
+        return True                     # CLI/jobs: no tenant to gate by
+    from app.platform.plugins import installed_version
+    return installed_version(content_type.plugin) is not None
+
+
+def active_types() -> dict[str, ContentType]:
+    return {slug: ct for slug, ct in CONTENT_TYPES.items()
+            if type_is_active(ct)}
+
+
 def feed_types() -> list[ContentType]:
-    return [ct for ct in CONTENT_TYPES.values() if ct.has_archive]
+    return [ct for ct in CONTENT_TYPES.values()
+            if ct.has_archive and type_is_active(ct)]
 
 
 def type_for_base(base: str) -> ContentType | None:
     for ct in CONTENT_TYPES.values():
-        if ct.has_archive and ct.base == base:
+        if ct.has_archive and ct.base == base and type_is_active(ct):
             return ct
     return None
 

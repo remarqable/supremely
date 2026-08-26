@@ -92,6 +92,7 @@ def test_plugin_post_type_registered(app, client, acme, globex, user):
     assert CONTENT_TYPES['definition'].plugin == 'glossary'
 
     login_as(client, user)
+    install_glossary(client)        # the type is usable only where enabled
     client.post('/manage/content/definition/new', base_url=ACME, data={
         'title': 'What is a Widget', 'slug': 'what-is-a-widget',
         'body': 'A widget is a thing.', 'visibility': 'public',
@@ -159,3 +160,25 @@ def test_installed_version_memoised_per_request(app, client, acme, globex, user)
         g.org = acme
         assert installed_version('glossary') == '1'
         assert installed_version('nonexistent') is None
+
+
+def test_plugin_content_type_is_gated_per_org(app, client, acme, globex, user):
+    """Registration is global (boot-time), visibility is per-tenant: the
+    Definitions type surfaces only where the glossary plugin is enabled."""
+    login_as(client, user)
+
+    # Not installed: no sidebar entry, no archive, no manage surface.
+    sidebar = client.get('/dashboard', base_url=ACME)
+    assert b'href="/definitions"' not in sidebar.data
+    assert client.get('/definitions', base_url=ACME).status_code == 404
+    assert client.get('/manage/content/definition',
+                      base_url=ACME).status_code == 404
+
+    install_glossary(client)
+
+    sidebar = client.get('/dashboard', base_url=ACME)
+    assert b'href="/definitions"' in sidebar.data
+    assert b'Definitions' in sidebar.data
+    assert client.get('/definitions', base_url=ACME).status_code == 200
+    assert client.get('/manage/content/definition',
+                      base_url=ACME).status_code == 200
