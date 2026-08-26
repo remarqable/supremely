@@ -2,10 +2,17 @@ TAILWIND_VERSION := v4.1.14
 TAILWIND_BIN := bin/tailwindcss
 DATA_DIR ?= data
 
-.PHONY: install css css-watch run worker test lint migrate reset
+.PHONY: install css css-watch run worker test lint migrate reset kill
 
 install:
 	uv sync
+
+# Free the app port: kill whatever is listening on PORT (default 8000).
+kill:
+	@PIDS=$$(lsof -ti tcp:$(or $(PORT),8000) -sTCP:LISTEN); \
+	if [ -n "$$PIDS" ]; then \
+	  kill $$PIDS && echo "Killed $$PIDS (port $(or $(PORT),8000))"; \
+	else echo "Nothing listening on port $(or $(PORT),8000)"; fi
 
 $(TAILWIND_BIN):
 	@mkdir -p bin

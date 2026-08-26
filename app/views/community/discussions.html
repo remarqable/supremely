@@ -1,5 +1,5 @@
 {% extends site_layout %}
-{% from 'community/_macros.html' import discussion_card, search_box with context %}
+{% from 'community/_macros.html' import composer, discussion_card, search_box with context %}
 {% from 'partials/_ui.html' import empty_state with context %}
 
 {% block title %}{{ _('discussions.title') }} — {{ g.org.name }}{% endblock %}
@@ -30,6 +30,7 @@
   </div>
 
   <div class="lg:col-span-2">
+    <div class="mb-4">{{ composer(spaces) }}</div>
     <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.recent') }}</h2>
     <div class="space-y-3.5">
       {% for post in recent_posts %}

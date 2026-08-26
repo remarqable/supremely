@@ -10,7 +10,7 @@
 {% block content %}
 <div class="mx-auto flex max-w-[1400px] flex-col lg:flex-row">
 
-  {{ community_nav('posts' if tab == 'posts' else 'home') }}
+  {{ community_nav('home') }}
 
   {# --- Center: composer, tabs, feed ----------------------------------------- #}
   <div class="min-w-0 flex-1 px-4 py-6 sm:px-8">
@@ -19,14 +19,7 @@
 
     {{ composer(spaces) }}
 
-    <nav class="mb-4 mt-5 flex gap-6 border-b border-slate-200/70" aria-label="{{ _('community.recent_activity') }}">
-      {% for key in ('all', 'posts', 'discussions', 'announcements') %}
-      <a href="{{ url_for('orgs.dashboard', tab=None if key == 'all' else key) }}"
-         {{ 'aria-current=page' if tab == key }}
-         class="-mb-px pb-2.5 text-sm {{ 'border-b-2 border-brand-600 font-semibold text-brand-700' if tab == key else 'text-slate-500 hover:text-slate-900' }}">
-        {{ _('community.tab_' + key) }}</a>
-      {% endfor %}
-    </nav>
+    <div class="mt-5"></div>
 
     <div class="space-y-3.5">
       {% for kind, when, item in feed %}

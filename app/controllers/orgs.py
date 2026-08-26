@@ -73,22 +73,20 @@ def toggle_manage_mode():
     return redirect(request.form.get('next') or url_for('orgs.dashboard'))
 
 
-FEED_TABS = ('all', 'posts', 'discussions', 'announcements')
 FEED_LIMIT = 20
-ANNOUNCEMENTS_CATEGORY = 'announcements'
 
 
-def _feed_items(tab, spaces):
+def _feed_items(spaces):
     """The community feed: one reverse-chronological stream of discussion
     posts and published content. Merged in Python — both sides are already
-    small, indexed, tenant-scoped queries."""
+    small, indexed, tenant-scoped queries. Filtering by kind is the
+    sidebar's job (each section is a destination), not the feed's."""
     from app.models import Content
-    from app.models.content import Category
     from app.models.discussion import DiscussionPost
     from app.platform.content_types import feed_types
 
     discussions = []
-    if tab in ('all', 'discussions') and spaces:
+    if spaces:
         discussions = (DiscussionPost.query
                        .filter(DiscussionPost.space_id.in_(
                                    [space.id for space in spaces]),
@@ -96,19 +94,10 @@ def _feed_items(tab, spaces):
                        .order_by(DiscussionPost.last_activity_at.desc())
                        .limit(FEED_LIMIT).all())
 
-    content = []
-    if tab in ('all', 'posts'):
-        type_slugs = [ct.slug for ct in feed_types()]
-        content = (Content.published_query()
-                   .filter(Content.type.in_(type_slugs))
-                   .limit(FEED_LIMIT).all())
-    elif tab == 'announcements':
-        category = Category.query.filter_by(
-            slug=ANNOUNCEMENTS_CATEGORY).first()
-        if category is not None:
-            content = (Content.published_query('article')
-                       .filter(Content.categories.contains(category))
-                       .limit(FEED_LIMIT).all())
+    type_slugs = [ct.slug for ct in feed_types()]
+    content = (Content.published_query()
+               .filter(Content.type.in_(type_slugs))
+               .limit(FEED_LIMIT).all())
 
     items = ([('discussion', post.last_activity_at, post)
               for post in discussions]
@@ -140,10 +129,6 @@ def dashboard():
     from app.models import User
     from app.models.discussion import Space
 
-    tab = request.args.get('tab', 'all')
-    if tab not in FEED_TABS:
-        tab = 'all'
-
     spaces = [space for space in
               Space.query.order_by(Space.position, Space.name).all()
               if space.readable_by_current_visitor()]
@@ -156,7 +141,7 @@ def dashboard():
                       .order_by(Membership.created_at.desc()).limit(5).all())
 
     return render_template('orgs/dashboard.html', org=g.org, spaces=spaces,
-                           tab=tab, feed=_feed_items(tab, spaces),
+                           feed=_feed_items(spaces),
                            member_count=member_count,
                            recent_members=recent_members,
                            upcoming_event=_upcoming_event())

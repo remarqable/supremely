@@ -51,7 +51,6 @@
   {% set section = ('discussions' if path.startswith('/discussions')
                     else 'members' if path.startswith('/members')
                     else 'newsletters' if path.startswith('/subscribe')
-                    else 'events' if path.startswith('/events')
                     else 'settings' if path.startswith('/profile')
                     else '') %}
   <div class="mx-auto flex max-w-[1400px] flex-col lg:flex-row">
