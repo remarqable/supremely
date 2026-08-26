@@ -1,5 +1,4 @@
-{# The member shell's left sidebar: community mark, manage-mode pill, then
-   the grouped community navigation (Community / Meet / Learn). Content-type rows
+{# The member shell's left sidebar: the grouped community navigation (Community / Meet / Learn). Content-type rows
    render from the registry — each type declares its group — so the sidebar
    mirrors what this organization publishes. Empty groups hide. #}
 
@@ -43,26 +42,7 @@
 {% macro community_nav(active='') %}
 <aside class="shrink-0 border-b border-slate-200/70 bg-white px-3.5 py-5 lg:min-h-[calc(100vh-3.5rem)] lg:w-60 lg:border-b-0 lg:border-e">
   <div class="lg:sticky lg:top-6">
-    {# Identity lives solely in the top bar's centered name. Switching
-       communities happens from the avatar menu (and only for people who
-       belong to more than one). #}
-    {% if can('content.write') or can('content.moderate') %}
-    <form method="POST" action="{{ url_for('orgs.toggle_manage_mode') }}" class="px-1.5">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
-      <button type="submit"
-              class="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-sm font-medium ring-1 transition-colors {{ 'bg-brand-50 text-brand-700 ring-brand-600/30' if managing() else 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 hover:text-slate-900' }}">
-        {% if managing() %}
-        <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.5 3.5L13 4.5"/></svg>
-        {{ _('community.managing') }}
-        {% else %}
-        {{ _('community.manage') }}
-        {% endif %}
-      </button>
-    </form>
-    {% endif %}
-
-    <nav class="mt-4" aria-label="{{ _('community.nav') }}">
+    <nav aria-label="{{ _('community.nav') }}">
       {% call nav_item(_('community.home'), url_for('orgs.dashboard'), active=(active == 'home')) %}
         <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L10 3l7 6.5V16a1 1 0 01-1 1h-3.5v-4.5h-5V17H4a1 1 0 01-1-1V9.5z"/></svg>
       {% endcall %}
