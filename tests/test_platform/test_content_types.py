@@ -29,7 +29,7 @@ def recipe_type():
 
 
 def test_core_types_registered(app):
-    assert {'page', 'article', 'event', 'link'} <= set(
+    assert {'page', 'article', 'event'} <= set(
         ct_module.CONTENT_TYPES)
     assert ct_module.CONTENT_TYPES['page'].is_page
     assert not ct_module.CONTENT_TYPES['article'].is_page

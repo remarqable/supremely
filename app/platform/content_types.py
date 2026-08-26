@@ -152,8 +152,8 @@ def type_for_base(base: str) -> ContentType | None:
 
 def register_core_types() -> None:
     """Core content types. `page` is the standalone type (Home, About);
-    `article` is the blog; `event` is a vertical hint; `link` is the reference
-    structured type."""
+    `article` is the blog; `event` is the structured-fields example. Further
+    types come from the library (content_library) and plugins."""
     if 'page' in CONTENT_TYPES:
         return
     register_content_type(ContentType(
@@ -173,14 +173,5 @@ def register_core_types() -> None:
         fields=(
             FieldSpec(key='starts_on', type='date', label='Date', required=True),
             FieldSpec(key='location', type='string', label='Location'),
-        ),
-    ))
-    register_content_type(ContentType(
-        slug='link', singular='Link', plural='Links',
-        description='Reference structured type: share a link with commentary.',
-        base='/links', template='single-link',
-        fields=(
-            FieldSpec(key='url', type='url', label='Link URL', required=True),
-            FieldSpec(key='source', type='string', label='Source name'),
         ),
     ))
