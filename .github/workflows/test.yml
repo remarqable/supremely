@@ -44,3 +44,19 @@ jobs:
       - name: CSS is committed and current
         if: matrix.name == 'sqlite'
         run: make css && git diff --exit-code app/static/css/app.css
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Ruff
+        run: uv run ruff check --output-format=github .
