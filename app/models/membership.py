@@ -46,6 +46,19 @@ class Membership(BaseModel):
             return existing
         return cls(user_id=user_id, org_id=org_id, role=role).save()
 
+    @classmethod
+    def active_count(cls, org_id: int) -> int:
+        return cls.query.filter_by(org_id=org_id, is_active=True).count()
+
+    @classmethod
+    def recent_users(cls, org_id: int, limit: int = 5):
+        """The newest active members' users, newest first (the community
+        right rail's avatar stack)."""
+        from .user import User
+        return (User.query.join(cls, cls.user_id == User.id)
+                .filter(cls.org_id == org_id, cls.is_active.is_(True))
+                .order_by(cls.created_at.desc()).limit(limit).all())
+
     def change_role(self, role: str) -> 'Membership':
         if self.role == 'owner' and role != 'owner':
             self.organization_must_keep_an_owner()

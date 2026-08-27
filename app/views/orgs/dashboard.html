@@ -1,113 +1,60 @@
-{% extends 'layouts/base.html' %}
-{% set nav_shell = true %}
-{% from 'partials/_ui.html' import avatar, empty_state with context %}
-{% from 'partials/_community_nav.html' import community_nav with context %}
+{% extends 'layouts/community.html' %}
+{% from 'partials/_ui.html' import empty_state with context %}
 {% from 'community/_macros.html' import discussion_card, new_post_modal, publish_menu with context %}
-{% from 'partials/_community_rail.html' import announcement_card with context %}
 
 {% block title %}{{ _('community.home') }} — {{ org.name }}{% endblock %}
 
-{% block main_class %}{% endblock %}
-
 {% block content %}
-<div class="mx-auto flex max-w-[1400px] flex-col lg:flex-row">
-
-  {{ community_nav('home') }}
-
-  {# --- Center: composer, tabs, feed ----------------------------------------- #}
-  <div class="min-w-0 flex-1 px-4 py-6 sm:px-8">
-    {% include 'partials/_flash.html' %}
-    <div class="mb-5 flex items-center justify-between">
-      <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ _('community.home') }}</h1>
-      <div class="flex items-center gap-2">
-        {{ publish_menu() }}
-        {{ new_post_modal(groups) }}
-      </div>
-    </div>
-
-    <div class="mt-5 grid gap-6 xl:grid-cols-2">
-      <section>
-        <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.latest_from', org=org.name) }}</h2>
-        <div class="space-y-3.5">
-          {% for item in latest_published %}
-          <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
-            <div class="flex items-center gap-2">
-              <span class="badge-slate shrink-0 uppercase tracking-wide">{{ item.content_type.singular }}</span>
-              <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
-            </div>
-            <h3 class="mt-2 text-lg font-semibold tracking-tight">
-              <a href="{{ item.permalink }}" class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>
-            </h3>
-            {% set summary = item.excerpt_or_summary() %}
-            {% if summary %}<p class="mt-1 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
-            <div class="mt-2.5 text-sm text-slate-500">
-              <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
-            </div>
-          </article>
-          {% else %}
-          <div class="rounded-xl bg-white ring-1 ring-slate-200">
-            {{ empty_state(_('archive.none')) }}
-          </div>
-          {% endfor %}
-        </div>
-      </section>
-
-      <section>
-        <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.forum_activity') }}</h2>
-        <div class="space-y-3.5">
-          {% for post in feed %}
-          {{ discussion_card(post) }}
-          {% else %}
-          <div class="rounded-xl bg-white ring-1 ring-slate-200">
-            {% if groups and can('discuss') %}
-            {{ empty_state(_('community.empty_feed'), '/discussions/' + groups[0].slug, _('community.start_first_post')) }}
-            {% else %}
-            {{ empty_state(_('community.empty_feed')) }}
-            {% endif %}
-          </div>
-          {% endfor %}
-        </div>
-      </section>
-    </div>
+<div class="mb-5 flex items-center justify-between">
+  <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ _('community.home') }}</h1>
+  <div class="flex items-center gap-2">
+    {{ publish_menu() }}
+    {{ new_post_modal(groups) }}
   </div>
+</div>
 
-  {# --- Right rail: members + upcoming event ---------------------------------- #}
-  <aside class="w-full shrink-0 px-4 py-6 sm:px-8 lg:w-80 lg:ps-0 lg:pe-6">
-    <div class="space-y-4 lg:sticky lg:top-6">
-      {{ announcement_card() }}
-      <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
-        <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.members_card') }}</h2>
-        <div class="mt-3.5 flex items-center">
-          {% for member in recent_members %}
-          <span class="{{ '-ms-2.5' if not loop.first }} rounded-full ring-[2.5px] ring-white">
-            {{ avatar(member.name, member.avatar_url, size='h-9 w-9', text='text-[11px]') }}</span>
-          {% endfor %}
-          {% if member_count > recent_members|length %}
-          <span class="-ms-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-700 ring-[2.5px] ring-white">+{{ member_count - recent_members|length }}</span>
-          {% endif %}
+<div class="mt-5 grid gap-6 xl:grid-cols-2">
+  <section>
+    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.latest_from', org=org.name) }}</h2>
+    <div class="space-y-3.5">
+      {% for item in latest_published %}
+      <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
+        <div class="flex items-center gap-2">
+          <span class="badge-slate shrink-0 uppercase tracking-wide">{{ item.content_type.singular }}</span>
+          <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
         </div>
-        <a href="/members" class="mt-3 block text-sm text-slate-500 hover:text-slate-900">{{ _('community.member_count', n=member_count) }}</a>
-      </div>
-
-      {% if upcoming_event %}
-      <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
-        <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.upcoming_event') }}</h2>
-        {% set starts = upcoming_event.fields.get('starts_on', '') %}
-        <div class="mt-3.5 flex items-start gap-3.5">
-          <div class="min-w-[52px] overflow-hidden rounded-[10px] text-center ring-1 ring-slate-200">
-            <div class="bg-red-500 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{{ starts|month_abbr }}</div>
-            <div class="py-1 text-xl font-bold tabular-nums text-slate-900">{{ starts[8:10].lstrip('0') or '?' }}</div>
-          </div>
-          <div class="min-w-0">
-            <a href="{{ upcoming_event.permalink }}"
-               class="block truncate text-[15px] font-semibold text-slate-900 hover:text-brand-700">{{ upcoming_event.title }}</a>
-            <p class="mt-0.5 text-sm text-slate-500">{{ starts }}{% if upcoming_event.fields.get('location') %} · {{ upcoming_event.fields.location }}{% endif %}</p>
-          </div>
+        <h3 class="mt-2 text-lg font-semibold tracking-tight">
+          <a href="{{ item.permalink }}" class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>
+        </h3>
+        {% set summary = item.excerpt_or_summary() %}
+        {% if summary %}<p class="mt-1 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
+        <div class="mt-2.5 text-sm text-slate-500">
+          <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
         </div>
-        <a href="/events" class="btn-secondary mt-4 w-full">{{ _('community.view_all_events') }}</a>
+      </article>
+      {% else %}
+      <div class="rounded-xl bg-white ring-1 ring-slate-200">
+        {{ empty_state(_('archive.none')) }}
       </div>
-      {% endif %}
+      {% endfor %}
     </div>
-  </aside>
+  </section>
+
+  <section>
+    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.forum_activity') }}</h2>
+    <div class="space-y-3.5">
+      {% for post in feed %}
+      {{ discussion_card(post) }}
+      {% else %}
+      <div class="rounded-xl bg-white ring-1 ring-slate-200">
+        {% if groups and can('discuss') %}
+        {{ empty_state(_('community.empty_feed'), '/discussions/' + groups[0].slug, _('community.start_first_post')) }}
+        {% else %}
+        {{ empty_state(_('community.empty_feed')) }}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
 </div>
 {% endblock %}

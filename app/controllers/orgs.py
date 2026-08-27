@@ -12,7 +12,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app.models import InstallationSetting, Membership, Organization
+from app.models import InstallationSetting, Organization
 from app.platform.authz import org_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -109,27 +109,15 @@ def _latest_published():
             .filter(Content.type.in_(type_slugs)).limit(6).all())
 
 
-def _upcoming_event():
-    """The next published event dated today or later. Event dates live in the
-    structured `fields` JSON, so the (few) events are filtered in Python."""
-    from datetime import date
-
-    from app.models import Content
-    today = date.today().isoformat()
-    events = [(event.fields.get('starts_on'), event)
-              for event in Content.published_query('event').limit(50).all()
-              if (event.fields or {}).get('starts_on', '') >= today]
-    return min(events, default=(None, None))[1]
-
-
 @bp.route('/dashboard')
 @org_required
 @login_required
 def dashboard():
-    """Community home: where members land inside the organization."""
+    """Community home: where members land inside the organization. The right
+    rail (announcement, members, event) rides the shell layout and feeds
+    itself through template helpers."""
     if g.membership is None and not current_user.is_platform_admin:
         abort(404)
-    from app.models import User
     from app.models.discussion import DiscussionGroup
 
     groups = [group for group in
@@ -137,16 +125,6 @@ def dashboard():
                                              DiscussionGroup.name).all()
               if group.readable_by_current_visitor()]
 
-    member_count = Membership.query.filter_by(org_id=g.org.id,
-                                              is_active=True).count()
-    recent_members = (User.query.join(Membership, Membership.user_id == User.id)
-                      .filter(Membership.org_id == g.org.id,
-                              Membership.is_active.is_(True))
-                      .order_by(Membership.created_at.desc()).limit(5).all())
-
     return render_template('orgs/dashboard.html', org=g.org, groups=groups,
                            feed=_recent_posts(groups),
-                           latest_published=_latest_published(),
-                           member_count=member_count,
-                           recent_members=recent_members,
-                           upcoming_event=_upcoming_event())
+                           latest_published=_latest_published())

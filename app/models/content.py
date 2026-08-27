@@ -217,6 +217,18 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         return q.order_by(cls.published_at.desc())
 
     @classmethod
+    def upcoming_event(cls):
+        """The next published event dated today or later. Event dates live in
+        the structured `fields` JSON, so the (few) events are filtered in
+        Python."""
+        from datetime import date
+        today = date.today().isoformat()
+        events = [(event.fields.get('starts_on'), event)
+                  for event in cls.published_query('event').limit(50).all()
+                  if (event.fields or {}).get('starts_on', '') >= today]
+        return min(events, default=(None, None))[1]
+
+    @classmethod
     def published_by_slug(cls, type_slug: str, slug: str):
         return cls.query.filter_by(type=type_slug, status='published',
                                    slug=(slug or '').strip().lower()).first()

@@ -6,6 +6,7 @@
    (title/meta/head/content/scripts) match the theme layouts, so theme
    content templates render here unchanged. #}
 {% from 'partials/_community_nav.html' import community_nav with context %}
+{% from 'partials/_community_rail.html' import community_rail with context %}
 <html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
 <head>
   <meta charset="utf-8">
@@ -49,7 +50,8 @@
   {% include 'partials/_navbar.html' %}
 
   {% set path = request.path %}
-  {% set section = ('discussions' if path.startswith('/discussions')
+  {% set section = ('home' if path.startswith('/dashboard')
+                    else 'discussions' if path.startswith('/discussions')
                     else 'members' if path.startswith('/members')
                     else 'newsletters' if path.startswith('/newsletters')
                     else 'settings' if path.startswith('/profile')
@@ -60,6 +62,14 @@
       {% include 'partials/_flash.html' %}
       {% block content %}{% endblock %}
     </main>
+    {# The rail rides the shell, not individual pages, so it is present on
+       every community page. Pages add contextual cards by overriding the
+       `rail` block (keep community_rail() first). #}
+    <aside class="w-full shrink-0 px-4 pb-6 sm:px-8 lg:w-80 lg:py-6 lg:ps-0 lg:pe-6">
+      <div class="space-y-4 lg:sticky lg:top-6">
+        {% block rail %}{{ community_rail() }}{% endblock %}
+      </div>
+    </aside>
   </div>
 
   {% block scripts %}{% endblock %}

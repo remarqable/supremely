@@ -1,5 +1,18 @@
-{# The permanent right-rail announcement card: the latest published
-   announcement, or a friendly placeholder until the first one ships. #}
+{# The community right rail — present on every page of the member shell.
+   community_rail() stacks the standard cards (announcement, members,
+   upcoming event); pages append contextual cards via the layout's
+   `rail` block. Each card fetches its own data through template helpers
+   so no controller has to pass rail context. #}
+{% from 'partials/_ui.html' import avatar with context %}
+
+{% macro community_rail() %}
+{{ announcement_card() }}
+{{ members_card() }}
+{{ event_card() }}
+{% endmacro %}
+
+{# The latest published announcement, or a friendly placeholder until the
+   first one ships. #}
 {% macro announcement_card() %}
 {% set announcement = latest_announcement() %}
 <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
@@ -25,4 +38,43 @@
   {% endif %}
   {% endif %}
 </div>
+{% endmacro %}
+
+{% macro members_card() %}
+{% set recent, total = rail_members() %}
+<div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+  <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.members_card') }}</h2>
+  <div class="mt-3.5 flex items-center">
+    {% for member in recent %}
+    <span class="{{ '-ms-2.5' if not loop.first }} rounded-full ring-[2.5px] ring-white">
+      {{ avatar(member.name, member.avatar_url, size='h-9 w-9', text='text-[11px]') }}</span>
+    {% endfor %}
+    {% if total > recent|length %}
+    <span class="-ms-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-700 ring-[2.5px] ring-white">+{{ total - recent|length }}</span>
+    {% endif %}
+  </div>
+  <a href="/members" class="mt-3 block text-sm text-slate-500 hover:text-slate-900">{{ _('community.member_count', n=total) }}</a>
+</div>
+{% endmacro %}
+
+{% macro event_card() %}
+{% set event = upcoming_event() %}
+{% if event %}
+<div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+  <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.upcoming_event') }}</h2>
+  {% set starts = event.fields.get('starts_on', '') %}
+  <div class="mt-3.5 flex items-start gap-3.5">
+    <div class="min-w-[52px] overflow-hidden rounded-[10px] text-center ring-1 ring-slate-200">
+      <div class="bg-red-500 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{{ starts|month_abbr }}</div>
+      <div class="py-1 text-xl font-bold tabular-nums text-slate-900">{{ starts[8:10].lstrip('0') or '?' }}</div>
+    </div>
+    <div class="min-w-0">
+      <a href="{{ event.permalink }}"
+         class="block truncate text-[15px] font-semibold text-slate-900 hover:text-brand-700">{{ event.title }}</a>
+      <p class="mt-0.5 text-sm text-slate-500">{{ starts }}{% if event.fields.get('location') %} · {{ event.fields.location }}{% endif %}</p>
+    </div>
+  </div>
+  <a href="/events" class="btn-secondary mt-4 w-full">{{ _('community.view_all_events') }}</a>
+</div>
+{% endif %}
 {% endmacro %}

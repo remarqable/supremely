@@ -1,13 +1,11 @@
 {% extends site_layout %}
 {% from 'community/_macros.html' import new_post_modal, post_row, search_box with context %}
-{% from 'partials/_community_rail.html' import announcement_card with context %}
 {% from 'partials/_ui.html' import empty_state with context %}
 
 {% block title %}{{ group.name }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
-<div class="mx-auto flex max-w-5xl items-start gap-6">
-<div class="min-w-0 flex-1">
+<div class="min-w-0">
   <nav class="mb-3 text-sm text-slate-400" aria-label="{{ _('discussions.breadcrumb') }}">
     <a href="/discussions" class="hover:text-slate-900">{{ _('discussions.title') }}</a>
     <span class="mx-1">/</span>
@@ -40,7 +38,5 @@
   {% else %}
   <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_posts')) }}</div>
   {% endif %}
-</div>
-<aside class="sticky top-6 hidden w-72 shrink-0 lg:block">{{ announcement_card() }}</aside>
 </div>
 {% endblock %}

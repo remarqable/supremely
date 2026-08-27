@@ -1,6 +1,6 @@
 {% extends site_layout %}
 {% from 'partials/_ui.html' import avatar with context %}
-{% from 'partials/_community_rail.html' import announcement_card with context %}
+{% from 'partials/_community_rail.html' import community_rail with context %}
 
 {% block title %}{{ post.title }} — {{ g.org.name }}{% endblock %}
 
@@ -89,8 +89,7 @@
   <a href="/discussions/{{ group.slug }}" class="hover:text-slate-900">{{ group.name }}</a>
 </nav>
 
-<div class="flex items-start gap-6">
-<div class="min-w-0 flex-1">
+<div class="min-w-0">
 <article class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
   <div class="flex items-start gap-3">
     {{ avatar(post.author.name if post.author else '?',
@@ -247,23 +246,22 @@
   {{ _('discussions.login_to_participate') }}</p>
 {% endif %}
 </div>
+{% endblock %}
 
-<aside class="sticky top-6 hidden w-72 shrink-0 space-y-4 lg:block">
-  {{ announcement_card() }}
-  {% if latest_in_group %}
-  <div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
-    <h2 class="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.latest_in', group=group.name) }}</h2>
-    <div class="mt-1 divide-y divide-slate-100">
-      {% for item in latest_in_group %}
-      <a href="{{ item.url }}" class="block px-1 py-2.5 hover:bg-slate-50/60">
-        <span class="line-clamp-2 text-sm font-medium leading-snug text-slate-900">{{ item.title }}</span>
-        <span class="mt-0.5 block text-xs tabular-nums text-slate-400">
-          {{ _('community.replies_count', n=item.reply_count) }} · {{ item.last_activity_at|timeago }}</span>
-      </a>
-      {% endfor %}
-    </div>
+{% block rail %}
+{{ community_rail() }}
+{% if latest_in_group %}
+<div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+  <h2 class="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.latest_in', group=group.name) }}</h2>
+  <div class="mt-1 divide-y divide-slate-100">
+    {% for item in latest_in_group %}
+    <a href="{{ item.url }}" class="block px-1 py-2.5 hover:bg-slate-50/60">
+      <span class="line-clamp-2 text-sm font-medium leading-snug text-slate-900">{{ item.title }}</span>
+      <span class="mt-0.5 block text-xs tabular-nums text-slate-400">
+        {{ _('community.replies_count', n=item.reply_count) }} · {{ item.last_activity_at|timeago }}</span>
+    </a>
+    {% endfor %}
   </div>
-  {% endif %}
-</aside>
 </div>
+{% endif %}
 {% endblock %}

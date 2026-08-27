@@ -176,6 +176,22 @@ def _init_context(app):
             from .models import Content
             return Content.published_query('announcement').first()
 
+        def upcoming_event():
+            """Next published event for the right-rail event card."""
+            if getattr(g, 'org', None) is None:
+                return None
+            from .models import Content
+            return Content.upcoming_event()
+
+        def rail_members():
+            """(newest members, total active) for the right-rail members
+            card."""
+            if getattr(g, 'org', None) is None:
+                return [], 0
+            from .models import Membership
+            return (Membership.recent_users(g.org.id),
+                    Membership.active_count(g.org.id))
+
         def managing():
             """Manage mode: presentation only — surfaces controls the user
             already has permission for. Never consulted for authorization."""
@@ -194,6 +210,8 @@ def _init_context(app):
             'managing': managing,
             'start_here_page': start_here_page,
             'latest_announcement': latest_announcement,
+            'upcoming_event': upcoming_event,
+            'rail_members': rail_members,
             'content_types': active_types,
         }
 
