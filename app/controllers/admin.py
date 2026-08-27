@@ -7,7 +7,7 @@ import sys
 
 import sqlalchemy as sa
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from flask_login import current_user
+from flask_login import current_user, login_user
 
 from app.extensions import db
 from app.models import InstallationSetting, Job, Membership, Organization, User
@@ -294,6 +294,10 @@ def user_set_password(user_id):
     try:
         user.set_password(request.form.get('password', ''))
         user.save()
+        if user.id == current_user.id:
+            # The session id embeds a digest of the password, so this just
+            # invalidated our own session too. Re-issue it.
+            login_user(user, remember=True)
         log.info('password_reset_by_admin', user_id=user.id)
         flash(t('auth.password_changed'), 'success')
     except ValidationError as e:

@@ -2,9 +2,12 @@
 to organizations. Auth is email + password (auth: password) -- see
 blueprint/patterns/core/auth.md."""
 
+import hashlib
+import hmac
 import re
 from typing import Optional
 
+from flask import current_app
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -79,6 +82,39 @@ class User(BaseModel, UserMixin):
             raise ValidationError(
                 f'Password must be at least {self.MIN_PASSWORD_LENGTH} characters')
         self.password_hash = generate_password_hash(password)
+
+    def session_auth_stamp(self) -> str:
+        """Digest of the credentials a signed-in session depends on.
+
+        Flask-Login's remember cookie is `id|hmac(SECRET_KEY, id)` with no
+        server-side record, so a stolen copy stays valid forever: logging
+        out or changing the password does not revoke it. Carrying this
+        stamp in the session id means any change to the password or the
+        active flag invalidates every session and remember cookie already
+        issued, without a new column to migrate. Same shape as Django's
+        get_session_auth_hash().
+
+        Derived from the password alone. is_active is deliberately not in
+        the material: UserMixin.is_authenticated already returns it, so
+        deactivation locks out on the next request either way -- and a
+        boolean is not monotonic, so including it would let a later
+        reactivation regenerate the same stamp and hand back a cookie
+        issued before the account was suspended. Containment is deactivate
+        plus a password reset; only the reset revokes what is already out.
+        """
+        material = str(self.password_hash).encode()
+        secret = current_app.config['SECRET_KEY']
+        if isinstance(secret, str):
+            secret = secret.encode()
+        return hmac.new(secret, material, hashlib.sha256).hexdigest()[:32]
+
+    def get_id(self) -> str:
+        """Overrides UserMixin's bare str(id). See session_auth_stamp.
+
+        UserMixin.__eq__ compares get_id(), so User equality now costs an
+        HMAC and needs an app context. Compare .id instead.
+        """
+        return f'{self.id}:{self.session_auth_stamp()}'
 
     def check_password(self, password: str) -> bool:
         if not self.password_hash:

@@ -143,9 +143,14 @@ def change_password():
             flash(t('auth.passwords_do_not_match'), 'error')
         else:
             try:
-                current_user.set_password(new)
-                current_user.save()
-                log.info('password_changed', user_id=current_user.id)
+                user = current_user._get_current_object()
+                user.set_password(new)
+                user.save()
+                # The stamp in the session id is derived from the password,
+                # so every session and remember cookie is now stale --
+                # including this one. Re-issue the current one only.
+                login_user(user, remember=True)
+                log.info('password_changed', user_id=user.id)
                 flash(t('auth.password_changed'), 'success')
                 return redirect(url_for('auth.change_password'))
             except Exception as e:
