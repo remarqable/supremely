@@ -2,7 +2,7 @@ TAILWIND_VERSION := v4.1.14
 TAILWIND_BIN := bin/tailwindcss
 DATA_DIR ?= data
 
-.PHONY: install css css-watch run worker test lint migrate reset kill
+.PHONY: install css css-watch run worker test lint migrate reset kill demo
 
 install:
 	uv sync
@@ -53,6 +53,13 @@ test:
 
 lint:
 	uv run ruff check .
+
+# Dev only: wipe everything and seed a ready-to-click Demo Community with
+# fixed credentials (admin@demo.test / password — refuses in production).
+demo:
+	rm -rf $(DATA_DIR)
+	uv run flask dev sync-db
+	uv run flask seed demo
 
 # Wipe the local installation (database, wizard config, uploads) so the
 # setup wizard runs again. Stop the server first.
