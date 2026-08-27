@@ -47,7 +47,7 @@
         </p>
 
         <div class="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
-          <a href="{{ get_started }}"
+          <a href="{{ home.primary_url or get_started }}"
              class="rounded-xl bg-violet-600 px-7 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-700">
             {{ home.primary_label }}
           </a>
@@ -195,7 +195,7 @@
   <section class="mx-auto max-w-3xl px-6 py-16 text-center sm:py-24">
     <h2 class="text-3xl font-black tracking-tight [text-wrap:balance] sm:text-4xl">{{ home.closing_title }}</h2>
     <p class="mt-3 text-lg leading-relaxed text-slate-500">{{ home.closing_sub }}</p>
-    <a href="{{ get_started }}"
+    <a href="{{ home.primary_url or get_started }}"
        class="mt-8 inline-flex rounded-xl bg-violet-600 px-7 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-violet-700">
       {{ home.primary_label }}
     </a>

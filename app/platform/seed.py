@@ -118,7 +118,10 @@ def seed_getsupremely_org():
                                 'Independent., Human., You.'),
             'subhead': 'A simple home for your members, content, newsletters '
                        'and discussions.',
-            'primary_label': 'Get Supremely',
+            # Not selling SaaS yet: the primary CTA leads with our own
+            # community as the live demo.
+            'primary_label': 'Explore the community',
+            'primary_url': '/discussions',
             'secondary_label': 'View on GitHub',
             'secondary_url': 'https://github.com/remarqable/supremely',
             'features': [
