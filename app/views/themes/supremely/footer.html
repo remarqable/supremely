@@ -31,24 +31,19 @@
         </nav>
         {% endfor %}
       {% else %}
-        <nav aria-label="Product">
-          <div class="mb-3 text-sm font-semibold text-[#14161a]">Product</div>
+        {# Fallback for orgs with no footer menu groups: only routes every
+           install actually has. Real link columns come from Manage →
+           Navigation (footer menu, grouped items). #}
+        <nav aria-label="Explore">
+          <div class="mb-3 text-sm font-semibold text-[#14161a]">Explore</div>
           <ul class="space-y-2 text-sm text-slate-500">
-            <li><a href="/features" class="transition-colors hover:text-[#14161a]">Features</a></li>
-            <li><a href="/pricing" class="transition-colors hover:text-[#14161a]">Pricing</a></li>
-            <li><a href="/discussions" class="transition-colors hover:text-[#14161a]">Community</a></li>
-          </ul>
-        </nav>
-        <nav aria-label="Resources">
-          <div class="mb-3 text-sm font-semibold text-[#14161a]">Resources</div>
-          <ul class="space-y-2 text-sm text-slate-500">
-            <li><a href="/docs" class="transition-colors hover:text-[#14161a]">Docs</a></li>
             <li><a href="/blog" class="transition-colors hover:text-[#14161a]">Blog</a></li>
+            <li><a href="/discussions" class="transition-colors hover:text-[#14161a]">Community</a></li>
             <li><a href="/subscribe" class="transition-colors hover:text-[#14161a]">Newsletter</a></li>
           </ul>
         </nav>
-        <nav aria-label="Company">
-          <div class="mb-3 text-sm font-semibold text-[#14161a]">Company</div>
+        <nav aria-label="Project">
+          <div class="mb-3 text-sm font-semibold text-[#14161a]">Project</div>
           <ul class="space-y-2 text-sm text-slate-500">
             <li><a href="/about" class="transition-colors hover:text-[#14161a]">About</a></li>
             <li><a href="https://github.com/remarqable/supremely" rel="noopener" class="transition-colors hover:text-[#14161a]">GitHub</a></li>
