@@ -769,6 +769,10 @@ create_caddyfile() {
       echo "    handle /tls-check {"
       echo "        respond 404"
       echo "    }"
+      echo "    # /_v/* is the plugins private mount, reached internally only."
+      echo "    handle /_v/* {"
+      echo "        respond 404"
+      echo "    }"
       echo "    handle_errors {"
       echo "        rewrite * /index.html"
       echo "        file_server {"
@@ -804,6 +808,9 @@ create_caddyfile() {
     cat > "$caddyfile" << EOF
 :80 {
     handle /tls-check {
+        respond 404
+    }
+    handle /_v/* {
         respond 404
     }
     handle_errors {

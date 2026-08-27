@@ -59,6 +59,11 @@ def create_app(config_class=Config):
         from flask import g as _g
         _g.pop('_login_user', None)
 
+    # Before CSRF and tenant resolution, so a blocked request answers 404
+    # rather than 403 or 410 and never resolves a tenant.
+    from .platform.plugins import block_private_mounts
+    block_private_mounts(app)
+
     from .middleware.csrf import init_csrf
     init_csrf(app)
 

@@ -112,7 +112,8 @@ def load_plugins(app) -> None:
                 if bp.name != expected:
                     raise RuntimeError(
                         f'Blueprint must be named {expected}, got {bp.name}')
-                # Private mount. Never linked; never on the public prefix.
+                # Private mount. Never linked, never on the public prefix,
+                # and unreachable from outside: see block_private_mounts.
                 app.register_blueprint(bp, url_prefix=f'/_v/{slug}/{major}')
 
             for content_type in plugin.content_types():
@@ -142,6 +143,23 @@ def load_plugins(app) -> None:
     @app.context_processor
     def inject_plugin_nav():
         return {'plugin_nav': visible_nav_entries()}
+
+
+def block_private_mounts(app) -> None:
+    """Make /_v/<slug>/<major>/ unreachable over HTTP.
+
+    Only the public dispatcher gates on installed_version(); the private
+    mount answered directly, so any member could read and write a
+    plugin's routes for an org that never installed it. The dispatcher
+    re-matches the internal URL against the url_map and calls the view
+    itself -- it never issues a request whose path is /_v/... -- so a
+    request that arrives on that prefix has bypassed the gate by
+    definition.
+    """
+    @app.before_request
+    def block_private_mounts():
+        if request.path.startswith('/_v/'):
+            abort(404)
 
 
 def _register_dispatcher(app, slug: str, manifest: dict) -> None:

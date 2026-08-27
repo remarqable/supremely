@@ -153,7 +153,10 @@ def type_is_active(content_type: ContentType) -> bool:
         return True
     from flask import has_request_context
     if not has_request_context():
-        return True                     # CLI/jobs: no tenant to gate by
+        # CLI/jobs/workers: there is no tenant, so the question has no
+        # answer. Fail closed -- a caller that legitimately needs every
+        # type outside a request should read CONTENT_TYPES directly.
+        return False
     from app.platform.plugins import installed_version
     return installed_version(content_type.plugin) is not None
 

@@ -46,6 +46,22 @@ def _content_or_404(content_id) -> Content:
     return content
 
 
+def _active_content_or_404(content_id) -> Content:
+    """As _content_or_404, plus the per-org plugin gate.
+
+    The type-slug routes check active_types(); reaching the same content
+    by id skipped it, so an org could keep editing, publishing and
+    mailing a plugin's content after disabling that plugin. A disable is
+    reversible: re-enabling restores the list and every action on it.
+    Content whose type has left CONTENT_TYPES entirely (plugin removed
+    from disk) is a separate case and needs a CLI purge, not a route.
+    """
+    content = _content_or_404(content_id)
+    if content.type not in active_types():
+        abort(404)
+    return content
+
+
 @bp.route('/content/<type_slug>')
 @org_required
 @require('content.write')
@@ -120,7 +136,7 @@ def new_content(type_slug):
 @org_required
 @require('content.write')
 def edit_content(content_id):
-    content = _content_or_404(content_id)
+    content = _active_content_or_404(content_id)
     ct = content.content_type
     if request.method == 'POST':
         try:
@@ -147,7 +163,7 @@ def edit_content(content_id):
 @org_required
 @require('content.write')
 def delete_content(content_id):
-    content = _content_or_404(content_id)
+    content = _active_content_or_404(content_id)
     type_slug = content.type
     content.delete()
     flash(t('manage.content_deleted'), 'success')
@@ -159,7 +175,7 @@ def delete_content(content_id):
 @require('content.write')
 def preview_content(content_id):
     from app.platform.theming import render_site
-    content = _content_or_404(content_id)
+    content = _active_content_or_404(content_id)
     ct = content.content_type
     if ct.is_page:
         tmpl = content.template or ct.template
@@ -646,9 +662,7 @@ def send_content_newsletter(content_id):
     from app.platform.jobs import enqueue
     from app.platform.mailer import is_email_configured
 
-    content = db.session.get(Content, content_id)
-    if content is None:
-        abort(404)
+    content = _active_content_or_404(content_id)
     if not is_email_configured():
         flash(t('newsletter.email_required_to_send'), 'error')
         return redirect(url_for('manage.edit_content', content_id=content.id))

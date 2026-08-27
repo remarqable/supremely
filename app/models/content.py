@@ -97,7 +97,7 @@ class Content(OrgScoped, AuditMixin, BaseModel):
     VISIBILITIES = VISIBILITY_LEVELS   # single source: app.platform.authz
 
     def validate(self):
-        from app.platform.content_types import CONTENT_TYPES, feed_types
+        from app.platform.content_types import CONTENT_TYPES
         self.title = (self.title or '').strip()
         self.slug = (self.slug or '').strip().lower()
         self.type = self.type or 'article'
@@ -122,7 +122,10 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         # Page slugs live at /<slug>, so they cannot shadow app routes or a
         # feed type's base segment (e.g. "blog", "events").
         if self.content_type.is_page:
-            bases = {ct.base.strip('/') for ct in feed_types()}
+            # Every archive base, not just the tenant's active ones: a page
+            # must not take a slug that a later plugin install would shadow.
+            bases = {ct.base.strip('/') for ct in CONTENT_TYPES.values()
+                     if ct.has_archive}
             if self.slug in RESERVED_PAGE_SLUGS or self.slug in bases:
                 raise ValidationError('That slug is reserved')
 
