@@ -1,4 +1,4 @@
-"""Dogfood seed: getsupremely.org built on Supremely itself.
+"""Dogfood seed: supremely.org built on Supremely itself.
 
 Demonstrates pages, theme, navigation, articles, documentation content,
 newsletter signup, community discussions, and membership -- entirely through
@@ -102,7 +102,7 @@ def seed_getsupremely_org():
                            'memberships, newsletters, and community.')
     if not org.brand_primary:
         org.brand_primary = '#4f46e5'
-    # Dogfood the marketing theme: getsupremely.org runs on the Supremely
+    # Dogfood the marketing theme: supremely.org runs on the Supremely
     # theme, and its home page is that theme's designed landing, filled in
     # with our own copy via theme-declared content.
     if org.theme in (None, '', 'origin'):

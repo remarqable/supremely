@@ -124,7 +124,7 @@ def seed_demo_command():
 
 
 @seed_bp.cli.command('getsupremely')
-@click.option('--admin-email', default='admin@getsupremely.org',
+@click.option('--admin-email', default='admin@supremely.org',
               show_default=True,
               help='Platform Admin to create if none exists yet.')
 def seed_getsupremely(admin_email: str):

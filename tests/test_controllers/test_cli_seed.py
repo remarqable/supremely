@@ -7,7 +7,7 @@ from app.models import Organization
 def test_seed_bootstraps_fresh_install(app, runner):
     result = runner.invoke(args=['seed', 'getsupremely'])
     assert result.exit_code == 0, result.output
-    assert 'Platform Admin created: admin@getsupremely.org' in result.output
+    assert 'Platform Admin created: admin@supremely.org' in result.output
     assert 'One-time password:' in result.output
     assert 'Seeded organization "Supremely"' in result.output
     assert Organization.get_by_slug('getsupremely') is not None

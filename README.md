@@ -87,4 +87,4 @@ See [LICENSE](LICENSE).
 ## Project
 
 - Website: https://getsupremely.com
-- Organization: https://getsupremely.org
+- Organization: https://supremely.org
