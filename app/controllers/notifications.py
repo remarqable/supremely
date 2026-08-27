@@ -6,6 +6,7 @@ from flask_login import current_user, login_required
 from app.extensions import db
 from app.models.notification import Notification
 from app.platform.authz import org_required
+from app.platform.redirects import safe_next
 
 bp = Blueprint('notifications', __name__, url_prefix='/notifications')
 
@@ -36,4 +37,4 @@ def read_one(notification_id):
         abort(404)
     notification.mark_read()
     url = (notification.payload or {}).get('url')
-    return redirect(url or url_for('notifications.index'))
+    return redirect(safe_next(url, url_for('notifications.index')))

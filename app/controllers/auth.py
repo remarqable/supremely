@@ -21,20 +21,15 @@ from app.models import User
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
+from app.platform.redirects import safe_next
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 log = get_logger()
 
 
 def _safe_next(default: str) -> str:
-    nxt = request.args.get('next') or request.form.get('next') or ''
-    # Must be a site-relative path. Reject scheme-relative (//host) and
-    # backslash variants (/\host, browsers normalise \ to /), which are
-    # open-redirect vectors.
-    normalized = nxt.replace('\\', '/')
-    if normalized.startswith('/') and not normalized.startswith('//'):
-        return nxt
-    return default
+    return safe_next(request.args.get('next') or request.form.get('next'),
+                     default)
 
 
 def _signups_enabled() -> bool:

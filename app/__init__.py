@@ -146,6 +146,7 @@ def _init_setup_gate(app):
 def _init_context(app):
     from .models import InstallationSetting
     from .platform.authz import can, can_view, is_org_member
+    from .platform.redirects import current_target
 
     @app.context_processor
     def inject_globals():
@@ -243,6 +244,7 @@ def _init_context(app):
         return {
             'installation_name': installation_name,
             'can': can,
+            'current_target': current_target,
             'can_view': can_view,
             'is_org_member': is_org_member,
             'app_version': APP_VERSION,
