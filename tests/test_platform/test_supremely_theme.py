@@ -25,6 +25,15 @@ def test_rotating_words_field_is_neutral_by_default(app):
         assert fields['headline_rotate']['default'] == ''
 
 
+def test_brand_name_is_separate_from_org_name(app, client, acme):
+    """The marketing header/footer can carry their own site name — the
+    community keeps the org name (e.g. site "Supremely", community
+    "Supremely Community"). Blank falls back to the org name."""
+    use_supremely(app, acme, brand_name='Acme HQ')
+    body = client.get('/', base_url=ACME).data
+    assert b'Acme HQ' in body
+
+
 def test_front_page_without_rotation_uses_accent(app, client, acme):
     use_supremely(app, acme, headline_lead='Your community,',
                   headline_accent='all in one place.')
@@ -42,13 +51,12 @@ def test_front_page_rotation_is_its_own_line(app, client, acme):
                   headline_rotate='Bold., Fast., You.')
     page = client.get('/', base_url=ACME)
     assert page.status_code == 200
-    # Rotation supersedes the accent line: the headline stays all black and
-    # the rotating line renders beneath it — static lead plus accent word.
-    # Without JS the settled last word renders; the full list rides along
-    # as data for the script, which must be an external asset (the CSP
-    # blocks inline scripts).
+    # Headline and accent line render as authored, with the rotating line
+    # beneath them — static lead plus accent word. Without JS the last word
+    # renders; the full list rides along as data for the script, which must
+    # be an external asset (the CSP blocks inline scripts).
     assert b'The open-source community platform.' in page.data
-    assert b'all in one place.' not in page.data
+    assert b'all in one place.' in page.data
     assert b'Be Supremely' in page.data
     assert b'data-words="Bold., Fast., You."' in page.data
     assert b'>You.</span>' in page.data

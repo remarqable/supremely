@@ -15,10 +15,13 @@
   },
   "content": {
     "fields": [
+      {"key": "brand_name", "type": "text", "label": "Site name", "max": 60,
+       "default": "",
+       "hint": "Shown next to the logo in the site header and footer. Leave blank to use your community's name."},
       {"key": "headline_lead", "type": "text", "label": "Headline", "max": 80,
        "default": "Your community,"},
       {"key": "headline_accent", "type": "text", "label": "Accent line", "max": 80,
-       "default": "all in one place.",
+       "default": "",
        "hint": "Shown on a second line in the accent color. Leave blank for a single-line headline."},
       {"key": "rotate_lead", "type": "text", "label": "Rotating line lead", "max": 80,
        "default": "",

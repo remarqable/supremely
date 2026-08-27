@@ -38,7 +38,7 @@ def test_supremely_marketing_theme_renders(client, app, acme, globex):
     response = client.get('/', base_url='http://acme.example.test')
     assert response.status_code == 200
     body = response.data
-    assert b'sup-gradient' in body                      # gradient headline
+    assert b'sup-mockup-fade' in body                   # bespoke landing
     assert b'themes/supremely/static/theme.css' in body  # ships its own CSS
     assert b'Welcome to our new home' in body           # product mockup
     assert b'Upcoming Event' in body

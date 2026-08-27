@@ -11,7 +11,10 @@
       {% else %}
       <span class="grid h-8 w-8 place-items-center rounded-lg bg-[#14161a] text-sm font-bold text-white">S</span>
       {% endif %}
-      <span>{{ g.org.name or 'Supremely' }}</span>
+      {# The marketing site's brand name is its own content field — the
+         community can be "Supremely Community" while the site says
+         "Supremely". #}
+      <span>{{ theme_content().brand_name or g.org.name or 'Supremely' }}</span>
     </a>
 
     <nav class="ms-auto hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex"

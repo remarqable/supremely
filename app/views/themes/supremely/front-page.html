@@ -18,21 +18,20 @@
 {% block main %}
 <main>
   {# ---- Hero ------------------------------------------------------------ #}
-  {# When "Rotating words" is set, the headline stays a single all-black
-     statement and a second, smaller line renders beneath it: a static lead
-     ("Be Supremely") plus an accent-colored word cycling once and settling
-     on the last (rotate.js — a static asset because the CSP blocks inline
-     scripts; without JS the settled last word is what renders). The accent
-     line is the no-rotation design, so rotation supersedes it. #}
+  {# Headline (lead + optional accent line), then — when "Rotating words"
+     is set — a smaller line beneath it: a static lead ("Be Supremely")
+     plus an accent-colored word looping through the list (rotate.js — a
+     static asset because the CSP blocks inline scripts; without JS the
+     last word is what renders). #}
   {% set rotate_words = (home.headline_rotate or '').split(',')
                         | map('trim') | select | list %}
   <section class="mx-auto max-w-4xl px-6 pt-16 pb-4 text-center sm:pt-24">
-    <h1 class="text-5xl font-black leading-[1.06] tracking-tight [text-wrap:balance] sm:text-6xl md:text-7xl">
-      {{ home.headline_lead }}{% if home.headline_accent and not rotate_words %}<br>
+    <h1 class="text-4xl font-black leading-[1.06] tracking-tight [text-wrap:balance] sm:text-5xl md:text-6xl">
+      {{ home.headline_lead }}{% if home.headline_accent %}<br>
       <span class="sup-gradient">{{ home.headline_accent }}</span>{% endif %}
     </h1>
     {% if rotate_words %}
-    <p class="mt-6 text-2xl font-extrabold tracking-tight text-[#14161a] sm:text-3xl md:text-4xl">
+    <p class="mt-5 text-xl font-extrabold tracking-tight text-[#14161a] sm:text-2xl md:text-3xl">
       {% if home.rotate_lead %}{{ home.rotate_lead }} {% endif %}<span class="sup-gradient sup-rotate" data-words="{{ rotate_words | join(', ') }}">{{ rotate_words[-1] }}</span>
     </p>
     {% if rotate_words | length > 1 %}
