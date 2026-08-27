@@ -30,6 +30,12 @@ ROLE_PERMISSIONS = {
 }
 
 
+def grants_more_than(role: str, than: str) -> bool:
+    """True when `role` carries a permission that `than` does not."""
+    return bool(ROLE_PERMISSIONS.get(role, set())
+                - ROLE_PERMISSIONS.get(than, set()))
+
+
 def can(permission: str) -> bool:
     membership = getattr(g, 'membership', None)
     return bool(membership) and permission in ROLE_PERMISSIONS.get(membership.role, set())

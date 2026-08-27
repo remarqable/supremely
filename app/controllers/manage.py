@@ -13,13 +13,14 @@ from flask import (
     request,
     url_for,
 )
+from flask_login import current_user
 
 from app.extensions import db
 from app.models import Content, Upload
 from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
 from app.platform import theme_content as tc
-from app.platform.authz import org_required, require
+from app.platform.authz import can, grants_more_than, org_required, require
 from app.platform.content_types import CONTENT_TYPES, active_types, get_content_type
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -325,17 +326,31 @@ def members():
 def add_member():
     from app.models import Membership, User
     email = request.form.get('email', '').strip().lower()
-    role = request.form.get('role', 'member')
     user = User.get_by_email(email)
     if user is None:
         flash(t('members.user_not_found', email=email), 'error')
     else:
         try:
-            Membership.add(user.id, g.org.id, role=role)
+            Membership.add(user.id, g.org.id, role=_granted_role())
             flash(t('admin.member_added', email=email), 'success')
         except ValidationError as e:
             flash(e.message, 'error')
     return redirect(url_for('manage.members'))
+
+
+def _granted_role(default: str = 'member') -> str:
+    """The role from the form, refused if the caller cannot grant it.
+
+    members.manage belongs to admin as well as owner, so nothing stopped an
+    admin handing out owner. Doing that to their own membership made them a
+    second owner, which satisfied the keep-an-owner guard and let them then
+    remove the founder. Granting owner is an ownership change, so it takes
+    the ownership.transfer permission that only an owner holds.
+    """
+    role = request.form.get('role', default)
+    if role == 'owner' and not can('ownership.transfer'):
+        raise ValidationError(t('members.cannot_grant_owner'))
+    return role
 
 
 def _own_membership(membership_id):
@@ -352,7 +367,13 @@ def _own_membership(membership_id):
 def member_role(membership_id):
     membership = _own_membership(membership_id)
     try:
-        membership.change_role(request.form.get('role', 'member'))
+        role = _granted_role()
+        if (membership.user_id == current_user.id
+                and grants_more_than(role, membership.role)):
+            # Stepping down, or re-saving the role you already hold, is
+            # fine. Handing yourself more than you have is not.
+            raise ValidationError(t('members.cannot_promote_self'))
+        membership.change_role(role)
         flash(t('common.saved'), 'success')
     except ValidationError as e:
         db.session.rollback()
@@ -419,10 +440,10 @@ def member_transfer(membership_id):
 def create_invitation():
     from app.models.invitation import Invitation
     from app.platform.mailer import try_send_email
-    role = request.form.get('role', 'member')
     email = request.form.get('email', '').strip().lower() or None
     try:
-        invitation, token = Invitation.create(g.org.id, role=role, email=email)
+        invitation, token = Invitation.create(
+            g.org.id, role=_granted_role(), email=email)
     except ValidationError as e:
         flash(e.message, 'error')
         return redirect(url_for('manage.members'))
