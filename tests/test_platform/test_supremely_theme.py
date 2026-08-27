@@ -34,13 +34,19 @@ def test_front_page_without_rotation_uses_accent(app, client, acme):
     assert b'sup-rotate' not in page.data
 
 
-def test_front_page_rotation_settles_on_last_word(app, client, acme):
-    use_supremely(app, acme, headline_lead='Be Supremely',
-                  headline_rotate='Bold., Curious., You.')
+def test_front_page_rotation_is_its_own_line(app, client, acme):
+    use_supremely(app, acme,
+                  headline_lead='The open-source community platform.',
+                  rotate_lead='Be Supremely',
+                  headline_rotate='Bold., Fast., You.')
     page = client.get('/', base_url=ACME)
     assert page.status_code == 200
-    # The no-JS/reduced-motion fallback renders the settled last word; the
-    # full list rides along as data for the script.
-    assert b'data-words="Bold., Curious., You."' in page.data
+    # The headline stays as authored (all black — no accent span in the h1)
+    # and the rotating line renders beneath it: static lead plus the accent
+    # word. The no-JS/reduced-motion fallback shows the settled last word;
+    # the full list rides along as data for the script.
+    assert b'The open-source community platform.' in page.data
+    assert b'Be Supremely' in page.data
+    assert b'data-words="Bold., Fast., You."' in page.data
     assert b'>You.</span>' in page.data
     assert b'sup-rotate' in page.data

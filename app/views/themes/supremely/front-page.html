@@ -18,19 +18,24 @@
 {% block main %}
 <main>
   {# ---- Hero ------------------------------------------------------------ #}
-  {# Rotating headline: when "Rotating words" is set, the accent line cycles
-     through them once and settles on the last (e.g. "Be Supremely … You.").
-     Without JS — and for prefers-reduced-motion — the last word renders
-     statically, so the settled state is also the fallback. #}
+  {# The headline (lead + optional accent line) stays as authored. When
+     "Rotating words" is set, a second, smaller line renders beneath it:
+     a static lead ("Be Supremely") plus an accent-colored word cycling
+     once and settling on the last. Without JS — and for
+     prefers-reduced-motion — the last word renders statically, so the
+     settled state is also the fallback. #}
   {% set rotate_words = (home.headline_rotate or '').split(',')
                         | map('trim') | select | list %}
   <section class="mx-auto max-w-4xl px-6 pt-16 pb-4 text-center sm:pt-24">
     <h1 class="text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl md:text-7xl">
-      {{ home.headline_lead }}{% if rotate_words %}<br>
-      <span class="sup-gradient sup-rotate" data-words="{{ rotate_words | join(', ') }}">{{ rotate_words[-1] }}</span>
-      {% elif home.headline_accent %}<br>
+      {{ home.headline_lead }}{% if home.headline_accent %}<br>
       <span class="sup-gradient">{{ home.headline_accent }}</span>{% endif %}
     </h1>
+    {% if rotate_words %}
+    <p class="mt-5 text-3xl font-black leading-tight tracking-tight sm:text-4xl md:text-5xl">
+      {% if home.rotate_lead %}{{ home.rotate_lead }} {% endif %}<span class="sup-gradient sup-rotate" data-words="{{ rotate_words | join(', ') }}">{{ rotate_words[-1] }}</span>
+    </p>
+    {% endif %}
     {% if rotate_words | length > 1 %}
     <script>
       (function () {
