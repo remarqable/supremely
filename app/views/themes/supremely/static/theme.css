@@ -35,14 +35,3 @@ body.supremely {
   .sup-rotate { transition: none; }
 }
 
-/* The product mockup fades into the page at its bottom edge, as in the
-   marketing shot. */
-.sup-mockup-fade::after {
-  content: "";
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: 6rem;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #ffffff);
-  pointer-events: none;
-}

@@ -118,9 +118,9 @@ def seed_getsupremely_org():
                                 'Independent., Human., You.'),
             'subhead': 'A simple home for your members, content, newsletters '
                        'and discussions.',
-            'primary_label': 'Get Started',
-            'secondary_label': 'View Demo',
-            'secondary_url': '/discussions',
+            'primary_label': 'Get Supremely',
+            'secondary_label': 'View on GitHub',
+            'secondary_url': 'https://github.com/remarqable/supremely',
             'features': [
                 {'title': 'Publish', 'desc': 'Share updates and articles'},
                 {'title': 'Newsletter', 'desc': 'Send beautiful emails'},

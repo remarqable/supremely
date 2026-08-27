@@ -38,6 +38,11 @@
        "default": "View Demo"},
       {"key": "secondary_url", "type": "url", "label": "Secondary button link", "max": 200,
        "default": "/discussions"},
+      {"key": "closing_title", "type": "text", "label": "Closing headline", "max": 80,
+       "default": "Your community. Your data. Your rules.",
+       "hint": "The full-width closing statement above the final call to action."},
+      {"key": "closing_sub", "type": "text", "label": "Closing subline", "max": 160,
+       "default": "Self-host it. Share it. Make it yours."},
       {"key": "features", "type": "repeater", "label": "Feature highlights", "max_items": 4,
        "hint": "Four short highlights shown under the buttons. Each keeps its icon.",
        "item_fields": [
