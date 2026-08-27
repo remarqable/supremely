@@ -61,9 +61,13 @@ def _visible(query):
 
 
 def _render_page(content):
+    ct = content.content_type
+    if not Content.section_readable_by_current_visitor(ct.slug):
+        # Section locked: gate the section, the way the archive does.
+        return render_gate(ct.plural)
     if not content.visible_to_current_visitor():
-        return render_gate(content.title, kind=content.content_type.singular)
-    tmpl = content.template or content.content_type.template
+        return render_gate(content.title, kind=ct.singular)
+    tmpl = content.template or ct.template
     return render_site([f'page-{content.slug}.html', f'{tmpl}.html', 'page.html'],
                        org=g.org, content=content, page=content)
 
@@ -83,6 +87,9 @@ def _render_archive(ct, title=None):
 
 
 def _render_single(ct, content):
+    if not Content.section_readable_by_current_visitor(ct.slug):
+        # Section locked: gate the section, the way the archive does.
+        return render_gate(ct.plural)
     if not content.visible_to_current_visitor():
         return render_gate(content.title, kind=ct.singular)
     return render_site(

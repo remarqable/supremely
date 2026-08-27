@@ -172,7 +172,10 @@ def _init_context(app):
             if getattr(g, 'org', None) is None:
                 return None
             from .models import Content
-            return Content.published_page('about')
+            page = Content.published_page('about')
+            # Linking it would tell a visitor the page exists; the sidebar
+            # row is not a tease surface.
+            return page if page and page.visible_to_current_visitor() else None
 
         def _member_view():
             """The shell serves visitors too; rail cards must not leak
