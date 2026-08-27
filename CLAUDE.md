@@ -72,3 +72,7 @@ MVC with fat models, thin controllers, dumb templates. Server-rendered Jinja (`a
 ## Testing conventions
 
 Fixtures in `tests/conftest.py`: `app` (fresh schema per test, tmp `DATA_DIR`), `client`, `user`, `platform_admin`, orgs `acme`/`globex` (two orgs exist so tenant isolation is provable), `login_as(client, user)`. Config is passed into `create_app`, never assigned after. Tests are organized as `test_models/`, `test_controllers/`, `test_platform/`.
+
+## Commit messages
+
+This is an open-source project — the git history is public documentation. Write commit messages for a reader with no project context: a plain imperative subject, one orienting sentence, then bullet lists grouped by area explaining what changed and why in everyday language. No compressed prose, internal shorthand, or references to private docs/sections. Name concrete files or paths as anchors, and end with test/verification results when relevant.
