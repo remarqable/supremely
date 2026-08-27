@@ -129,11 +129,132 @@ def test_second_level_nesting_rejected(app, client, acme, globex, user):
     assert b'one level' in response.data
 
 
-def test_anonymous_cannot_see_members_space(app, client, acme, globex):
+def test_members_space_teased_to_anonymous(app, client, acme, globex, user):
+    """Tease-don't-hide: the group is listed by name with a lock, but its
+    post titles stay gated and a direct hit lands on the gate page."""
     make_group(app, acme, visibility='members')
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_post(owner_client, title='Secret plans')
+
     listing = client.get('/discussions/', base_url=ACME)
+    assert b'General' in listing.data            # teased by name
+    assert b'Members only' in listing.data       # with a lock badge
+    assert b'Secret plans' not in listing.data   # post titles stay gated
+
+    gate = client.get('/discussions/general', base_url=ACME)
+    assert gate.status_code == 200
+    assert b'Secret plans' not in gate.data
+    assert b'Members only' in gate.data
+    assert b'/auth/login' in gate.data
+
+    # The post URL gates on the group without confirming the post exists.
+    post = Post.query.order_by(Post.id.desc()).first()
+    gate = client.get(f'/discussions/general/{post.id}', base_url=ACME)
+    assert gate.status_code == 200
+    assert b'Secret plans' not in gate.data
+
+
+def set_area(app, org, value):
+    with app.test_request_context():
+        g.org = org
+        org.update_settings(discussions_visibility=value)
+
+
+def test_area_members_gates_the_whole_area(app, client, acme, globex, user):
+    """discussions_visibility='members': one gate for the area — even public
+    groups and their names are withheld from visitors; members unaffected."""
+    make_group(app, acme, visibility='public')
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_post(owner_client, title='Open thread')
+    set_area(app, acme, 'members')
+
+    listing = client.get('/discussions/', base_url=ACME)
+    assert listing.status_code == 200
+    assert b'Members only' in listing.data
+    assert b'Open thread' not in listing.data
+    group_page = client.get('/discussions/general', base_url=ACME)
+    assert group_page.status_code == 200
+    assert b'Open thread' not in group_page.data
+
+    member_view = owner_client.get('/discussions/general', base_url=ACME)
+    assert b'Open thread' in member_view.data
+
+
+def test_area_public_opens_members_groups(app, client, acme, globex, user):
+    """discussions_visibility='public': the whole area is public, group
+    settings notwithstanding."""
+    make_group(app, acme, visibility='members')
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_post(owner_client, title='Open to all now')
+    set_area(app, acme, 'public')
+
+    page = client.get('/discussions/general', base_url=ACME)
+    assert page.status_code == 200
+    assert b'Open to all now' in page.data
+    listing = client.get('/discussions/', base_url=ACME)
+    assert b'Open to all now' in listing.data
+
+
+def test_manage_group_lock_toggle(app, client, acme, globex, user):
+    group = make_group(app, acme, visibility='members')
+    group_id = group.id
+    login_as(client, user)                       # acme's owner
+    response = client.post(f'/manage/discussions/{group_id}/visibility',
+                           base_url=ACME)
+    assert response.status_code == 302
+    with app.test_request_context():
+        g.org = acme
+        assert db.session.get(DiscussionGroup, group_id).visibility == 'public'
+    client.post(f'/manage/discussions/{group_id}/visibility', base_url=ACME)
+    with app.test_request_context():
+        g.org = acme
+        assert db.session.get(DiscussionGroup,
+                              group_id).visibility == 'members'
+
+
+def test_manage_area_visibility_switch(app, client, acme, globex, user):
+    login_as(client, user)                       # acme's owner
+    response = client.post('/manage/discussions', base_url=ACME,
+                           data={'area_visibility': 'members'})
+    assert response.status_code == 302
+    assert acme.setting('discussions_visibility') == 'members'
+    # Unknown values are ignored, not stored.
+    client.post('/manage/discussions', base_url=ACME,
+                data={'area_visibility': 'bogus'})
+    assert acme.setting('discussions_visibility') == 'members'
+
+
+def test_teasers_off_hides_gated_groups(app, client, acme, globex, user):
+    """The org's tease switch off: gated groups vanish from the listing and
+    their pages degrade to login redirect / 404 instead of the gate."""
+    make_group(app, acme, visibility='members')
+    with app.test_request_context():
+        g.org = acme
+        acme.update_settings(gated_teasers=False)
+
+    listing = client.get('/discussions/', base_url=ACME)
+    assert listing.status_code == 200
     assert b'General' not in listing.data
-    assert client.get('/discussions/general', base_url=ACME).status_code == 404
+    response = client.get('/discussions/general', base_url=ACME)
+    assert response.status_code == 302
+    assert '/auth/login' in response.headers['Location']
+
+    outsider_client = app.test_client()
+    login_as(outsider_client, make_user(email='out2@example.com'))
+    assert outsider_client.get('/discussions/general',
+                               base_url=ACME).status_code == 404
+
+
+def test_members_space_search_leaks_nothing(app, client, acme, globex, user):
+    make_group(app, acme, visibility='members')
+    owner_client = app.test_client()
+    login_as(owner_client, user)
+    create_post(owner_client, title='Secret plans', body='Hidden agenda')
+    results = client.get('/discussions/?q=Secret', base_url=ACME)
+    assert b'Secret plans' not in results.data
 
 
 def test_public_space_readable_not_writable(app, client, acme, globex, user):

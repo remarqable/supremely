@@ -15,11 +15,9 @@ from flask import (
     Blueprint,
     abort,
     g,
-    redirect,
     request,
     send_file,
     send_from_directory,
-    url_for,
 )
 from flask_login import current_user
 
@@ -29,7 +27,7 @@ from app.models.content import Category
 from app.models.upload import VARIANTS
 from app.platform.authz import is_org_member, org_required
 from app.platform.content_types import type_for_base
-from app.platform.theming import AVAILABLE_THEMES, render_site
+from app.platform.theming import AVAILABLE_THEMES, render_gate, render_site
 
 bp = Blueprint('site', __name__)
 
@@ -46,28 +44,37 @@ def render_org_home():
                        org=g.org, content=None, page=None)
 
 
+# Gated content is teased by default: archives list members-only items as
+# locked titles (templates render them via can_view, body and excerpt
+# withheld) and a direct hit lands on the gate page. Only the title leaks —
+# that is the demonstration of what membership unlocks. Orgs can turn
+# teasing off (Manage → Settings → Privacy): _visible then drops gated
+# items from listings and render_gate degrades to login-redirect/404.
+
+
 def _visible(query):
-    if is_org_member() or (current_user.is_authenticated
-                           and current_user.is_platform_admin):
+    if (g.org.teases_gated_content() or is_org_member()
+            or (current_user.is_authenticated
+                and current_user.is_platform_admin)):
         return query
     return query.filter_by(visibility='public')
 
 
 def _render_page(content):
     if not content.visible_to_current_visitor():
-        if not current_user.is_authenticated:
-            return redirect(url_for('auth.login', next=request.path))
-        abort(404)
+        return render_gate(content.title, kind=content.content_type.singular)
     tmpl = content.template or content.content_type.template
     return render_site([f'page-{content.slug}.html', f'{tmpl}.html', 'page.html'],
                        org=g.org, content=content, page=content)
 
 
 def _render_archive(ct, title=None):
+    if not Content.section_readable_by_current_visitor(ct.slug):
+        # The whole section is locked: one gate, no item titles teased.
+        return render_gate(ct.plural)
     page_number = request.args.get('page', 1, type=int)
-    query = _visible(Content.published_query(ct.slug))
-    pagination = query.paginate(page=page_number, per_page=PER_PAGE,
-                                error_out=False)
+    pagination = _visible(Content.published_query(ct.slug)).paginate(
+        page=page_number, per_page=PER_PAGE, error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
                        content_type=ct, items=pagination.items,
@@ -77,9 +84,7 @@ def _render_archive(ct, title=None):
 
 def _render_single(ct, content):
     if not content.visible_to_current_visitor():
-        if not current_user.is_authenticated:
-            return redirect(url_for('auth.login', next=request.path))
-        abort(404)
+        return render_gate(content.title, kind=ct.singular)
     return render_site(
         [f'single-{content.slug}.html', f'{ct.template}.html', 'single.html'],
         content_type=ct, content=content)
@@ -103,14 +108,16 @@ def archive_category(seg, cslug):
     ct = type_for_base('/' + seg)
     if ct is None:
         abort(404)
+    if not Content.section_readable_by_current_visitor(ct.slug):
+        return render_gate(ct.plural)
     category = Category.get_by_slug(cslug)
     if category is None:
         abort(404)
     page_number = request.args.get('page', 1, type=int)
-    pagination = _visible(
-        Content.published_query(ct.slug).filter(
-            Content.categories.contains(category))
-    ).paginate(page=page_number, per_page=PER_PAGE, error_out=False)
+    pagination = (_visible(Content.published_query(ct.slug)
+                           .filter(Content.categories.contains(category)))
+                  .paginate(page=page_number, per_page=PER_PAGE,
+                            error_out=False))
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
                        content_type=ct, items=pagination.items,
@@ -123,6 +130,8 @@ def archive_tag(seg, tag):
     ct = type_for_base('/' + seg)
     if ct is None:
         abort(404)
+    if not Content.section_readable_by_current_visitor(ct.slug):
+        return render_gate(ct.plural)
     page_number = request.args.get('page', 1, type=int)
     pagination = _visible(Content.with_tag(ct.slug, tag)).paginate(
         page=page_number, per_page=PER_PAGE, error_out=False)

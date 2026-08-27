@@ -5,7 +5,7 @@ import pytest
 
 from app.platform.theming import (
     PRESENTATION_CONTEXTS,
-    SHELL_FOR_MEMBERS,
+    SHELL_CONTEXTS,
     render_site,
 )
 from tests.conftest import login_as
@@ -17,7 +17,7 @@ SHELL_MARKER = b'aria-label="Community navigation"'
 def test_context_vocabulary():
     assert PRESENTATION_CONTEXTS == ('publication', 'application', 'console')
     # Policy lives in ONE mapping; flipping a surface is a data edit here.
-    assert set(SHELL_FOR_MEMBERS) <= set(PRESENTATION_CONTEXTS)
+    assert set(SHELL_CONTEXTS) <= set(PRESENTATION_CONTEXTS)
 
 
 def test_unknown_context_is_loud(app, acme):
@@ -25,16 +25,18 @@ def test_unknown_context_is_loud(app, acme):
         render_site(['single.html'], context_name='dashboard')
 
 
-def test_publication_visitor_gets_theme(client, acme):
+def test_publication_visitor_gets_shell(client, acme):
+    # The shell serves everyone: a visitor browses the same community layout
+    # members use, with gated content teased in place.
     page = client.get('/blog', base_url=ACME)
     assert page.status_code == 200
-    assert SHELL_MARKER not in page.data
+    assert SHELL_MARKER in page.data
 
 
 def test_publication_member_gets_shell_per_policy(client, acme, user):
     login_as(client, user)
     page = client.get('/blog', base_url=ACME)
-    assert SHELL_MARKER in page.data          # SHELL_FOR_MEMBERS['publication']
+    assert SHELL_MARKER in page.data          # SHELL_CONTEXTS['publication']
 
 
 def test_force_theme_front_page_for_members(client, acme, user):

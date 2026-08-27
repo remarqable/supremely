@@ -180,7 +180,27 @@ def content_types_page():
     counts = dict(Content.count_by_type())
     return render_template('manage/content_types.html',
                            types=CONTENT_TYPES.values(), counts=counts,
-                           coming_soon=COMING_SOON)
+                           coming_soon=COMING_SOON,
+                           section_visibility=Content.section_visibility)
+
+
+@bp.route('/content-types/<type_slug>/visibility', methods=['POST'])
+@org_required
+@require('org.settings')
+def toggle_section_visibility(type_slug):
+    """Lock/unlock a whole content section: locked sections gate every item
+    in them for non-members, item settings notwithstanding."""
+    ct = CONTENT_TYPES.get(type_slug)
+    if ct is None or not ct.base:              # only nav sections lock
+        abort(404)
+    store = dict(g.org.setting('section_visibility') or {})
+    if store.get(type_slug) == 'members':
+        store.pop(type_slug)
+    else:
+        store[type_slug] = 'members'
+    g.org.update_settings(section_visibility=store)
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.content_types_page'))
 
 
 @bp.route('/categories', methods=['GET', 'POST'])
@@ -652,6 +672,14 @@ def send_content_newsletter(content_id):
 @require('content.moderate')
 def discussions():
     from app.models.discussion import DiscussionGroup
+    if request.method == 'POST' and 'area_visibility' in request.form:
+        # The whole-area switch; per-group visibility still applies in
+        # 'per_group' mode.
+        value = request.form['area_visibility']
+        if value in DiscussionGroup.AREA_VISIBILITIES:
+            g.org.update_settings(discussions_visibility=value)
+            flash(t('common.saved'), 'success')
+        return redirect(url_for('manage.discussions'))
     if request.method == 'POST':
         group = DiscussionGroup(name=request.form.get('name', ''),
                       slug=request.form.get('slug', ''),
@@ -666,6 +694,22 @@ def discussions():
         return redirect(url_for('manage.discussions'))
     groups = DiscussionGroup.query.order_by(DiscussionGroup.position, DiscussionGroup.name).all()
     return render_template('manage/discussions.html', groups=groups)
+
+
+@bp.route('/discussions/<int:group_id>/visibility', methods=['POST'])
+@org_required
+@require('content.moderate')
+def toggle_group_visibility(group_id):
+    """Lock/unlock one group (flips public <-> members)."""
+    from app.models.discussion import DiscussionGroup
+    group = db.session.get(DiscussionGroup, group_id)
+    if group is None:
+        abort(404)
+    group.visibility = ('public' if group.visibility == 'members'
+                        else 'members')
+    group.save()
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.discussions'))
 
 
 @bp.route('/discussions/<int:group_id>/delete', methods=['POST'])
@@ -724,6 +768,10 @@ def settings():
                     raw = request.form.get(field, '')
                     updates[field] = int(raw) if raw.isdigit() and int(raw) else None
                 org.update_settings(**updates)
+            elif section == 'privacy':
+                # Checkbox: absent from the form when unchecked.
+                org.update_settings(
+                    gated_teasers='gated_teasers' in request.form)
             elif section == 'theme':
                 from app.platform.theming import clean_theme_config
                 theme = request.form.get('theme', 'origin')

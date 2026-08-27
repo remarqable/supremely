@@ -50,16 +50,17 @@ def test_members_get_community_templates(app, client, acme, user):
     assert b'0 replies' in page.data
 
 
-def test_visitor_discussion_pages_stay_themed(app, client, acme, user):
+def test_visitor_discussion_pages_use_the_shell(app, client, acme, user):
     login_as(client, user)
     seed_discussion(client)
     anon = app.test_client()
     index = anon.get('/discussions/', base_url=ACME)
     assert index.status_code == 200
-    assert COMMUNITY_MARKER not in index.data
-    # The seeded General space is members-only, so its posts stay invisible
-    # to visitors — the themed page renders without them.
+    assert COMMUNITY_MARKER in index.data
+    # The seeded General space is members-only: teased by name with a lock,
+    # but its post titles stay invisible to visitors.
     assert b'Roadmap question' not in index.data
+    assert b'Members only' in index.data
 
 
 def test_events_archive_new_button_is_permission_gated(app, client, acme, user):
@@ -190,7 +191,10 @@ def test_publish_and_view_announcement(app, client, acme, user):
 
 def test_newsletter_archive_members_only(app, client, acme, user):
     anon = app.test_client()
-    assert anon.get('/newsletters', base_url=ACME).status_code == 404
+    gate = anon.get('/newsletters', base_url=ACME)
+    assert gate.status_code == 200                     # the gate, not a 404
+    assert b'Members only' in gate.data
+    assert b'No newsletters have gone out yet.' not in gate.data
     login_as(client, user)
     page = client.get('/newsletters', base_url=ACME)
     assert page.status_code == 200

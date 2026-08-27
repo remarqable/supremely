@@ -185,7 +185,33 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         self.status = 'archived'
         return self.save()
 
+    @classmethod
+    def section_visibility(cls, type_slug: str) -> str:
+        """Org-wide lock for a whole content section (Manage → Content
+        types): org.settings['section_visibility'] maps type slug ->
+        'members'. Absent means public — items then decide individually."""
+        from flask import g
+        org = getattr(g, 'org', None)
+        if org is None:
+            return 'public'
+        return (org.setting('section_visibility') or {}).get(type_slug,
+                                                             'public')
+
+    @classmethod
+    def section_readable_by_current_visitor(cls, type_slug: str) -> bool:
+        from flask_login import current_user
+
+        from app.platform.authz import is_org_member
+        if is_org_member() or (current_user.is_authenticated
+                               and current_user.is_platform_admin):
+            return True
+        return cls.section_visibility(type_slug) == 'public'
+
     def visible_to_current_visitor(self) -> bool:
+        # A locked section gates every item in it, item settings
+        # notwithstanding (mirrors the discussions area switch).
+        if not Content.section_readable_by_current_visitor(self.type):
+            return False
         if self.visibility == 'public':
             return True
         from flask_login import current_user
@@ -217,14 +243,19 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         return q.order_by(cls.published_at.desc())
 
     @classmethod
-    def upcoming_event(cls):
+    def upcoming_event(cls, public_only=False):
         """The next published event dated today or later. Event dates live in
         the structured `fields` JSON, so the (few) events are filtered in
         Python."""
         from datetime import date
         today = date.today().isoformat()
+        if public_only and cls.section_visibility('event') != 'public':
+            return None
+        query = cls.published_query('event')
+        if public_only:
+            query = query.filter_by(visibility='public')
         events = [(event.fields.get('starts_on'), event)
-                  for event in cls.published_query('event').limit(50).all()
+                  for event in query.limit(50).all()
                   if (event.fields or {}).get('starts_on', '') >= today]
         return min(events, default=(None, None))[1]
 

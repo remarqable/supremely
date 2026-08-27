@@ -24,6 +24,12 @@ class DiscussionGroup(OrgScoped, BaseModel):
     console roadmap reserves plain "groups" for member/access groups."""
     __tablename__ = 'discussion_group'
 
+    # Org-wide discussions visibility (org.settings['discussions_visibility']):
+    #   per_group — each group's own visibility applies (the default)
+    #   public    — the whole area is public, group settings notwithstanding
+    #   members   — the whole area is members-only
+    AREA_VISIBILITIES = ('per_group', 'public', 'members')
+
     name = db.Column(db.String(100), nullable=False)
     slug = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(500), nullable=True)
@@ -50,12 +56,34 @@ class DiscussionGroup(OrgScoped, BaseModel):
         if existing and existing.id != self.id:
             raise ValidationError('A group with that slug already exists')
 
-    def readable_by_current_visitor(self) -> bool:
-        if self.visibility == 'public':
-            return True
+    @classmethod
+    def area_visibility(cls) -> str:
+        """The org-wide discussions setting for the current tenant."""
+        from flask import g
+        org = getattr(g, 'org', None)
+        value = org.setting('discussions_visibility') if org else None
+        return value if value in cls.AREA_VISIBILITIES else 'per_group'
+
+    @classmethod
+    def area_readable_by_current_visitor(cls) -> bool:
+        """Can the current visitor see the discussions area at all? False
+        only when the org gated the whole area and the visitor is neither a
+        member nor a platform admin."""
         from app.platform.authz import is_org_member
-        return is_org_member() or (
-            current_user.is_authenticated and current_user.is_platform_admin)
+        if is_org_member() or (current_user.is_authenticated
+                               and current_user.is_platform_admin):
+            return True
+        return cls.area_visibility() != 'members'
+
+    def readable_by_current_visitor(self) -> bool:
+        from app.platform.authz import is_org_member
+        if is_org_member() or (current_user.is_authenticated
+                               and current_user.is_platform_admin):
+            return True
+        area = self.area_visibility()
+        if area != 'per_group':
+            return area == 'public'
+        return self.visibility == 'public'
 
     @classmethod
     def get_by_slug(cls, slug: str):

@@ -144,11 +144,16 @@ def test_members_see_community_pages_in_the_shell(client, acme, user):
         assert SHELL_MARKER in response.data, path
 
 
-def test_visitors_see_the_theme_not_the_shell(client, acme):
+def test_visitors_get_the_shell_on_community_surfaces(client, acme):
+    # The shell serves everyone; only the front page (and previews) stay
+    # themed. Visitors browse the same layout members use, with gated
+    # content teased in place.
     for path in ('/discussions/', '/events', '/subscribe'):
         response = client.get(path, base_url=ACME, follow_redirects=True)
         assert response.status_code == 200, path
-        assert SHELL_MARKER not in response.data, path
+        assert SHELL_MARKER in response.data, path
+    front = client.get('/', base_url=ACME)
+    assert SHELL_MARKER not in front.data
 
 
 def test_front_page_stays_themed_for_members(client, acme, user):

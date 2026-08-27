@@ -23,16 +23,17 @@ log = get_logger()
 @org_required
 def archive():
     """Past issues, for members: sent deliveries whose post is still
-    published. A community-surface page — visitors get a 404, not a theme
-    fallback."""
+    published. Visitors get the gate (tease-don't-hide), not a 404."""
     from flask import render_template
     from flask_login import current_user
 
     from app.models import Content
     from app.models.newsletter import Delivery
+    from app.platform.i18n import t
+    from app.platform.theming import render_gate
     if g.membership is None and not (current_user.is_authenticated
                                      and current_user.is_platform_admin):
-        abort(404)
+        return render_gate(t('newsletters.archive_title'))
     issues = (Delivery.query.filter_by(status='done')
               .join(Delivery.content)
               .filter(Content.status == 'published')

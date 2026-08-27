@@ -24,10 +24,14 @@ def test_demo_seed_is_a_standard_install_with_fixed_creds(app, runner):
         assert Membership.query.filter_by(org_id=org.id).count() == 2
 
         # Nothing beyond the standard provisioning seeds — which now
-        # demonstrate every library type on their own.
-        for type_slug in ('article', 'event', 'announcement',
+        # demonstrate every library type on their own. Articles come as a
+        # pair: one public, one members-only (the gating demonstration).
+        for type_slug in ('event', 'announcement',
                           'recording', 'episode', 'resource'):
             assert Content.published_query(type_slug).count() == 1, type_slug
+        assert Content.published_query('article').count() == 2
+        assert Content.published_query('article').filter_by(
+            visibility='members').count() == 1
 
 
 def test_demo_seed_refuses_rerun_and_production(app, runner):

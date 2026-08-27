@@ -1,33 +1,18 @@
 {% extends site_layout %}
-{% from 'community/_macros.html' import new_post_modal, post_row, search_box with context %}
+{% from 'community/_macros.html' import area_header, new_post_modal, post_row, search_box with context %}
 {% from 'partials/_ui.html' import empty_state with context %}
 
 {% block title %}{{ group.name }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
 <div class="min-w-0">
-  <nav class="mb-3 text-sm text-slate-400" aria-label="{{ _('discussions.breadcrumb') }}">
-    <a href="/discussions" class="hover:text-slate-900">{{ _('discussions.title') }}</a>
-    <span class="mx-1">/</span>
-    <span class="text-slate-600">{{ group.name }}</span>
-  </nav>
-
-  <div class="mb-5 rounded-xl bg-white p-5 ring-1 ring-slate-200">
-    <div class="flex items-start gap-4">
-      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-lg font-bold text-slate-500">{{ group.name[:1]|upper }}</span>
-      <div class="min-w-0 flex-1">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ group.name }}</h1>
-          <div class="flex items-center gap-2">
-            {{ search_box(q, _('common.search')) }}
-            {{ new_post_modal([group]) }}
-          </div>
-        </div>
-        {% if group.description %}<p class="mt-1 text-sm leading-relaxed text-slate-600">{{ group.description }}</p>{% endif %}
-        <p class="mt-1.5 text-xs tabular-nums text-slate-400">{{ _('discussions.post_count', n=group.post_count()) }}</p>
-      </div>
-    </div>
-  </div>
+  {% set group_sub = (group.description ~ ' · ' if group.description else '')
+                     ~ _('discussions.post_count', n=group.post_count()) %}
+  {% call area_header(_('discussions.title'), '/discussions',
+                      [(group.name, none)], sub=group_sub) %}
+    {{ search_box(q, _('common.search')) }}
+    {{ new_post_modal([group]) }}
+  {% endcall %}
 
   {% if posts %}
   <div class="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">

@@ -99,6 +99,14 @@ class Organization(BaseModel):
     def setting(self, key: str, default=None):
         return (self.settings or {}).get(key, default)
 
+    def teases_gated_content(self) -> bool:
+        """Tease-don't-hide policy (Manage → Settings → Privacy): when on
+        (the default), members-only items appear in public lists as locked
+        titles and direct hits land on the gate page. When off, gated
+        content is invisible to non-members — hidden from lists, and direct
+        URLs behave as before the gate existed (login redirect / 404)."""
+        return bool(self.setting('gated_teasers', True))
+
     def update_settings(self, **updates) -> 'Organization':
         self.settings = {**(self.settings or {}), **updates}
         return self.save()

@@ -34,17 +34,18 @@ def test_visitor_experience(app, client, acme):
     home = client.get('/', base_url=ACME)
     assert home.status_code == 200
     assert TRAIL_MARKER in home.data
-    # Articles and events are public and inherit the trailhead layout via
-    # the template hierarchy (origin bodies, trailhead chrome).
+    # Content surfaces use the community shell for everyone; the theme
+    # styles the landing. Visitors browse the same layout members use.
     for path in ('/blog', '/events'):
         page = client.get(path, base_url=ACME)
         assert page.status_code == 200, path
-        assert b'trailhead' in page.data, path       # body class from layout
-    # Public discussions page renders; members-only groups stay hidden and
-    # participation requires signing in — server behavior, no theme code.
+        assert b'trailhead' not in page.data, path   # shell, not theme chrome
+    # Members-only groups are teased with a lock and their posts stay
+    # gated — server behavior, no theme code.
     disc = client.get('/discussions/', base_url=ACME)
     assert disc.status_code == 200
-    assert b'General' not in disc.data               # members-only group
+    assert b'General' in disc.data                   # teased by name
+    assert b'Members only' in disc.data              # with a lock badge
 
 
 def test_member_shell_is_not_themed(app, client, acme, user):

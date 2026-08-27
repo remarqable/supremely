@@ -1,4 +1,5 @@
 {% extends site_layout %}
+{% from 'partials/_ui.html' import lock_badge with context %}
 
 {% block title %}{{ archive_title or content_type.plural }} — {{ g.org.name }}{% endblock %}
 
@@ -7,16 +8,20 @@
 
 <div class="space-y-10">
   {% for item in items %}
+  {% set locked = not can_view(item) %}
+  {# Locked rows tease: title, date, and a lock — never the excerpt or the
+     featured image. The link lands on the gate page. #}
   <article class="flex gap-5">
-    {% if item.featured_upload %}
+    {% if item.featured_upload and not locked %}
     <a href="{{ item.permalink }}" class="shrink-0">
       <img src="{{ item.featured_upload.url('thumb' if item.featured_upload.has_variants else 'original') }}"
            alt="" class="h-24 w-32 rounded-md object-cover">
     </a>
     {% endif %}
     <div>
-      <h2 class="text-xl font-semibold">
+      <h2 class="flex flex-wrap items-center gap-2 text-xl font-semibold">
         <a href="{{ item.permalink }}" class="hover:text-brand-600">{{ item.title }}</a>
+        {% if locked %}{{ lock_badge() }}{% endif %}
       </h2>
       <p class="mt-1 text-sm text-slate-500">
         {% if item.published_at %}{{ item.published_at|localdate }}{% endif %}
@@ -25,7 +30,9 @@
         · <a href="{{ content_type.base }}/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
         {% endfor %}
       </p>
+      {% if not locked %}
       <p class="mt-2 text-slate-700">{{ item.excerpt_or_summary() }}</p>
+      {% endif %}
     </div>
   </article>
   {% else %}

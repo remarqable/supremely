@@ -6,6 +6,23 @@
   {% call page_header(_('manage.discussion_groups')) %}
     <a href="{{ url_for('manage.flags') }}" class="btn-secondary">{{ _('manage.flag_queue') }}</a>
   {% endcall %}
+  {% set area = g.org.setting('discussions_visibility', 'per_group') %}
+  <div class="card mb-4">
+    <form method="POST" class="flex flex-wrap items-end gap-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="min-w-0 flex-1">
+        <label for="area_visibility" class="label">{{ _('manage.discussions_visibility') }}</label>
+        <select id="area_visibility" name="area_visibility" class="select mt-1">
+          <option value="per_group" {{ 'selected' if area == 'per_group' }}>{{ _('manage.area_per_group') }}</option>
+          <option value="public" {{ 'selected' if area == 'public' }}>{{ _('manage.area_public') }}</option>
+          <option value="members" {{ 'selected' if area == 'members' }}>{{ _('manage.area_members') }}</option>
+        </select>
+        <p class="mt-1.5 text-xs text-slate-500">{{ _('manage.discussions_visibility_hint') }}</p>
+      </div>
+      <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+    </form>
+  </div>
+
   <div class="card">
     {% if groups %}
     <ul class="divide-y divide-slate-100">
@@ -14,7 +31,12 @@
         <span class="font-medium text-slate-900">{{ group.name }}</span>
         <span class="font-mono text-xs text-slate-400">/discussions/{{ group.slug }}</span>
         <span class="badge-slate">{{ _('manage.visibility_' + group.visibility) }}</span>
-        <form method="POST" action="{{ url_for('manage.delete_group', group_id=group.id) }}" class="ms-auto">
+        <form method="POST" action="{{ url_for('manage.toggle_group_visibility', group_id=group.id) }}" class="ms-auto">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="text-slate-500 hover:text-slate-900">
+            {{ _('manage.unlock_section') if group.visibility == 'members' else _('manage.lock_section') }}</button>
+        </form>
+        <form method="POST" action="{{ url_for('manage.delete_group', group_id=group.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
         </form>

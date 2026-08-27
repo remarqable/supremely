@@ -1,0 +1,26 @@
+{% extends site_layout %}
+
+{# The members-only gate (theming.render_gate): shown in place of gated
+   content. Receives only the title and kind — never the body. #}
+
+{% block title %}{{ gate_title }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md py-16 text-center">
+  <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="4.5" y="9" width="11" height="7.5" rx="1.5"/><path d="M7 9V6.5a3 3 0 016 0V9"/>
+    </svg>
+  </span>
+  <p class="mt-4 text-xs font-semibold uppercase tracking-widest text-slate-400">
+    {% if gate_kind %}{{ gate_kind }} · {% endif %}{{ _('gate.members_label') }}</p>
+  <h1 class="mt-2 text-2xl font-bold">{{ gate_title }}</h1>
+  <p class="mt-3 text-slate-600">{{ _('gate.explanation', org=g.org.name) }}</p>
+  {% if not current_user.is_authenticated %}
+  <a href="{{ url_for('auth.login', next=login_next) }}" class="btn-primary mt-6 inline-flex">
+    {{ _('gate.login_cta') }}</a>
+  {% else %}
+  <p class="mt-6 text-sm text-slate-500">{{ _('gate.not_member') }}</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -140,7 +140,7 @@ def _init_setup_gate(app):
 
 def _init_context(app):
     from .models import InstallationSetting
-    from .platform.authz import can, is_org_member
+    from .platform.authz import can, can_view, is_org_member
 
     @app.context_processor
     def inject_globals():
@@ -169,28 +169,60 @@ def _init_context(app):
             from .models import Content
             return Content.published_page('about')
 
+        def _member_view():
+            """The shell serves visitors too; rail cards must not leak
+            gated content or member data to them."""
+            from flask_login import current_user
+            return is_org_member() or (current_user.is_authenticated
+                                       and current_user.is_platform_admin)
+
         def latest_announcement():
-            """Newest published announcement for the right-rail card."""
+            """Newest announcement the current viewer may read, for the
+            right-rail card."""
             if getattr(g, 'org', None) is None:
                 return None
             from .models import Content
-            return Content.published_query('announcement').first()
+            if (not _member_view()
+                    and Content.section_visibility('announcement') != 'public'):
+                return None
+            query = Content.published_query('announcement')
+            if not _member_view():
+                query = query.filter_by(visibility='public')
+            return query.first()
 
         def upcoming_event():
-            """Next published event for the right-rail event card."""
+            """Next readable published event for the right-rail event card."""
             if getattr(g, 'org', None) is None:
                 return None
             from .models import Content
-            return Content.upcoming_event()
+            return Content.upcoming_event(public_only=not _member_view())
 
         def rail_members():
             """(newest members, total active) for the right-rail members
-            card."""
+            card. Names and avatars are member data: visitors get only the
+            count."""
             if getattr(g, 'org', None) is None:
                 return [], 0
             from .models import Membership
-            return (Membership.recent_users(g.org.id),
-                    Membership.active_count(g.org.id))
+            recent = (Membership.recent_users(g.org.id)
+                      if _member_view() else [])
+            return recent, Membership.active_count(g.org.id)
+
+        def section_readable(type_slug):
+            """Whether the current viewer may see a content section (the
+            per-type lock on Manage → Content types)."""
+            if getattr(g, 'org', None) is None:
+                return True
+            from .models import Content
+            return Content.section_readable_by_current_visitor(type_slug)
+
+        def discussions_area_readable():
+            """Whether the current viewer may see the discussions area at
+            all (the org-wide discussions_visibility switch)."""
+            if getattr(g, 'org', None) is None:
+                return True
+            from .models.discussion import DiscussionGroup
+            return DiscussionGroup.area_readable_by_current_visitor()
 
         def managing():
             """Manage mode: presentation only — surfaces controls the user
@@ -203,6 +235,7 @@ def _init_context(app):
         return {
             'installation_name': installation_name,
             'can': can,
+            'can_view': can_view,
             'is_org_member': is_org_member,
             'app_version': APP_VERSION,
             'nav_items': NavigationItem.items_for,
@@ -212,6 +245,8 @@ def _init_context(app):
             'latest_announcement': latest_announcement,
             'upcoming_event': upcoming_event,
             'rail_members': rail_members,
+            'discussions_area_readable': discussions_area_readable,
+            'section_readable': section_readable,
             'content_types': active_types,
         }
 

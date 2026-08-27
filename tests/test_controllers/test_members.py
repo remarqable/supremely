@@ -102,21 +102,27 @@ def test_suspended_member_loses_access(app, client, acme, globex, user):
     with app.test_request_context(base_url=ACME):
         g.org = acme
         page = Content(type='page', title='Inside', slug='inside',
-                       org_id=acme.id, visibility='members', fields={}, tags=[])
+                       body='Inner circle text', org_id=acme.id,
+                       visibility='members', fields={}, tags=[])
         page.save()
         page.publish()
 
     member = make_user(email='m2@example.com')
     membership = Membership.add(member.id, acme.id, role='member')
     login_as(client, member)
-    assert client.get('/inside', base_url=ACME).status_code == 200
+    assert b'Inner circle text' in client.get('/inside', base_url=ACME).data
 
     membership.suspend()
-    assert client.get('/inside', base_url=ACME).status_code == 404
+    # Suspension gates the content (tease-don't-hide: 200, body withheld)
+    # and drops the member shell entirely.
+    gated = client.get('/inside', base_url=ACME)
+    assert gated.status_code == 200
+    assert b'Inner circle text' not in gated.data
+    assert b'Members only' in gated.data
     assert client.get('/dashboard', base_url=ACME).status_code == 404
 
     membership.unsuspend()
-    assert client.get('/inside', base_url=ACME).status_code == 200
+    assert b'Inner circle text' in client.get('/inside', base_url=ACME).data
 
 
 def test_last_owner_cannot_be_suspended(app, acme, user):
@@ -188,10 +194,12 @@ def test_directory_on_by_default_and_can_be_disabled(client, acme, globex, user)
 
 def test_directory_members_only(app, client, acme, globex, user):
     acme.update_settings(member_directory=True)
-    # Anonymous: redirected to login
+    # Anonymous: the gate — never member names.
     anon = app.test_client()
     response = anon.get('/members', base_url=ACME)
-    assert response.status_code == 302
+    assert response.status_code == 200
+    assert b'Members only' in response.data
+    assert user.name.encode() not in response.data
 
     login_as(client, user)
     listing = client.get('/members', base_url=ACME)

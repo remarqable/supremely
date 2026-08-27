@@ -9,11 +9,13 @@
   <div class="space-y-4">
     {% for ct in types %}
     <div class="card">
+      {% set locked = ct.base and section_visibility(ct.slug) == 'members' %}
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 class="text-sm font-semibold tracking-tight">{{ ct.plural }}
             {% if ct.base %}<span class="ms-2 font-mono text-xs font-normal text-slate-400">{{ ct.base }}</span>
             {% else %}<span class="badge-slate ms-2">{{ _('manage.ct_standalone') }}</span>{% endif %}
+            {% if locked %}<span class="badge-slate ms-2">{{ _('manage.visibility_members') }}</span>{% endif %}
           </h3>
           {% if ct.description %}<p class="text-sm text-slate-600">{{ ct.description }}</p>{% endif %}
           {% if ct.fields %}
@@ -22,8 +24,18 @@
           </p>
           {% endif %}
         </div>
-        <a href="{{ url_for('manage.content_list', type_slug=ct.slug) }}" class="btn-secondary">
-          {{ counts.get(ct.slug, 0) }} {{ _('manage.ct_items') }}</a>
+        <div class="flex items-center gap-2">
+          {% if ct.base %}
+          {# Section lock: gates every item in the section for non-members. #}
+          <form method="POST" action="{{ url_for('manage.toggle_section_visibility', type_slug=ct.slug) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-secondary">
+              {{ _('manage.unlock_section') if locked else _('manage.lock_section') }}</button>
+          </form>
+          {% endif %}
+          <a href="{{ url_for('manage.content_list', type_slug=ct.slug) }}" class="btn-secondary">
+            {{ counts.get(ct.slug, 0) }} {{ _('manage.ct_items') }}</a>
+        </div>
       </div>
     </div>
     {% endfor %}

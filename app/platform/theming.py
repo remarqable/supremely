@@ -180,18 +180,21 @@ def community_tokens() -> dict:
 #   console      — /manage and /admin. Never themed; renders outside
 #                  render_site entirely (listed for vocabulary).
 #
-# SHELL_FOR_MEMBERS is the single policy point mapping context -> whether a
-# MEMBER sees the standardized community shell instead of the theme. Change
-# presentation policy here (or per-org later) — never with ad-hoc membership
-# tests at callsites. Direction: supremely-dev/docs/"Supremely — Themes,
-# Visibility, and Presentation Architecture".
+# SHELL_CONTEXTS is the single policy point mapping context -> whether the
+# standardized community shell renders instead of the theme. The shell now
+# serves EVERYONE — visitors included — so a visitor browses the same
+# left-nav community members use and sees gated content teased in place
+# (tease-don't-hide). Themes style the front page (force_theme) and any
+# page rendered with preview/force_theme. Change presentation policy here
+# (or per-org later) — never with ad-hoc membership tests at callsites.
+# Direction: supremely-dev/docs/"Supremely — Themes, Visibility, and
+# Presentation Architecture".
 
 PRESENTATION_CONTEXTS = ('publication', 'application', 'console')
 
-SHELL_FOR_MEMBERS = {
-    'publication': True,     # today members see even public content in-app;
-                             # flipping this is a product decision, not a
-                             # refactor
+SHELL_CONTEXTS = {
+    'publication': True,     # everyone sees content in-app; the themed
+                             # front page remains the public landing
     'application': True,
 }
 
@@ -199,14 +202,11 @@ SHELL_FOR_MEMBERS = {
 def _use_community_shell(context_name: str, force_theme: bool,
                          context: dict) -> bool:
     """The one place presentation is decided. Previews and force_theme
-    always show the public look; visitors always get the theme; members get
-    the shell where SHELL_FOR_MEMBERS says so."""
-    from flask import g
+    always show the public look; everyone else — member or visitor — gets
+    the shell where SHELL_CONTEXTS says so."""
     if force_theme or context.get('preview'):
         return False
-    if not SHELL_FOR_MEMBERS.get(context_name, False):
-        return False
-    return getattr(g, 'membership', None) is not None
+    return SHELL_CONTEXTS.get(context_name, False)
 
 
 def render_site(candidates: list[str], context_name: str = 'publication',
@@ -242,6 +242,28 @@ def render_site(candidates: list[str], context_name: str = 'publication',
     # applies even to pages the theme does not override itself.
     context.setdefault('site_layout', themed('layout.html'))
     return render_template(names, **context)
+
+
+def render_gate(title: str, kind: str = None):
+    """The members-only gate: a friendly 200 page for an object the visitor
+    may know exists but cannot read. Tease-don't-hide is the default stance —
+    gated items appear in public lists as locked titles, and clicking one
+    lands here: the title, what kind of thing it is, and a login CTA. The
+    body never reaches this template; access was already denied by the
+    object's own visibility policy (authz.can_view) before rendering.
+
+    Orgs can turn teasing off (Manage → Settings → Privacy). Then this is
+    the single point where the gate degrades to hiding: anonymous visitors
+    are sent to login (members reach the content after signing in) and
+    signed-in non-members get a 404 — the title never renders."""
+    from flask import abort, g, redirect, request, url_for
+    from flask_login import current_user
+    if not g.org.teases_gated_content():
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login', next=request.path))
+        abort(404)
+    return render_site(['gate.html'], gate_title=title, gate_kind=kind,
+                       login_next=request.path)
 
 
 def themed(name: str) -> str:

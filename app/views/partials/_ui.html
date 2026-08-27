@@ -28,6 +28,22 @@
 </div>
 {% endmacro %}
 
+{% macro lock_icon(cls='h-3 w-3') %}
+{#- Gated-content marker: shown wherever a members-only item is teased to a
+    visitor who cannot read it (lists, nav). Purely presentational — access
+    is enforced server-side and the gate page does the explaining. -#}
+<svg class="{{ cls }} shrink-0" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+     role="img" aria-label="{{ _('gate.members_label') }}">
+  <rect x="4.5" y="9" width="11" height="7.5" rx="1.5"/><path d="M7 9V6.5a3 3 0 016 0V9"/>
+</svg>
+{%- endmacro %}
+
+{% macro lock_badge() %}
+<span class="badge-slate inline-flex shrink-0 items-center gap-1">
+  {{ lock_icon() }}{{ _('gate.members_label') }}</span>
+{% endmacro %}
+
 {% macro status_badge(status) %}
 {%- if status == 'published' -%}<span class="badge-green">{{ _('manage.published') }}</span>
 {%- elif status == 'archived' -%}<span class="badge-red">{{ _('manage.archived') }}</span>

@@ -1,0 +1,57 @@
+{% extends site_layout %}
+{% from 'community/_macros.html' import area_header with context %}
+
+{# The member view of a single content item (article, event, recording, …).
+   Visitors keep the theme's single.html; members get the shell, and this
+   template keeps the content area's header above the item so drilling down
+   never loses it. #}
+
+{% block title %}{{ content.seo_title or content.title }} — {{ g.org.name }}{% endblock %}
+
+{% block meta %}
+{% if content.seo_description %}<meta name="description" content="{{ content.seo_description }}">{% endif %}
+<meta property="og:title" content="{{ content.seo_title or content.title }}">
+<meta property="og:type" content="article">
+{% if content.seo_description %}<meta property="og:description" content="{{ content.seo_description }}">{% endif %}
+{% if content.featured_upload %}<meta property="og:image" content="{{ org_url(g.org, content.featured_upload.url('medium' if content.featured_upload.has_variants else 'original')) }}">{% endif %}
+{% endblock %}
+
+{% block content %}
+{# tag='div': the item title below is this page's real h1. #}
+{% call area_header(content_type.plural, content_type.base, tag='div') %}
+  {% if can('content.write') %}
+  <a href="{{ url_for('manage.new_content', type_slug=content_type.slug) }}"
+     class="btn-primary">{{ _('manage.new_of', name=content_type.singular) }}</a>
+  {% endif %}
+{% endcall %}
+
+<article class="min-w-0 rounded-xl bg-white p-6 ring-1 ring-slate-200 sm:p-8">
+  <header class="mb-6">
+    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ content.title }}</h1>
+    <p class="mt-2 text-sm text-slate-500">
+      {% if content.published_at %}{{ content.published_at|localdate }}{% endif %}
+      {% if content.author %} · {{ content.author.name }}{% endif %}
+      {% for category in content.categories %}
+      · <a href="{{ content_type.base }}/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
+      {% endfor %}
+    </p>
+  </header>
+
+  {% if content.featured_upload %}
+  <img src="{{ content.featured_upload.url('full' if content.featured_upload.has_variants else 'original') }}"
+       alt="" class="mb-6 w-full rounded-lg object-cover">
+  {% endif %}
+
+  <div class="prose-supremely">
+    {{ content.html | safe }}
+  </div>
+
+  {% if content.tags %}
+  <p class="mt-8 flex flex-wrap gap-2">
+    {% for tag in content.tags %}
+    <a href="{{ content_type.base }}/tag/{{ tag }}" class="badge-slate hover:ring-brand-500">#{{ tag }}</a>
+    {% endfor %}
+  </p>
+  {% endif %}
+</article>
+{% endblock %}

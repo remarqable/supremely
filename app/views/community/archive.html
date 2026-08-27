@@ -1,21 +1,24 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import avatar, empty_state with context %}
+{% from 'community/_macros.html' import area_header with context %}
+{% from 'partials/_ui.html' import avatar, empty_state, lock_badge with context %}
 
 {% block title %}{{ archive_title }} — {{ g.org.name }}{% endblock %}
 
 {% block content %}
-<div class="mb-5 flex flex-wrap items-start justify-between gap-3">
-  <div class="min-w-0">
-    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ archive_title }}</h1>
-    {% if content_type.description %}<p class="mt-0.5 text-sm text-slate-500">{{ content_type.description }}</p>{% endif %}
-  </div>
+{# Category and tag archives keep the area title as the trail root, so the
+   header never disappears when drilling down inside a content area. #}
+{% set drilled = archive_title != content_type.plural %}
+{% call area_header(content_type.plural,
+                    content_type.base if drilled else none,
+                    [(archive_title, none)] if drilled else [],
+                    sub=none if drilled else content_type.description) %}
   {# Creation is permission-driven and visible in both modes: the "big form"
      lives in the console, but publishing starts from the community surface. #}
   {% if can('content.write') %}
   <a href="{{ url_for('manage.new_content', type_slug=content_type.slug) }}"
      class="btn-primary">{{ _('manage.new_of', name=content_type.singular) }}</a>
   {% endif %}
-</div>
+{% endcall %}
 
 <div class="space-y-3.5">
   {% for item in items %}
@@ -32,20 +35,26 @@
                 item.author.avatar_url if item.author else None,
                 size='h-8.5 w-8.5', text='text-xs') }}
       {% endif %}
+      {# Locked rows tease: title, byline, and a lock — never the excerpt.
+         The permalink lands on the gate page. #}
+      {% set locked = not can_view(item) %}
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold text-slate-900">{{ item.author.name if item.author else g.org.name }}</span>
           <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
-          <span class="badge-slate ms-auto shrink-0 uppercase tracking-wide">{{ content_type.singular }}</span>
+          <span class="ms-auto flex shrink-0 items-center gap-1.5">
+            {% if locked %}{{ lock_badge() }}{% endif %}
+            <span class="badge-slate uppercase tracking-wide">{{ content_type.singular }}</span>
+          </span>
         </div>
         <h2 class="mt-1.5 text-lg font-semibold tracking-tight">
           <a href="{{ item.permalink }}" class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>
         </h2>
-        {% set summary = item.excerpt_or_summary() %}
+        {% set summary = none if locked else item.excerpt_or_summary() %}
         {% if summary %}<p class="mt-1 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
         <div class="mt-2.5 flex items-center gap-3 text-sm text-slate-500">
           <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
-          {% if content_type.slug == 'event' and item.fields.get('location') %}
+          {% if content_type.slug == 'event' and item.fields.get('location') and not locked %}
           <span>· {{ item.fields.location }}</span>
           {% endif %}
         </div>

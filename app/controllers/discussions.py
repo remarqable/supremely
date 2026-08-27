@@ -33,21 +33,26 @@ from app.platform.notify import (
     notify_post_mentions,
     notify_reply_created,
 )
-from app.platform.theming import render_site
+from app.platform.theming import render_gate, render_site
 
 bp = Blueprint('discussions', __name__, url_prefix='/discussions')
 log = get_logger()
 
 
-def _visible_groups():
-    groups = DiscussionGroup.query.order_by(DiscussionGroup.position,
-                                            DiscussionGroup.name).all()
-    return [group for group in groups if group.readable_by_current_visitor()]
+def _all_groups():
+    """Every group, in listing order. Gated groups are teased, not hidden:
+    listings show name/description/count with a lock, but post queries must
+    stay restricted to readable groups (titles are gated content)."""
+    return DiscussionGroup.query.order_by(DiscussionGroup.position,
+                                          DiscussionGroup.name).all()
 
 
 def _group_or_404(slug) -> DiscussionGroup:
+    """Existence only. Readability is the caller's decision: page views gate
+    unreadable groups (tease-don't-hide); write routes sit behind
+    require('discuss'), which members-only readability already implies."""
     group = DiscussionGroup.get_by_slug(slug)
-    if group is None or not group.readable_by_current_visitor():
+    if group is None:
         abort(404)
     return group
 
@@ -72,8 +77,19 @@ def _moderator_filter(query):
 def index():
     """The groups directory. Recent activity lives on the Home feed; this
     page answers "what groups exist and how alive are they"."""
-    groups = _visible_groups()
-    group_ids = [group.id for group in groups]
+    if not DiscussionGroup.area_readable_by_current_visitor():
+        # The org gated the whole area: one gate, no group names teased.
+        return render_gate(t('discussions.title'))
+    groups = _all_groups()
+    if not g.org.teases_gated_content():
+        # Teasing is off for this org: gated groups vanish from the listing.
+        groups = [group for group in groups
+                  if group.readable_by_current_visitor()]
+    # Post titles are gated content: recents and search only ever query
+    # readable groups, while the listing (when teasing) shows gated ones
+    # by name only.
+    group_ids = [group.id for group in groups
+                 if group.readable_by_current_visitor()]
     q = request.args.get('q', '').strip()
     latest_by_group: dict = {}
     search_results = []
@@ -101,6 +117,8 @@ def index():
 @org_required
 def group(slug):
     group = _group_or_404(slug)
+    if not group.readable_by_current_visitor():
+        return render_gate(group.name, kind=t('discussions.group'))
     q = request.args.get('q', '').strip()
     query = _moderator_filter(Post.query.filter_by(group_id=group.id))
     if q:
@@ -137,6 +155,9 @@ def new_post(slug):
 @org_required
 def post(slug, post_id):
     group = _group_or_404(slug)
+    if not group.readable_by_current_visitor():
+        # Gate on the group without confirming the post: its title is gated.
+        return render_gate(group.name, kind=t('discussions.group'))
     post = _post_or_404(group, post_id)
 
     replies = Reply.query.filter_by(post_id=post.id) \

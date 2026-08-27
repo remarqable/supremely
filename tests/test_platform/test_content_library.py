@@ -49,8 +49,9 @@ def test_count_by_type_is_tenant_scoped(app, acme, globex):
     with app.test_request_context(base_url='http://acme.example.test'):
         g.org = acme
         counts = dict(Content.count_by_type())
-    # Seeded content for ONE org only: 3 pages, 1 article, 1 event.
-    assert counts == {'page': 3, 'article': 1, 'event': 1,
+    # Seeded content for ONE org only: 3 pages, 2 articles (one public, one
+    # members-only to demonstrate gating), 1 event.
+    assert counts == {'page': 3, 'article': 2, 'event': 1,
                       'announcement': 1, 'recording': 1, 'episode': 1,
                       'resource': 1}
 

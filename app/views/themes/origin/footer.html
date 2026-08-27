@@ -1,3 +1,4 @@
+{% from 'partials/_ui.html' import lock_icon with context %}
 <footer class="mt-16 border-t border-slate-200 bg-slate-50">
   {% set footer_items = nav_items('footer') %}
   {% set footer_groups = footer_items | selectattr('is_group') | list %}
@@ -20,7 +21,7 @@
         <div class="mb-2 text-sm font-semibold">{{ group.label }}</div>
         <ul class="space-y-1.5">
           {% for child in group.children %}
-          <li><a href="{{ child.href }}" class="text-sm text-slate-600 hover:text-brand-600">{{ child.label }}</a></li>
+          <li><a href="{{ child.href }}" class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-brand-600">{{ child.label }}{% if child.content and not can_view(child.content) %} {{ lock_icon('h-3 w-3 text-slate-400') }}{% endif %}</a></li>
           {% endfor %}
         </ul>
       </nav>

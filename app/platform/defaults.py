@@ -68,6 +68,18 @@ it under **Manage → Blog**, then write something real.
 Happy publishing!
 """
 
+MEMBERS_ARTICLE_BODY = """\
+If you can read this, you're a member — welcome!
+
+This article is published with **member-only visibility**: visitors see its
+title in the blog with a lock and land on a friendly members-only page if
+they click it, while members read it in full. That mix of public and gated
+content is how {name} shows visitors what membership unlocks.
+
+Set visibility per article, page, or discussion group. Edit or delete this
+one under **Manage → Blog**.
+"""
+
 
 def seed_default_content(session, org, owner_id=None,
                          vertical=None) -> None:
@@ -183,6 +195,16 @@ def seed_default_content(session, org, owner_id=None,
                         excerpt=f'The first article on {org.name}.',
                         status='published', published_at=now,
                         visibility='public', tags=['welcome'], fields={},
+                        created_by_id=owner_id))
+    # One gated article beside the public one: together they demonstrate
+    # tease-don't-hide (locked title in the blog, gate page on click).
+    session.add(Content(org_id=org.id, type='article',
+                        title='For members: how gated content works',
+                        slug='for-members',
+                        body=MEMBERS_ARTICLE_BODY.format(name=org.name),
+                        excerpt='A members-only example article.',
+                        status='published', published_at=now,
+                        visibility='members', tags=['welcome'], fields={},
                         created_by_id=owner_id))
     session.add(Content(org_id=org.id, type='event', title='Kickoff meetup',
                         slug='kickoff-meetup',

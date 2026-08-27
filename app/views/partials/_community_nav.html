@@ -2,11 +2,16 @@
    render from the registry — each type declares its group — so the sidebar
    mirrors what this organization publishes. Empty groups hide. #}
 
-{% macro nav_item(label, href, active=false) %}
+{% from 'partials/_ui.html' import lock_icon with context %}
+
+{% macro nav_item(label, href, active=false, locked=false) %}
+{# locked: the viewer can't read what's behind this row — teased with a
+   lock; the link still works and lands on the gate. #}
 <a href="{{ href }}" {{ 'aria-current=page' if active }}
    class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {{ 'bg-brand-50 font-semibold text-brand-700' if active else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
   <span class="{{ 'text-brand-700' if active else 'text-slate-400' }}">{{ caller() }}</span>
-  {{ label }}</a>
+  {{ label }}
+  {% if locked %}<span class="ms-auto text-slate-400">{{ lock_icon('h-3.5 w-3.5') }}</span>{% endif %}</a>
 {% endmacro %}
 
 {% macro type_icon(slug) %}
@@ -29,7 +34,8 @@
 {% for ct in content_types().values() if ct.has_archive and ct.group == group_name %}
 {% call nav_item(ct.plural, ct.base,
                  active=(request.path == ct.base
-                         or request.path.startswith(ct.base + '/'))) %}
+                         or request.path.startswith(ct.base + '/')),
+                 locked=not section_readable(ct.slug)) %}
   {{ type_icon(ct.slug) }}
 {% endcall %}
 {% endfor %}
@@ -40,10 +46,15 @@
 {% endmacro %}
 
 {% macro community_nav(active='') %}
+{# The shell serves visitors too: member-only rows swap for public
+   equivalents or carry a lock (tease-don't-hide). #}
+{% set member_view = is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin) %}
 <aside class="shrink-0 border-b border-slate-200/70 bg-white px-3.5 py-5 lg:min-h-[calc(100vh-3.5rem)] lg:w-60 lg:border-b-0 lg:border-e">
   <div class="lg:sticky lg:top-6">
     <nav aria-label="{{ _('community.nav') }}">
-      {% call nav_item(_('community.home'), url_for('orgs.dashboard'), active=(active == 'home')) %}
+      {% call nav_item(_('community.home'),
+                       url_for('orgs.dashboard') if member_view else '/',
+                       active=(active == 'home')) %}
         <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L10 3l7 6.5V16a1 1 0 01-1 1h-3.5v-4.5h-5V17H4a1 1 0 01-1-1V9.5z"/></svg>
       {% endcall %}
 
@@ -54,11 +65,13 @@
           <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6.5v.01M10 9.5V14"/></svg>
         {% endcall %}
         {% endif %}
-        {% call nav_item(_('discussions.title'), '/discussions', active=(active == 'discussions')) %}
+        {% call nav_item(_('discussions.title'), '/discussions', active=(active == 'discussions'),
+                         locked=not discussions_area_readable()) %}
           <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
         {% endcall %}
         {{ type_items('community') }}
-        {% call nav_item(_('community.newsletters'), '/newsletters', active=(active == 'newsletters')) %}
+        {% call nav_item(_('community.newsletters'), '/newsletters', active=(active == 'newsletters'),
+                         locked=not member_view) %}
           <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="11" rx="1.5"/><path d="M3 6l7 5 7-5"/></svg>
         {% endcall %}
       </div>
@@ -66,7 +79,8 @@
       {{ group_label(_('community.group_meet')) }}
       <div class="space-y-0.5">
         {{ type_items('meet') }}
-        {% call nav_item(_('members.directory_title'), '/members', active=(active == 'members')) %}
+        {% call nav_item(_('members.directory_title'), '/members', active=(active == 'members'),
+                         locked=not member_view) %}
           <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="7" r="3"/><path d="M4 17c.8-2.9 3.2-4.5 6-4.5s5.2 1.6 6 4.5"/></svg>
         {% endcall %}
       </div>
@@ -81,9 +95,15 @@
       {% endif %}
 
       <div class="mt-6 border-t border-slate-100 pt-3">
+        {% if current_user.is_authenticated %}
         {% call nav_item(_('community.settings'), url_for('members.profile'), active=(active == 'settings')) %}
           <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.5"/><path d="M10 3.5V5m0 10v1.5M16.5 10H15M5 10H3.5m11-4.5l-1 1m-9 7l-1 1m11 0l-1-1m-9-7l-1-1"/></svg>
         {% endcall %}
+        {% else %}
+        {% call nav_item(_('nav.login'), url_for('auth.login', next=request.path)) %}
+          <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5V4a1.5 1.5 0 011.5-1.5h6A1.5 1.5 0 0117 4v12a1.5 1.5 0 01-1.5 1.5h-6A1.5 1.5 0 018 16v-1M3 10h9m0 0l-3-3m3 3l-3 3"/></svg>
+        {% endcall %}
+        {% endif %}
       </div>
     </nav>
   </div>

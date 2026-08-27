@@ -103,9 +103,10 @@ def directory():
         abort(404)
     if not (is_org_member() or (current_user.is_authenticated
                                 and current_user.is_platform_admin)):
-        if not current_user.is_authenticated:
-            return redirect(url_for('auth.login', next=request.path))
-        abort(404)
+        # Member data stays members-only; the gate explains instead of 404ing.
+        from app.platform.i18n import t
+        from app.platform.theming import render_gate
+        return render_gate(t('members.directory_title'))
     member_list = (Membership.query
                    .filter_by(org_id=g.org.id, is_active=True)
                    .join(Membership.user)

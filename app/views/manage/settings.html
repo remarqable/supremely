@@ -53,6 +53,23 @@
   </div>
 
   <div class="card">
+    <h3 class="mb-4 section-title">{{ _('manage.privacy') }}</h3>
+    <form method="POST" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="section" value="privacy">
+      <label class="flex items-start gap-3">
+        <input type="checkbox" name="gated_teasers" class="mt-0.5"
+               {{ 'checked' if org.teases_gated_content() }}>
+        <span>
+          <span class="block text-sm font-medium text-slate-900">{{ _('manage.gated_teasers') }}</span>
+          <span class="mt-0.5 block text-xs leading-relaxed text-slate-500">{{ _('manage.gated_teasers_hint') }}</span>
+        </span>
+      </label>
+      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+    </form>
+  </div>
+
+  <div class="card">
     <h3 class="mb-4 section-title">{{ _('manage.theme') }}</h3>
     <form method="POST" class="space-y-4" x-data="{ theme: '{{ org.theme }}' }">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
