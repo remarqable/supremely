@@ -6,7 +6,7 @@ from typing import ClassVar
 from app.extensions import db
 from app.platform.errors import ValidationError
 
-from .base import BaseModel, transaction
+from .base import BaseModel, reject_control_characters, transaction
 from .types import JSONColumn, TZDateTime
 
 
@@ -39,6 +39,7 @@ class Organization(BaseModel):
             raise ValidationError('Organization name is required')
         if len(self.name) > 100:
             raise ValidationError('Organization name too long (max 100 chars)')
+        reject_control_characters(self.name, 'Organization name')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?', self.slug):
             raise ValidationError('Slug must be 3-63 chars: a-z, 0-9 and hyphens')
         if self.slug in self.RESERVED_SLUGS:

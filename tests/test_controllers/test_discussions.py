@@ -480,3 +480,28 @@ def test_latest_in_group_rail(app, client, acme, globex, user):
     page = owner_client.get(url, base_url=ACME).data
     assert b'Latest in General' in page
     assert b'Rail neighbor' in page
+
+
+def test_an_over_long_post_can_still_be_moderated(app, client, acme, user):
+    """The cap on a body must not make the worst posts unmoderatable: a
+    pasted hundred-kilobyte dump is exactly the row someone needs to hide,
+    and re-validating it on a flag change refused the save."""
+    from app.models.discussion import BODY_MAX, DiscussionGroup, Post
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        group = DiscussionGroup.query.filter_by(org_id=acme.id).first()
+        spam = Post(org_id=acme.id, group_id=group.id, title='Spam',
+                    body='x' * (BODY_MAX + 5_000), created_by_id=user.id)
+        db.session.add(spam)
+        db.session.commit()
+        post_id, slug = spam.id, group.slug
+
+    login_as(client, user)
+    for action in ('lock', 'pin', 'hide'):
+        response = client.post(f'/discussions/{slug}/{post_id}/{action}',
+                               base_url=ACME)
+        assert response.status_code == 302, action
+
+    db.session.expire_all()
+    assert db.session.get(Post, post_id).is_hidden is True

@@ -3,7 +3,7 @@
 from app.extensions import db
 from app.platform.errors import ValidationError
 
-from .base import BaseModel
+from .base import LIKE_ESCAPE, BaseModel, escape_like
 
 
 class InstallationSetting(BaseModel):
@@ -40,5 +40,6 @@ class InstallationSetting(BaseModel):
     def get_map(cls, prefix: str = '') -> dict:
         query = cls.query
         if prefix:
-            query = query.filter(cls.key.ilike(f'{prefix}%'))
+            query = query.filter(cls.key.ilike(f'{escape_like(prefix)}%',
+                                               escape=LIKE_ESCAPE))
         return {s.key: s.value for s in query.all()}

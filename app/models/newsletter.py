@@ -38,6 +38,10 @@ class Subscriber(OrgScoped, BaseModel):
         self.email = (self.email or '').strip().lower()
         if not EMAIL_RE.match(self.email):
             raise ValidationError('Invalid email address')
+        # The column is 255; SQLite stores a longer one anyway and
+        # PostgreSQL raises, so the check has to live here.
+        if len(self.email) > 255:
+            raise ValidationError('Email too long (max 255 chars)')
         if self.status not in self.STATUSES:
             raise ValidationError('Invalid status')
 

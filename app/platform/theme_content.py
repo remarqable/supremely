@@ -23,8 +23,9 @@ and richer repeaters (add/remove/reorder). The seams are the type switches in
 `_view_field`, `clean`, and `resolve`, plus the editor template's `{% if %}`
 ladder — add a branch to each.
 
-Values are rendered into autoescaped HTML, so markup can't break out; the only
-write-time guard needed is the per-field length cap.
+Values are rendered into autoescaped HTML, so markup can't break out. That
+holds for text inside an element and not for a value placed in an attribute:
+a url field needs its scheme checked as well as its length.
 """
 
 from flask import g
@@ -109,8 +110,27 @@ def clean(theme: str, form) -> dict:
                 rows.append(row)
             out[key] = rows
         else:
-            out[key] = form.get(key, '').strip()[:field.get('max', DEFAULT_MAX)]
+            value = form.get(key, '').strip()[:field.get('max', DEFAULT_MAX)]
+            if field['type'] == 'url':
+                value = _safe_url(value)
+            out[key] = value
     return out
+
+
+def _safe_url(value: str) -> str:
+    """A url field goes straight into an href.
+
+    Autoescaping stops markup breaking out of the attribute but has
+    nothing to say about the scheme, so javascript: survives it. Only the
+    Content-Security-Policy stops that today, which makes the policy the
+    single thing between an editor and every visitor to the public page.
+    """
+    lowered = value.lower()
+    if lowered.startswith('//') or lowered.startswith('/\\'):
+        # Protocol-relative, or a backslash a browser reads as a slash:
+        # both leave this site while looking like a local path.
+        return ''
+    return value if lowered.startswith(('http://', 'https://', '/', '#')) else ''
 
 
 def editor_view(theme: str, org) -> list:

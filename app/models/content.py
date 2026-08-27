@@ -15,8 +15,21 @@ from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 from app.platform.theming import PAGE_TEMPLATE_RE
 
-from .base import AuditMixin, BaseModel, OrgScoped, scoped_to_own_org, utcnow
+from .base import (
+    LIKE_ESCAPE,
+    AuditMixin,
+    BaseModel,
+    OrgScoped,
+    escape_like,
+    reject_control_characters,
+    scoped_to_own_org,
+    utcnow,
+)
 from .types import BigIntFK, JSONColumn, TZDateTime
+
+# An article body is longer than a forum post, but still bounded: it is
+# re-rendered through Markdown and the sanitiser on every view.
+BODY_MAX = 500_000
 
 content_category = db.Table(
     'content_category',
@@ -110,6 +123,17 @@ class Content(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('Title is required')
         if len(self.title) > 200:
             raise ValidationError('Title too long (max 200 chars)')
+        # This is the newsletter subject line (app/platform/newsletter.py).
+        reject_control_characters(self.title, 'Title')
+        # Columns declare these widths, but SQLite does not enforce them,
+        # so an over-long value stores in development and raises in
+        # production. The check has to live here.
+        for field, label, limit in (('excerpt', 'Excerpt', 500),
+                                    ('seo_title', 'SEO title', 200),
+                                    ('seo_description', 'SEO description', 300),
+                                    ('body', 'Body', BODY_MAX)):
+            if len(getattr(self, field) or '') > limit:
+                raise ValidationError(f'{label} too long (max {limit} chars)')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,198})?', self.slug):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
         if self.type not in CONTENT_TYPES:
@@ -296,4 +320,6 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         import sqlalchemy as sa
         needle = json.dumps(tag)[1:-1]
         return (cls.published_query(type_slug)
-                .filter(sa.cast(cls.tags, sa.String).like(f'%"{needle}"%')))
+                .filter(sa.cast(cls.tags, sa.String)
+                        .like(f'%"{escape_like(needle)}"%',
+                              escape=LIKE_ESCAPE)))

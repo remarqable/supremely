@@ -825,7 +825,9 @@ def toggle_group_visibility(group_id):
         abort(404)
     group.visibility = ('public' if group.visibility == 'members'
                         else 'members')
-    group.save()
+    # A flag flip on a row this request is not otherwise editing: a
+    # description saved before the length rule must not block it.
+    group.save_flag()
     flash(t('common.saved'), 'success')
     return redirect(url_for('manage.discussions'))
 
