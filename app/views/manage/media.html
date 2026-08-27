@@ -12,6 +12,13 @@
       <input type="file" id="file" name="file" class="input mt-1"
              accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,application/pdf" required>
     </div>
+    <div>
+      <label for="visibility" class="label">{{ _('manage.visibility') }}</label>
+      <select id="visibility" name="visibility" class="select mt-1">
+        <option value="public">{{ _('manage.visibility_public') }}</option>
+        <option value="members">{{ _('manage.visibility_members') }}</option>
+      </select>
+    </div>
     <button type="submit" class="btn-primary">{{ _('manage.upload') }}</button>
   </form>
 </div>
@@ -27,6 +34,18 @@
     <div class="mb-2 flex h-32 items-center justify-center rounded-md bg-slate-100 font-mono text-xs text-slate-400">{{ upload.content_type }}</div>
     {% endif %}
     <div class="truncate px-0.5 text-xs font-medium text-slate-900" title="{{ upload.filename }}">{{ upload.filename }}</div>
+    {# No inline handler: the Content-Security-Policy has no unsafe-inline,
+       so an onchange submit would be dead in production. #}
+    <form method="POST" class="mt-1.5 flex gap-1"
+          action="{{ url_for('manage.media_visibility', upload_id=upload.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <select name="visibility" class="select w-full text-xs"
+              aria-label="{{ _('manage.visibility') }}">
+        <option value="public" {{ 'selected' if upload.visibility == 'public' }}>{{ _('manage.visibility_public') }}</option>
+        <option value="members" {{ 'selected' if upload.visibility == 'members' }}>{{ _('manage.visibility_members') }}</option>
+      </select>
+      <button type="submit" class="btn-secondary text-xs">{{ _('common.save') }}</button>
+    </form>
     <div class="mt-1 flex items-center justify-between px-0.5 text-xs text-slate-400">
       <span class="tabular-nums">{{ (upload.size / 1024) | round(1) }} KB</span>
       <form method="POST" action="{{ url_for('manage.delete_media', upload_id=upload.id) }}">

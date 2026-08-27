@@ -192,8 +192,15 @@ def serve_upload(upload_id, variant):
     if not storage().exists(key):
         abort(404)
     mimetype = 'image/webp' if key.endswith('.webp') else upload.content_type
+    public = upload.visibility == 'public'
     response = send_file(storage().open(key), mimetype=mimetype,
-                         max_age=31536000, download_name=upload.filename)
+                         max_age=31536000 if public else 0,
+                         download_name=upload.filename)
+    if not public:
+        # send_file's max_age also decides Cache-Control: public, which
+        # would let any shared cache hand a members-only file to someone
+        # who could never have fetched it themselves.
+        response.headers['Cache-Control'] = 'private, no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 

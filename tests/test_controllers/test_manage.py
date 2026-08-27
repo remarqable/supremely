@@ -3,7 +3,14 @@ import io
 from flask import g
 
 from app.extensions import db
-from app.models import Content, Membership, NavigationItem, Organization, Upload
+from app.models import (
+    Content,
+    Membership,
+    NavigationItem,
+    Organization,
+    Upload,
+    User,
+)
 from tests.conftest import login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
@@ -229,3 +236,150 @@ def test_landing_nav_gated_by_content_schema(app, client, acme, globex, user):
     acme.save()
     assert b'/manage/landing' not in client.get('/manage/settings', base_url=ACME).data
     assert client.get('/manage/landing', base_url=ACME).status_code == 404
+
+
+# --- media visibility ----------------------------------------------------------------
+
+def _upload(client, visibility=None, base_url=ACME):
+    data = {'file': (io.BytesIO(make_png()), 'photo.png')}
+    if visibility is not None:
+        data['visibility'] = visibility
+    client.post('/manage/media', base_url=base_url, data=data,
+                content_type='multipart/form-data')
+    return Upload.query.order_by(Upload.id.desc()).first().id
+
+
+def test_an_upload_can_be_kept_for_members(app, client, acme, globex, user):
+    """Every upload used to be public with no way to change it, so a file
+    attached to members-only content was served to anyone who guessed its id."""
+    login_as(client, user)
+    upload_id = _upload(client, 'members')
+
+    assert app.test_client().get(f'/files/{upload_id}/original',
+                                 base_url=ACME).status_code == 404
+    assert client.get(f'/files/{upload_id}/original',
+                      base_url=ACME).status_code == 200
+
+
+def test_uploads_are_public_unless_asked_otherwise(app, client, acme, globex, user):
+    login_as(client, user)
+    upload_id = _upload(client)
+
+    assert app.test_client().get(f'/files/{upload_id}/original',
+                                 base_url=ACME).status_code == 200
+
+
+def test_a_members_only_file_is_not_cached_by_shared_caches(app, client, acme,
+                                                            globex, user):
+    """The visibility check only means something if a proxy in front respects
+    it; send_file's max_age otherwise labels the response public."""
+    login_as(client, user)
+    members_id = _upload(client, 'members')
+    public_id = _upload(client, 'public')
+
+    members = client.get(f'/files/{members_id}/original', base_url=ACME)
+    assert members.headers['Cache-Control'] == 'private, no-store'
+
+    public = client.get(f'/files/{public_id}/original', base_url=ACME)
+    assert 'public' in public.headers['Cache-Control']
+
+
+def test_visibility_can_be_changed_after_upload(app, client, acme, globex, user):
+    login_as(client, user)
+    upload_id = _upload(client, 'members')
+
+    client.post(f'/manage/media/{upload_id}/visibility', base_url=ACME,
+                data={'visibility': 'public'})
+    assert app.test_client().get(f'/files/{upload_id}/original',
+                                 base_url=ACME).status_code == 200
+
+
+def test_an_unknown_visibility_falls_back_to_public(app, client, acme, globex, user):
+    login_as(client, user)
+    bogus_id = _upload(client, 'nonsense')
+    honoured_id = _upload(client, 'members')
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Upload, bogus_id).visibility == 'public'
+        # The same code path must still honour a real value, or the test above
+        # would pass with the setting hardcoded.
+        assert db.session.get(Upload, honoured_id).visibility == 'members'
+
+
+def test_visibility_cannot_be_changed_from_another_tenants_host(app, client, acme,
+                                                                globex, user):
+    """The route loads by id, so it has to be unreachable from a host that
+    resolves to a different organization."""
+    login_as(client, user)
+    upload_id = _upload(client, 'members')
+
+    hank = User.query.filter_by(email='hank@example.com').one()
+    other = app.test_client()
+    login_as(other, hank)
+    response = other.post(f'/manage/media/{upload_id}/visibility',
+                          base_url='http://globex.example.test',
+                          data={'visibility': 'public'})
+    assert response.status_code == 404
+
+    # Positive control: the same route works for a file Globex does own, so
+    # the 404 above is the tenant filter and not a missing route.
+    own_id = _upload(other, 'members', base_url='http://globex.example.test')
+    assert other.post(f'/manage/media/{own_id}/visibility',
+                      base_url='http://globex.example.test',
+                      data={'visibility': 'public'}).status_code == 302
+
+    # Acme's file is still members-only, and still refused to visitors.
+    assert app.test_client().get(f'/files/{upload_id}/original',
+                                 base_url=ACME).status_code == 404
+
+
+def test_the_media_page_renders(app, client, acme, globex, user):
+    """Nothing else in the suite fetches this page, so a template error in the
+    per-file form would ship green."""
+    login_as(client, user)
+    assert client.get('/manage/media', base_url=ACME).status_code == 200
+
+    _upload(client, 'members')
+    response = client.get('/manage/media', base_url=ACME)
+    assert response.status_code == 200
+    assert b'name="visibility"' in response.data
+
+
+def test_every_variant_of_a_members_only_file_is_gated(app, client, acme,
+                                                       globex, user):
+    """serve_upload rewrites the variant before serving, so a refactor that
+    moved the check after that rewrite would still pass an original-only test."""
+    login_as(client, user)
+    upload_id = _upload(client, 'members')
+
+    anonymous = app.test_client()
+    for variant in ('original', 'thumb', 'medium', 'full'):
+        assert anonymous.get(f'/files/{upload_id}/{variant}',
+                             base_url=ACME).status_code == 404
+
+
+def test_omitting_the_field_leaves_visibility_alone(app, client, acme,
+                                                    globex, user):
+    """On an update an absent field means no change. Defaulting it to public
+    would let a truncated post quietly expose a members-only file."""
+    login_as(client, user)
+    upload_id = _upload(client, 'members')
+
+    client.post(f'/manage/media/{upload_id}/visibility', base_url=ACME, data={})
+
+    assert app.test_client().get(f'/files/{upload_id}/original',
+                                 base_url=ACME).status_code == 404
+
+
+def test_the_logo_picker_offers_only_public_images(app, client, acme,
+                                                   globex, user):
+    """The logo and favicon are rendered to visitors, so a members-only file
+    chosen here is a broken image rather than a private one."""
+    login_as(client, user)
+    public_id = _upload(client, 'public')
+    members_id = _upload(client, 'members')
+
+    body = client.get('/manage/settings', base_url=ACME).data.decode()
+    assert f'value="{public_id}"' in body
+    assert f'value="{members_id}"' not in body

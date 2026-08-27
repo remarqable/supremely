@@ -20,7 +20,13 @@ from app.models import Content, Upload
 from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
 from app.platform import theme_content as tc
-from app.platform.authz import can, grants_more_than, org_required, require
+from app.platform.authz import (
+    VISIBILITY_LEVELS,
+    can,
+    grants_more_than,
+    org_required,
+    require,
+)
 from app.platform.content_types import CONTENT_TYPES, active_types, get_content_type
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -521,7 +527,7 @@ def media():
             flash(t('manage.no_file'), 'error')
         else:
             try:
-                Upload.from_file(file, visibility='public')
+                Upload.from_file(file, visibility=_upload_visibility())
                 flash(t('common.saved'), 'success')
             except ValidationError as e:
                 flash(e.message, 'error')
@@ -529,6 +535,34 @@ def media():
 
     uploads = Upload.query.order_by(Upload.created_at.desc()).all()
     return render_template('manage/media.html', uploads=uploads)
+
+
+def _upload_visibility(current: str = 'public') -> str:
+    """The posted visibility, or `current` if the field is absent.
+
+    Public is the default for a new upload: this is a publishing product
+    and most media belongs on the public site. On an update `current` is
+    the file's own setting, so a post that omits the field cannot quietly
+    turn a members-only file public.
+    """
+    choice = request.form.get('visibility')
+    if choice is None:
+        return current
+    return choice if choice in VISIBILITY_LEVELS else current
+
+
+@bp.route('/media/<int:upload_id>/visibility', methods=['POST'])
+@org_required
+@require('content.write')
+def media_visibility(upload_id):
+    upload = db.session.get(Upload, upload_id)
+    if upload is None:
+        abort(404)
+    upload.visibility = _upload_visibility(upload.visibility)
+    upload.stamp_audit()
+    upload.save()
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.media'))
 
 
 @bp.route('/media/<int:upload_id>/delete', methods=['POST'])
@@ -855,7 +889,10 @@ def settings():
             flash(e.message, 'error')
         return redirect(url_for('manage.settings'))
 
-    uploads = Upload.query.filter(Upload.content_type.like('image/%')) \
+    # Only public images: the logo and favicon are rendered to visitors,
+    # so a members-only file here is a broken image, not a private one.
+    uploads = Upload.query.filter(Upload.content_type.like('image/%'),
+                                  Upload.visibility == 'public') \
         .order_by(Upload.created_at.desc()).all()
     return render_template('manage/settings.html', org=org, uploads=uploads,
                            themes=AVAILABLE_THEMES)
