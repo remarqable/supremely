@@ -25,7 +25,7 @@ body.supremely {
    settled last word with no animation. */
 .sup-rotate {
   display: inline-block;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease, width 0.25s ease;
 }
 .sup-rotate-out {
   opacity: 0;
