@@ -17,6 +17,30 @@
       .filter(Boolean);
     if (words.length < 2) return;
 
+    // Reserve the widest word's width so the static lead never shifts as
+    // the line re-centers; the word sits at the start of its fixed slot.
+    function reserveWidth() {
+      var probe = document.createElement('span');
+      probe.style.visibility = 'hidden';
+      probe.style.position = 'absolute';
+      probe.style.whiteSpace = 'pre';
+      el.parentNode.appendChild(probe);
+      var widest = 0;
+      words.forEach(function (w) {
+        probe.textContent = w;
+        widest = Math.max(widest, probe.offsetWidth);
+      });
+      probe.remove();
+      el.style.minWidth = Math.ceil(widest) + 'px';
+      el.style.textAlign = 'start';
+    }
+    reserveWidth();
+    var resizeTimer;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(reserveWidth, 150);
+    });
+
     var i = 0;
     el.textContent = words[0];
 
