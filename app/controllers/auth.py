@@ -131,6 +131,7 @@ def logout():
 
 @bp.route('/password', methods=['GET', 'POST'])
 @login_required
+@rate_limit(limit=10, window=300)
 def change_password():
     if request.method == 'POST':
         current = request.form.get('current_password', '')
