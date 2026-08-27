@@ -15,7 +15,7 @@ from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 from app.platform.theming import PAGE_TEMPLATE_RE
 
-from .base import AuditMixin, BaseModel, OrgScoped, utcnow
+from .base import AuditMixin, BaseModel, OrgScoped, scoped_to_own_org, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 
 content_category = db.Table(
@@ -44,7 +44,8 @@ class Category(OrgScoped, BaseModel):
             raise ValidationError('Category name is required')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,98})?', self.slug):
             raise ValidationError('Category slug must be lowercase letters, numbers, hyphens')
-        existing = Category.query.filter_by(slug=self.slug).first()
+        existing = scoped_to_own_org(
+            Category.query.filter_by(slug=self.slug), self).first()
         if existing and existing.id != self.id:
             raise ValidationError('A category with that slug already exists')
 
@@ -149,8 +150,9 @@ class Content(OrgScoped, AuditMixin, BaseModel):
 
         # Unique per (org, type, slug): a page "about" and an article "about"
         # can coexist because they live at different URLs.
-        existing = Content.query.filter_by(type=self.type,
-                                           slug=self.slug).first()
+        existing = scoped_to_own_org(
+            Content.query.filter_by(type=self.type, slug=self.slug),
+            self).first()
         if existing and existing.id != self.id:
             raise ValidationError(
                 f'A {self.content_type.singular.lower()} with that slug already exists')

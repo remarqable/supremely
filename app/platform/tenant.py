@@ -11,6 +11,7 @@ from urllib.parse import quote
 from flask import abort, current_app, g, has_request_context, request
 from flask_login import current_user
 from sqlalchemy import event
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, with_loader_criteria
 
 from app.extensions import db
@@ -18,8 +19,12 @@ from app.models.base import OrgScoped
 
 # Paths that belong to the installation, not to any organization.
 # /files is NOT here: uploads are tenant data and must resolve the org.
-INSTALLATION_PREFIXES = ('/static/', '/setup', '/admin', '/auth/', '/launcher')
-INSTALLATION_EXACT = ('/health', '/favicon.ico', '/tls-check')
+# Every prefix ends in a slash so it cannot match a longer word: '/admin'
+# used to swallow '/adminfoo', which a tenant can legitimately publish.
+INSTALLATION_PREFIXES = ('/static/', '/setup/', '/admin/', '/auth/',
+                         '/launcher/')
+INSTALLATION_EXACT = ('/health', '/favicon.ico', '/tls-check',
+                      '/setup', '/admin', '/launcher')
 
 
 def is_installation_path(path: str) -> bool:
@@ -74,10 +79,19 @@ def init_tenant(app):
 
 
 def _request_host() -> str:
-    host = request.host
+    # Host names are case-insensitive and may carry a trailing root dot, so
+    # normalise before comparing. org_for_host already did; this did not,
+    # so the two disagreed about which tenant serves a request.
+    raw = request.host.strip().lower()
     # IPv6 literals arrive bracketed ([::1]:8000); others just carry a port.
-    host = (host[1:host.find(']')] if host.startswith('[')
-            else host.split(':')[0])
+    if raw.startswith('['):
+        end = raw.find(']')
+        if end == -1:
+            return ''               # malformed: resolve no tenant
+        host = raw[1:end]
+    else:
+        host = raw.split(':')[0]
+    host = host.rstrip('.')
     # Loopback IPs are the same machine as localhost. Without this, opening
     # http://127.0.0.1:8000 in dev resolves as a foreign host (custom-domain
     # lookup) and 404s while http://localhost:8000 works.
@@ -228,6 +242,16 @@ def _apply_tenant_filter(state):
     )
 
 
+def _persisted_org_id(obj):
+    """The org_id this row was loaded with, not the one it now reads.
+
+    Anyone able to put a foreign row in the session can also set its
+    org_id to None, and the guard would then wave it through.
+    """
+    history = sa_inspect(obj).attrs.org_id.history
+    return history.deleted[0] if history.deleted else obj.org_id
+
+
 @event.listens_for(Session, 'before_flush')
 def _stamp_org(session, _ctx, _instances):
     if not has_request_context():
@@ -241,11 +265,14 @@ def _stamp_org(session, _ctx, _instances):
                 obj.org_id = org.id
             elif org is not None and obj.org_id != org.id:
                 raise RuntimeError('Refusing to write across tenants')
-    # Updates too: the read filter makes cross-tenant rows unreachable, but
-    # an object smuggled in via the identity map must still not be written.
-    for obj in session.dirty:
-        if isinstance(obj, OrgScoped) and org is not None \
-                and obj.org_id is not None and obj.org_id != org.id:
+    # Updates and deletes too: the read filter makes cross-tenant rows
+    # unreachable, but one smuggled in through the identity map must not
+    # be written or removed.
+    for obj in (*session.dirty, *session.deleted):
+        if not isinstance(obj, OrgScoped) or org is None:
+            continue
+        owner = _persisted_org_id(obj)
+        if owner is not None and owner != org.id:
             raise RuntimeError('Refusing to write across tenants')
 
 

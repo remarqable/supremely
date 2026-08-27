@@ -15,7 +15,7 @@ from app.extensions import db
 from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 
-from .base import AuditMixin, BaseModel, OrgScoped, utcnow
+from .base import AuditMixin, BaseModel, OrgScoped, scoped_to_own_org, utcnow
 from .types import BigIntFK, TZDateTime
 
 
@@ -52,7 +52,8 @@ class DiscussionGroup(OrgScoped, BaseModel):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
         if self.visibility not in VISIBILITY_LEVELS:
             raise ValidationError('Invalid visibility')
-        existing = DiscussionGroup.query.filter_by(slug=self.slug).first()
+        existing = scoped_to_own_org(
+            DiscussionGroup.query.filter_by(slug=self.slug), self).first()
         if existing and existing.id != self.id:
             raise ValidationError('A group with that slug already exists')
 
@@ -180,7 +181,10 @@ class Reply(OrgScoped, AuditMixin, BaseModel):
         if not (self.body or '').strip():
             raise ValidationError('Reply cannot be empty')
         if self.parent_id:
-            parent = db.session.get(Reply, self.parent_id)
+            # A query, not session.get: get() can answer from the identity
+            # map without emitting SQL, and the tenant filter only runs on
+            # a real query.
+            parent = Reply.query.filter_by(id=self.parent_id).first()
             if parent is None or parent.post_id != self.post_id:
                 raise ValidationError('Invalid parent reply')
             if parent.parent_id is not None:

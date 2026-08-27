@@ -54,6 +54,17 @@ class BaseModel(db.Model):
         return db.session.get(cls, id)
 
 
+def scoped_to_own_org(query, row):
+    """Pin a uniqueness lookup to this row's organization.
+
+    The session filter does it inside a request, but seeding, the CLI
+    and background jobs run without one, where an unpinned lookup spans
+    every tenant: a false collision, and a way to learn that another
+    organization uses a name.
+    """
+    return query.filter_by(org_id=row.org_id) if row.org_id else query
+
+
 class OrgScoped:
     """Mixin: rows belong to exactly one organization.
 

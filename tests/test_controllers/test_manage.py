@@ -383,3 +383,100 @@ def test_the_logo_picker_offers_only_public_images(app, client, acme,
     body = client.get('/manage/settings', base_url=ACME).data.decode()
     assert f'value="{public_id}"' in body
     assert f'value="{members_id}"' not in body
+
+
+# --- foreign keys taken from a form --------------------------------------------------
+
+def _globex_rows(app, globex):
+    with app.test_request_context(base_url='http://globex.example.test'):
+        g.org = globex
+        upload = Upload(org_id=globex.id, key='org/2/x.png', filename='x.png',
+                        content_type='image/png', size=1, visibility='public')
+        page = Content(org_id=globex.id, type='page', title='Theirs',
+                       slug='their-page', body='x', status='published')
+        db.session.add_all([upload, page])
+        db.session.commit()
+        return upload.id, page.id
+
+
+def test_a_navigation_link_cannot_point_at_another_tenants_page(app, client, acme,
+                                                                globex, user):
+    """A relationship load is exempt from the tenant filter, so an unchecked
+    id here would render another organization's address in this one's menu."""
+    _, foreign_page_id = _globex_rows(app, globex)
+    login_as(client, user)
+
+    client.post('/manage/navigation', base_url=ACME,
+                data={'menu': 'primary', 'label': 'Foreign',
+                      'content_id': str(foreign_page_id)})
+
+    db.session.expire_all()
+    item = NavigationItem.query.filter_by(org_id=acme.id, label='Foreign').first()
+    assert item is not None and item.content_id is None
+
+
+def test_a_navigation_link_to_our_own_page_still_works(app, client, acme,
+                                                       globex, user):
+    login_as(client, user)
+    ours = Content.query.filter_by(org_id=acme.id, type='article').first()
+
+    client.post('/manage/navigation', base_url=ACME,
+                data={'menu': 'primary', 'label': 'Ours',
+                      'content_id': str(ours.id)})
+
+    db.session.expire_all()
+    item = NavigationItem.query.filter_by(org_id=acme.id, label='Ours').first()
+    assert item.content_id == ours.id
+
+
+def test_a_featured_image_cannot_be_another_tenants_upload(app, client, acme,
+                                                           globex, user):
+    foreign_upload_id, _ = _globex_rows(app, globex)
+    login_as(client, user)
+    page = Content.query.filter_by(org_id=acme.id, type='page').first()
+
+    client.post(f'/manage/content/{page.id}/edit', base_url=ACME,
+                data={'title': 'A', 'slug': page.slug, 'body': 'b',
+                      'status': 'published', 'visibility': 'public',
+                      'featured_upload_id': str(foreign_upload_id)})
+
+    db.session.expire_all()
+    assert db.session.get(Content, page.id).featured_upload_id is None
+
+
+def test_a_logo_cannot_be_another_tenants_upload(app, client, acme, globex, user):
+    foreign_upload_id, _ = _globex_rows(app, globex)
+    login_as(client, user)
+
+    client.post('/manage/settings', base_url=ACME,
+                data={'section': 'branding', 'name': 'Acme',
+                      'logo_upload_id': str(foreign_upload_id)})
+
+    db.session.expire_all()
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert (acme.setting('logo_upload_id') or None) is None
+
+
+def test_a_favicon_cannot_be_another_tenants_upload(app, client, acme, globex, user):
+    foreign_upload_id, _ = _globex_rows(app, globex)
+    login_as(client, user)
+    ours = _upload(client, 'public')
+
+    # Ours is stored, so the refusal below cannot pass by the field simply
+    # never being looked at.
+    client.post('/manage/settings', base_url=ACME,
+                data={'section': 'branding', 'name': 'Acme',
+                      'favicon_upload_id': str(ours)})
+    db.session.expire_all()
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert acme.setting('favicon_upload_id') == ours
+
+    client.post('/manage/settings', base_url=ACME,
+                data={'section': 'branding', 'name': 'Acme',
+                      'favicon_upload_id': str(foreign_upload_id)})
+    db.session.expire_all()
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert (acme.setting('favicon_upload_id') or None) is None

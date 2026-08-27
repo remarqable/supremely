@@ -51,6 +51,22 @@ def index():
 
 # --- Content (all types: page, article, event, plugin types) -------------------
 
+def _own_content_id(content_id):
+    """A content id from a form, or None if it is not ours.
+
+    Storing a foreign key nobody checked leaves a row pointing into
+    another organization. Reading it back through the relationship is
+    filtered on the ordinary request path, but not when the parent was
+    loaded unscoped or outside a request, which is where jobs and the
+    command line run.
+    """
+    if not content_id:
+        return None
+    # A query, not session.get: get() answers from the identity map without
+    # emitting SQL, and the tenant filter only runs on a real query.
+    return content_id if Content.query.filter_by(id=content_id).first() else None
+
+
 def _content_or_404(content_id) -> Content:
     content = db.session.get(Content, content_id)
     if content is None:
@@ -118,7 +134,11 @@ def _content_from_form(content):
             raise ValidationError(t('manage.template_unknown', name=template))
         content.template = template
     raw = request.form.get('featured_upload_id', '')
-    content.featured_upload_id = int(raw) if raw.isdigit() and int(raw) else None
+    # Resolved rather than trusted, so a foreign id is never stored: see
+    # _own_content_id for why storing one is a problem.
+    featured = (Upload.query.filter_by(id=int(raw)).first()
+                if raw.isdigit() else None)
+    content.featured_upload_id = featured.id if featured else None
     content.tags = [tag.strip() for tag in
                     request.form.get('tags', '').split(',') if tag.strip()]
     category_ids = request.form.getlist('category_ids', type=int)
@@ -294,7 +314,8 @@ def navigation():
             menu=request.form.get('menu', 'primary'),
             label=request.form.get('label', ''),
             url=request.form.get('url', '').strip() or None,
-            content_id=request.form.get('content_id', type=int) or None,
+            content_id=_own_content_id(request.form.get('content_id',
+                                                        type=int)),
             parent_id=parent_id,
         )
         item.position = NavigationItem.next_position(item.menu, parent_id)
@@ -863,7 +884,9 @@ def settings():
                 updates = {}
                 for field in ('logo_upload_id', 'favicon_upload_id'):
                     raw = request.form.get(field, '')
-                    updates[field] = int(raw) if raw.isdigit() and int(raw) else None
+                    chosen = (Upload.query.filter_by(id=int(raw)).first()
+                              if raw.isdigit() else None)
+                    updates[field] = chosen.id if chosen else None
                 org.update_settings(**updates)
             elif section == 'privacy':
                 # Checkbox: absent from the form when unchecked.
