@@ -134,6 +134,41 @@ def seed_default_content(session, org, owner_id=None,
 
     # A first article, an Event, and a welcome Announcement so the typed
     # content surfaces are visible hints (this is where custom content goes).
+    # Library-type examples so Learn (recordings, podcast, resources) and
+    # the Publish menu demonstrate themselves on day one. Owner-authored,
+    # ordinary content — edit or delete under Manage.
+    session.add(Content(org_id=org.id, type='recording',
+                        title='Example: a community recording',
+                        slug='example-recording',
+                        body='A placeholder recording so you can see how '
+                             'video content renders. Replace it under '
+                             '**Manage → Recordings**.',
+                        status='published', published_at=now,
+                        visibility='public', tags=[], created_by_id=owner_id,
+                        fields={'video_url': 'https://example.com/videos/hello',
+                                'duration_minutes': 12,
+                                'recorded_on': now.strftime('%Y-%m-%d')}))
+    session.add(Content(org_id=org.id, type='episode',
+                        title='Example: a podcast episode',
+                        slug='example-episode',
+                        body='A placeholder episode showing how podcast '
+                             'content renders. Replace it under '
+                             '**Manage → Podcast**.',
+                        status='published', published_at=now,
+                        visibility='public', tags=[], created_by_id=owner_id,
+                        fields={'audio_url': 'https://example.com/audio/hello',
+                                'episode_number': 1,
+                                'duration_minutes': 20}))
+    session.add(Content(org_id=org.id, type='resource',
+                        title='Example: a shared resource',
+                        slug='example-resource',
+                        body='A placeholder document link showing how '
+                             'resources render. Replace it under '
+                             '**Manage → Resources**.',
+                        status='published', published_at=now,
+                        visibility='public', tags=[], created_by_id=owner_id,
+                        fields={'resource_url': 'https://example.com/files/guide.pdf',
+                                'kind': 'Guide'}))
     session.add(Content(org_id=org.id, type='announcement',
                         title=f'Welcome to {org.name}',
                         slug='welcome',

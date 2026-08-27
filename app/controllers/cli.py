@@ -112,15 +112,14 @@ def seed_demo_command():
     """Dev only: seed a ready-to-click Demo Community with fixed
     credentials (everything is 'password'). Run via `make demo`, which
     wipes local data first. Refuses to run in production."""
-    from app.platform.demo_seed import ADMIN_EMAIL, MEMBERS, PASSWORD, seed_demo
+    from app.platform.demo_seed import ADMIN_EMAIL, MEMBER_EMAIL, PASSWORD, seed_demo
     try:
         seed_demo()
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo('Demo Community is ready: http://localhost:8000')
     click.echo(f'  owner   {ADMIN_EMAIL} / {PASSWORD}')
-    for email, name, _bio in MEMBERS:
-        click.echo(f'  member  {email} / {PASSWORD}   ({name})')
+    click.echo(f'  member  {MEMBER_EMAIL} / {PASSWORD}')
     click.echo('Fixed credentials: this seed refuses to run in production.')
 
 
