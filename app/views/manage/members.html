@@ -103,7 +103,10 @@
           <form method="POST" action="{{ url_for('manage.member_role', membership_id=membership.id) }}" class="flex items-center gap-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <select name="role" class="select w-32" aria-label="{{ _('common.role') }}">
-              {% for role in ('owner', 'admin', 'member') %}
+              {# Only an owner may hand out owner; see manage._granted_role. #}
+              {% for role in (('owner', 'admin', 'member')
+                              if can('ownership.transfer')
+                              else ('admin', 'member')) %}
               <option value="{{ role }}" {{ 'selected' if membership.role == role }}>{{ _('roles.' + role) }}</option>
               {% endfor %}
             </select>
@@ -150,7 +153,10 @@
     <div>
       <label for="role" class="label">{{ _('common.role') }}</label>
       <select id="role" name="role" class="select mt-1">
-        {% for role in ('member', 'admin', 'owner') %}
+        {# Same rule as the row form: only an owner may invite an owner. #}
+        {% for role in (('member', 'admin', 'owner')
+                        if can('ownership.transfer')
+                        else ('member', 'admin')) %}
         <option value="{{ role }}">{{ _('roles.' + role) }}</option>
         {% endfor %}
       </select>

@@ -15,8 +15,20 @@ from app.extensions import db
 from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 
-from .base import AuditMixin, BaseModel, OrgScoped, utcnow
+from .base import (
+    AuditMixin,
+    BaseModel,
+    OrgScoped,
+    reject_control_characters,
+    scoped_to_own_org,
+    utcnow,
+)
 from .types import BigIntFK, TZDateTime
+
+# Generous for a forum post, but bounded: every view re-renders the body
+# through Markdown and the sanitiser, so an unbounded one is a way to make
+# a public page expensive to serve.
+BODY_MAX = 64_000
 
 
 class DiscussionGroup(OrgScoped, BaseModel):
@@ -48,11 +60,16 @@ class DiscussionGroup(OrgScoped, BaseModel):
         self.visibility = self.visibility or 'members'
         if not self.name:
             raise ValidationError('Group name is required')
+        if len(self.name) > 100:
+            raise ValidationError('Group name too long (max 100 chars)')
+        if len(self.description or '') > 500:
+            raise ValidationError('Description too long (max 500 chars)')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,98})?', self.slug):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
         if self.visibility not in VISIBILITY_LEVELS:
             raise ValidationError('Invalid visibility')
-        existing = DiscussionGroup.query.filter_by(slug=self.slug).first()
+        existing = scoped_to_own_org(
+            DiscussionGroup.query.filter_by(slug=self.slug), self).first()
         if existing and existing.id != self.id:
             raise ValidationError('A group with that slug already exists')
 
@@ -128,8 +145,11 @@ class Post(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('Title is required')
         if len(self.title) > 200:
             raise ValidationError('Title too long (max 200 chars)')
+        reject_control_characters(self.title, 'Title')
         if not (self.body or '').strip():
             raise ValidationError('Body is required')
+        if len(self.body) > BODY_MAX:
+            raise ValidationError(f'Body too long (max {BODY_MAX} chars)')
 
     @property
     def html(self) -> str:
@@ -179,8 +199,13 @@ class Reply(OrgScoped, AuditMixin, BaseModel):
     def validate(self):
         if not (self.body or '').strip():
             raise ValidationError('Reply cannot be empty')
+        if len(self.body) > BODY_MAX:
+            raise ValidationError(f'Reply too long (max {BODY_MAX} chars)')
         if self.parent_id:
-            parent = db.session.get(Reply, self.parent_id)
+            # A query, not session.get: get() can answer from the identity
+            # map without emitting SQL, and the tenant filter only runs on
+            # a real query.
+            parent = Reply.query.filter_by(id=self.parent_id).first()
             if parent is None or parent.post_id != self.post_id:
                 raise ValidationError('Invalid parent reply')
             if parent.parent_id is not None:
@@ -308,6 +333,8 @@ class Flag(OrgScoped, BaseModel):
     def validate(self):
         if self.target_type not in REACTION_TARGETS:
             raise ValidationError('Invalid flag target')
+        if len(self.reason or '') > 500:
+            raise ValidationError('Reason too long (max 500 chars)')
 
     def target(self):
         model = Post if self.target_type == 'post' else Reply

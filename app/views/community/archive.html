@@ -24,7 +24,12 @@
   {% for item in items %}
   <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
     <div class="flex items-start gap-3.5">
-      {% if content_type.slug == 'event' and item.fields.get('starts_on') %}
+      {# Locked rows tease: title, byline, and a lock -- never the excerpt,
+         and never a structured field such as the date or the location.
+         The permalink lands on the gate page. #}
+      {% set locked = not can_view(item) %}
+      {% if content_type.slug == 'event' and item.fields.get('starts_on')
+            and not locked %}
       {% set starts = item.fields.get('starts_on', '') %}
       <div class="min-w-[52px] overflow-hidden rounded-[10px] text-center ring-1 ring-slate-200">
         <div class="bg-red-500 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{{ starts|month_abbr }}</div>
@@ -35,9 +40,6 @@
                 item.author.avatar_url if item.author else None,
                 size='h-8.5 w-8.5', text='text-xs') }}
       {% endif %}
-      {# Locked rows tease: title, byline, and a lock — never the excerpt.
-         The permalink lands on the gate page. #}
-      {% set locked = not can_view(item) %}
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold text-slate-900">{{ item.author.name if item.author else g.org.name }}</span>

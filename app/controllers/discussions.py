@@ -15,6 +15,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app.extensions import db
+from app.models.base import like_contains
 from app.models.discussion import (
     REACTION_EMOJI,
     DiscussionGroup,
@@ -103,8 +104,8 @@ def index():
             latest_by_group.setdefault(post.group_id, post)
         if q:
             search_results = (base.filter(
-                sa.or_(Post.title.ilike(f'%{q}%'),
-                       Post.body.ilike(f'%{q}%')))
+                sa.or_(like_contains(Post.title, q),
+                       like_contains(Post.body, q)))
                 .order_by(Post.last_activity_at.desc()).limit(20).all())
     # recent_posts keeps the public theme template working for visitors.
     return render_site(['discussions.html'], context_name='application', groups=groups,
@@ -122,8 +123,8 @@ def group(slug):
     q = request.args.get('q', '').strip()
     query = _moderator_filter(Post.query.filter_by(group_id=group.id))
     if q:
-        query = query.filter(sa.or_(Post.title.ilike(f'%{q}%'),
-                                    Post.body.ilike(f'%{q}%')))
+        query = query.filter(sa.or_(like_contains(Post.title, q),
+                                    like_contains(Post.body, q)))
     posts = (query.order_by(Post.is_pinned.desc(),
                              Post.last_activity_at.desc())
               .limit(100).all())
@@ -297,7 +298,7 @@ def delete_reply(reply_id):
 def lock_post(slug, post_id):
     post = _post_or_404(_group_or_404(slug), post_id)
     post.is_locked = not post.is_locked
-    post.save()
+    post.save_flag()
     if post.is_locked:
         notify_moderation(post, 'locked')
     return redirect(post.url)
@@ -309,7 +310,7 @@ def lock_post(slug, post_id):
 def pin_post(slug, post_id):
     post = _post_or_404(_group_or_404(slug), post_id)
     post.is_pinned = not post.is_pinned
-    post.save()
+    post.save_flag()
     return redirect(post.url)
 
 
@@ -319,7 +320,7 @@ def pin_post(slug, post_id):
 def hide_post(slug, post_id):
     post = _post_or_404(_group_or_404(slug), post_id)
     post.is_hidden = not post.is_hidden
-    post.save()
+    post.save_flag()
     if post.is_hidden:
         notify_moderation(post, 'hidden')
     return redirect(url_for('discussions.group', slug=slug))
@@ -333,7 +334,7 @@ def hide_reply(reply_id):
     if reply is None:
         abort(404)
     reply.is_hidden = not reply.is_hidden
-    reply.save()
+    reply.save_flag()
     if reply.is_hidden:
         notify_moderation(reply, 'hidden')
     return redirect(reply.post.url)

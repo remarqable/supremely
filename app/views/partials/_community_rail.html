@@ -14,7 +14,11 @@
 {# The latest published announcement, or a friendly placeholder until the
    first one ships. #}
 {% macro announcement_card() %}
+{# latest_announcement()/upcoming_event() already refuse to return
+   anything the visitor may not read. can_view repeats it here because
+   these cards print an excerpt and raw field values. #}
 {% set announcement = latest_announcement() %}
+{% if announcement and not can_view(announcement) %}{% set announcement = none %}{% endif %}
 <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
   <div class="flex items-center gap-2">
     <span class="flex h-6 w-6 items-center justify-center rounded-md bg-brand-50 text-brand-700">
@@ -62,7 +66,7 @@
 
 {% macro event_card() %}
 {% set event = upcoming_event() %}
-{% if event %}
+{% if event and can_view(event) %}
 <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
   <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.upcoming_event') }}</h2>
   {% set starts = event.fields.get('starts_on', '') %}

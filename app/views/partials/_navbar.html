@@ -29,7 +29,7 @@
       {% if nav_shell and g.org and (can('content.write') or can('content.moderate')) %}
       <form method="POST" action="{{ url_for('orgs.toggle_manage_mode') }}" class="me-1">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+        <input type="hidden" name="next" value="{{ current_target() }}">
         <button type="submit"
                 class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition-colors {{ 'bg-brand-50 text-brand-700 ring-brand-600/30' if managing() else 'text-slate-600 ring-slate-200 hover:bg-slate-50 hover:text-slate-900' }}">
           {% if managing() %}

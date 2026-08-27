@@ -17,6 +17,7 @@ from app.platform.authz import org_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
+from app.platform.redirects import safe_next
 from app.platform.tenant import org_url
 
 bp = Blueprint('orgs', __name__)
@@ -78,7 +79,8 @@ def toggle_manage_mode():
     if not (can('content.write') or can('content.moderate')):
         abort(403)
     session['manage_mode'] = not session.get('manage_mode')
-    return redirect(request.form.get('next') or url_for('orgs.dashboard'))
+    return redirect(safe_next(request.form.get('next'),
+                              url_for('orgs.dashboard')))
 
 
 FEED_LIMIT = 20

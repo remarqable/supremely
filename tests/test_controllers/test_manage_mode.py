@@ -217,3 +217,36 @@ def test_newsletter_archive_lists_sent_issues(app, client, acme, user):
     page = client.get('/newsletters', base_url=ACME)
     assert title in page.data
     assert b'Sent ' in page.data
+
+
+def test_the_manage_mode_toggle_will_not_send_you_off_site(app, client, acme, user):
+    """The toggle posts a `next` from a hidden field, and its form moved into
+    the navbar, so it renders on every page of the community shell."""
+    login_as(client, user)
+
+    response = client.post('/manage-mode', base_url=ACME,
+                           data={'next': 'https://evil.example.com/x'})
+    assert response.headers['Location'] == '/dashboard'
+
+    back = client.post('/manage-mode', base_url=ACME,
+                       data={'next': '/discussions/'})
+    assert back.headers['Location'] == '/discussions/'
+
+
+def test_the_navbar_hands_over_an_encoded_address(app, client, acme, user):
+    """request.path is percent-decoded, so putting it in the field directly
+    produced a literal space for any page whose address carries one, and the
+    redirect check then refused it."""
+    from app.extensions import db as _db
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        article = Content.query.filter_by(org_id=acme.id, type='article').first()
+        article.tags = ['machine learning']
+        article.status = 'published'
+        _db.session.add(article)
+        _db.session.commit()
+
+    login_as(client, user)
+    body = client.get('/blog/tag/machine%20learning', base_url=ACME).data.decode()
+    assert 'value="/blog/tag/machine%20learning"' in body
+    assert 'value="/blog/tag/machine learning"' not in body

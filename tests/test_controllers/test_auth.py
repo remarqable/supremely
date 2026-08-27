@@ -112,3 +112,118 @@ def test_login_form_does_not_constrain_input_to_an_email(client, app):
     before the request is ever sent."""
     body = client.get('/auth/login').data
     assert b'type="email"' not in body
+
+
+def _steal_remember_token(client, user):
+    client.post('/auth/login', data={'email': user.email,
+                                     'password': PASSWORD})
+    return {c.key: c.value for c in client._cookies.values()}['remember_token']
+
+
+def _replay(app, token):
+    """A fresh client carrying nothing but the stolen remember cookie."""
+    attacker = app.test_client()
+    attacker.set_cookie('remember_token', token, domain='example.test')
+    return attacker.get('/profile').status_code
+
+
+def test_remember_cookie_authenticates_on_a_fresh_client(app, client, user):
+    assert _replay(app, _steal_remember_token(client, user)) == 200
+
+
+def test_password_change_revokes_an_issued_remember_cookie(app, client, user):
+    token = _steal_remember_token(client, user)
+    assert _replay(app, token) == 200
+
+    user.set_password('brand-new-secret-1')
+    user.save()
+
+    # The remember cookie carries no server-side record, so the session id
+    # embeds a digest of the password: changing it strips every copy already
+    # handed out, not just the one in the owner's browser.
+    assert _replay(app, token) == 302
+
+
+def test_password_change_keeps_the_current_session_signed_in(client, user):
+    login_as(client, user)
+    client.post('/auth/password', data={
+        'current_password': PASSWORD,
+        'new_password': 'brand-new-secret-1',
+        'confirm_password': 'brand-new-secret-1',
+    })
+    assert client.get('/profile').status_code == 200
+
+
+def test_session_id_without_a_stamp_is_rejected(app, user):
+    from app.extensions import load_user
+    with app.test_request_context():
+        assert load_user(str(user.id)) is None       # pre-stamp cookie
+        assert load_user(f'{user.id}:not-the-stamp') is None
+        assert load_user(user.get_id()) is not None
+
+
+def test_deactivation_blocks_an_issued_remember_cookie(app, client, user):
+    """Load-bearing for session_auth_stamp: is_active is deliberately NOT in
+    the stamp material, because UserMixin.is_authenticated already returns it.
+    If that ever stops being true, the stamp must cover it again."""
+    token = _steal_remember_token(client, user)
+    assert _replay(app, token) == 200
+
+    user.is_active = False
+    user.save()
+    assert _replay(app, token) == 302
+
+
+def test_admin_resetting_their_own_password_stays_signed_in(app, client,
+                                                            platform_admin):
+    login_as(client, platform_admin)
+    response = client.post(f'/admin/users/{platform_admin.id}/password',
+                           data={'password': 'brand-new-secret-1'})
+    assert response.status_code == 302
+    assert client.get('/admin/').status_code == 200
+
+
+def test_load_user_rejects_malformed_ids_without_raising(app, user):
+    from app.extensions import load_user
+    with app.test_request_context():
+        # Non-ASCII written as escapes: str.isdigit() is True for
+        # SUPERSCRIPT TWO and ARABIC-INDIC FIVE but int() rejects them,
+        # and compare_digest raises TypeError on a non-ASCII str.
+        for value in ('', ':', '5:', ':abc', 'abc:def', '5:a:b',
+                      '\u00b2:abc', '\u0665:abc', f'{user.id}:\u00e9',
+                      '9' * 5000 + ':abc'):
+            assert load_user(value) is None, value
+
+
+def test_open_redirect_via_a_rewritten_character_blocked(client, user):
+    """A tab passes a naive startswith('/') check and then reaches the
+    Location header as //evil.example.com, which is a different site."""
+    response = client.post('/auth/login?next=/%09/evil.example.com', data={
+        'email': user.email, 'password': PASSWORD,
+    })
+    assert response.headers['Location'] == '/launcher'
+
+
+def test_a_next_posted_in_the_form_body_is_honoured(client, user):
+    """The login form submits `next` as a hidden field, so the form branch is
+    the production path. Asserted first, or the refusal below would also pass
+    with the branch removed entirely."""
+    response = client.post('/auth/login', data={
+        'email': user.email, 'password': PASSWORD, 'next': '/dashboard',
+    })
+    assert response.headers['Location'] == '/dashboard'
+
+
+def test_a_next_posted_in_the_form_body_is_checked(app, user):
+    response = app.test_client().post('/auth/login', data={
+        'email': user.email, 'password': PASSWORD,
+        'next': '//evil.example.com',
+    })
+    assert response.headers['Location'] == '/launcher'
+
+
+def test_a_legitimate_next_still_works(client, user):
+    response = client.post('/auth/login?next=/dashboard', data={
+        'email': user.email, 'password': PASSWORD,
+    })
+    assert response.headers['Location'] == '/dashboard'

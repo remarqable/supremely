@@ -1,5 +1,6 @@
 from flask import Blueprint, flash, redirect, request
 
+from app.models.base import like_contains
 from app.platform.authz import org_required, require
 from app.platform.errors import ValidationError
 from app.platform.plugins import plugin_settings
@@ -16,7 +17,7 @@ def index():
     q = request.args.get('q', '').strip()
     query = GlossaryTerm.query          # tenant filter applies automatically
     if q:
-        query = query.filter(GlossaryTerm.term.ilike(f'%{q}%'))
+        query = query.filter(like_contains(GlossaryTerm.term, q))
     terms = query.order_by(GlossaryTerm.term).all()
     return render_site(['glossary/index.html'], terms=terms, q=q,
                        glossary_settings=plugin_settings('glossary'))

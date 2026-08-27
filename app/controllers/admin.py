@@ -7,10 +7,11 @@ import sys
 
 import sqlalchemy as sa
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from flask_login import current_user
+from flask_login import current_user, login_user
 
 from app.extensions import db
 from app.models import InstallationSetting, Job, Membership, Organization, User
+from app.models.base import like_contains
 from app.platform.authz import platform_admin_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -51,8 +52,8 @@ def orgs():
     q = request.args.get('q', '').strip()
     query = Organization.query
     if q:
-        query = query.filter(sa.or_(Organization.name.ilike(f'%{q}%'),
-                                    Organization.slug.ilike(f'%{q}%')))
+        query = query.filter(sa.or_(like_contains(Organization.name, q),
+                                    like_contains(Organization.slug, q)))
     organizations = query.order_by(Organization.created_at.desc()).all()
     return render_template('admin/orgs.html', organizations=organizations, q=q)
 
@@ -211,8 +212,8 @@ def users():
     q = request.args.get('q', '').strip()
     query = User.query
     if q:
-        query = query.filter(sa.or_(User.email.ilike(f'%{q}%'),
-                                    User.name.ilike(f'%{q}%')))
+        query = query.filter(sa.or_(like_contains(User.email, q),
+                                    like_contains(User.name, q)))
     user_list = query.order_by(User.created_at.desc()).all()
     return render_template('admin/users.html', users=user_list, q=q)
 
@@ -294,6 +295,10 @@ def user_set_password(user_id):
     try:
         user.set_password(request.form.get('password', ''))
         user.save()
+        if user.id == current_user.id:
+            # The session id embeds a digest of the password, so this just
+            # invalidated our own session too. Re-issue it.
+            login_user(user, remember=True)
         log.info('password_reset_by_admin', user_id=user.id)
         flash(t('auth.password_changed'), 'success')
     except ValidationError as e:

@@ -1,5 +1,7 @@
 """Flask extensions and database setup."""
 
+import hmac
+
 import sqlalchemy as sa
 from flask_login import LoginManager
 from flask_migrate import Migrate
@@ -27,8 +29,25 @@ login_manager.login_message_category = 'warning'
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Load only if the stamp still matches. A session or remember cookie
+    minted before a password change or a deactivation no longer resolves;
+    so does one issued before this stamp existed, which carries no colon.
+    """
     from .models.user import User
-    return db.session.get(User, int(user_id))
+    raw, _, stamp = str(user_id).partition(':')
+    if not raw.isascii() or not stamp.isascii() or not stamp:
+        return None                     # non-ASCII breaks int() and compare_digest
+    try:
+        uid = int(raw)
+    except ValueError:
+        return None
+    user = db.session.get(User, uid)
+    if user is None:
+        return None
+    if not hmac.compare_digest(stamp.encode(),
+                               user.session_auth_stamp().encode()):
+        return None
+    return user
 
 
 def init_sqlite_pragmas(app):

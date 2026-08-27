@@ -59,6 +59,11 @@ def create_app(config_class=Config):
         from flask import g as _g
         _g.pop('_login_user', None)
 
+    # Before CSRF and tenant resolution, so a blocked request answers 404
+    # rather than 403 or 410 and never resolves a tenant.
+    from .platform.plugins import block_private_mounts
+    block_private_mounts(app)
+
     from .middleware.csrf import init_csrf
     init_csrf(app)
 
@@ -141,6 +146,7 @@ def _init_setup_gate(app):
 def _init_context(app):
     from .models import InstallationSetting
     from .platform.authz import can, can_view, is_org_member
+    from .platform.redirects import current_target
 
     @app.context_processor
     def inject_globals():
@@ -167,7 +173,10 @@ def _init_context(app):
             if getattr(g, 'org', None) is None:
                 return None
             from .models import Content
-            return Content.published_page('about')
+            page = Content.published_page('about')
+            # Linking it would tell a visitor the page exists; the sidebar
+            # row is not a tease surface.
+            return page if page and page.visible_to_current_visitor() else None
 
         def _member_view():
             """The shell serves visitors too; rail cards must not leak
@@ -235,6 +244,7 @@ def _init_context(app):
         return {
             'installation_name': installation_name,
             'can': can,
+            'current_target': current_target,
             'can_view': can_view,
             'is_org_member': is_org_member,
             'app_version': APP_VERSION,

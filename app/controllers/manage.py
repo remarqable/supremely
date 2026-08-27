@@ -13,18 +13,30 @@ from flask import (
     request,
     url_for,
 )
+from flask_login import current_user
 
 from app.extensions import db
 from app.models import Content, Upload
 from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
 from app.platform import theme_content as tc
-from app.platform.authz import org_required, require
+from app.platform.authz import (
+    VISIBILITY_LEVELS,
+    can,
+    grants_more_than,
+    org_required,
+    require,
+)
 from app.platform.content_types import CONTENT_TYPES, active_types, get_content_type
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
-from app.platform.theming import AVAILABLE_THEMES, current_theme
+from app.platform.theming import (
+    AVAILABLE_THEMES,
+    current_theme,
+    page_template_allowed,
+    page_template_exists,
+)
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
 log = get_logger()
@@ -39,9 +51,41 @@ def index():
 
 # --- Content (all types: page, article, event, plugin types) -------------------
 
+def _own_content_id(content_id):
+    """A content id from a form, or None if it is not ours.
+
+    Storing a foreign key nobody checked leaves a row pointing into
+    another organization. Reading it back through the relationship is
+    filtered on the ordinary request path, but not when the parent was
+    loaded unscoped or outside a request, which is where jobs and the
+    command line run.
+    """
+    if not content_id:
+        return None
+    # A query, not session.get: get() answers from the identity map without
+    # emitting SQL, and the tenant filter only runs on a real query.
+    return content_id if Content.query.filter_by(id=content_id).first() else None
+
+
 def _content_or_404(content_id) -> Content:
     content = db.session.get(Content, content_id)
     if content is None:
+        abort(404)
+    return content
+
+
+def _active_content_or_404(content_id) -> Content:
+    """As _content_or_404, plus the per-org plugin gate.
+
+    The type-slug routes check active_types(); reaching the same content
+    by id skipped it, so an org could keep editing, publishing and
+    mailing a plugin's content after disabling that plugin. A disable is
+    reversible: re-enabling restores the list and every action on it.
+    Content whose type has left CONTENT_TYPES entirely (plugin removed
+    from disk) is a separate case and needs a CLI purge, not a route.
+    """
+    content = _content_or_404(content_id)
+    if content.type not in active_types():
         abort(404)
     return content
 
@@ -67,10 +111,34 @@ def _content_from_form(content):
     content.visibility = request.form.get('visibility', 'public')
     content.seo_title = request.form.get('seo_title', '').strip() or None
     content.seo_description = request.form.get('seo_description', '').strip() or None
+    # `template` reaches render_site()'s candidate list, so a value the rule
+    # refuses is ignored at render. Here we also stop it blocking future saves.
+    stored_template = content.template
+    if not page_template_allowed(stored_template):
+        # Types without a Template field in their editor have no other way to
+        # clear a value stored before the rule existed.
+        content.template = None
+        flash(t('manage.template_dropped', name=stored_template), 'warning')
     if content.content_type.is_page:
-        content.template = (request.form.get('template', '').strip() or None)
+        template = request.form.get('template', '').strip() or None
+        if template and not page_template_allowed(template):
+            if template == stored_template:
+                template = None         # the form posting a legacy value back
+            else:
+                raise ValidationError(
+                    t('manage.template_unknown', name=template))
+        elif (template and template != stored_template
+                and not page_template_exists(template)):
+            # Only a value the author is actually choosing: a theme switch can
+            # strand an older one, and render_site falls back to page.html.
+            raise ValidationError(t('manage.template_unknown', name=template))
+        content.template = template
     raw = request.form.get('featured_upload_id', '')
-    content.featured_upload_id = int(raw) if raw.isdigit() and int(raw) else None
+    # Resolved rather than trusted, so a foreign id is never stored: see
+    # _own_content_id for why storing one is a problem.
+    featured = (Upload.query.filter_by(id=int(raw)).first()
+                if raw.isdigit() else None)
+    content.featured_upload_id = featured.id if featured else None
     content.tags = [tag.strip() for tag in
                     request.form.get('tags', '').split(',') if tag.strip()]
     category_ids = request.form.getlist('category_ids', type=int)
@@ -120,7 +188,7 @@ def new_content(type_slug):
 @org_required
 @require('content.write')
 def edit_content(content_id):
-    content = _content_or_404(content_id)
+    content = _active_content_or_404(content_id)
     ct = content.content_type
     if request.method == 'POST':
         try:
@@ -147,7 +215,7 @@ def edit_content(content_id):
 @org_required
 @require('content.write')
 def delete_content(content_id):
-    content = _content_or_404(content_id)
+    content = _active_content_or_404(content_id)
     type_slug = content.type
     content.delete()
     flash(t('manage.content_deleted'), 'success')
@@ -159,10 +227,13 @@ def delete_content(content_id):
 @require('content.write')
 def preview_content(content_id):
     from app.platform.theming import render_site
-    content = _content_or_404(content_id)
+    content = _active_content_or_404(content_id)
     ct = content.content_type
     if ct.is_page:
-        tmpl = content.template or ct.template
+        # Preview is the same sink as the public page; a stored value can
+        # predate the rule.
+        tmpl = (content.template
+                if page_template_allowed(content.template) else None) or ct.template
         names = [f'{tmpl}.html', 'page.html']
     else:
         names = [f'{ct.template}.html', 'single.html']
@@ -243,7 +314,8 @@ def navigation():
             menu=request.form.get('menu', 'primary'),
             label=request.form.get('label', ''),
             url=request.form.get('url', '').strip() or None,
-            content_id=request.form.get('content_id', type=int) or None,
+            content_id=_own_content_id(request.form.get('content_id',
+                                                        type=int)),
             parent_id=parent_id,
         )
         item.position = NavigationItem.next_position(item.menu, parent_id)
@@ -309,17 +381,31 @@ def members():
 def add_member():
     from app.models import Membership, User
     email = request.form.get('email', '').strip().lower()
-    role = request.form.get('role', 'member')
     user = User.get_by_email(email)
     if user is None:
         flash(t('members.user_not_found', email=email), 'error')
     else:
         try:
-            Membership.add(user.id, g.org.id, role=role)
+            Membership.add(user.id, g.org.id, role=_granted_role())
             flash(t('admin.member_added', email=email), 'success')
         except ValidationError as e:
             flash(e.message, 'error')
     return redirect(url_for('manage.members'))
+
+
+def _granted_role(default: str = 'member') -> str:
+    """The role from the form, refused if the caller cannot grant it.
+
+    members.manage belongs to admin as well as owner, so nothing stopped an
+    admin handing out owner. Doing that to their own membership made them a
+    second owner, which satisfied the keep-an-owner guard and let them then
+    remove the founder. Granting owner is an ownership change, so it takes
+    the ownership.transfer permission that only an owner holds.
+    """
+    role = request.form.get('role', default)
+    if role == 'owner' and not can('ownership.transfer'):
+        raise ValidationError(t('members.cannot_grant_owner'))
+    return role
 
 
 def _own_membership(membership_id):
@@ -336,7 +422,13 @@ def _own_membership(membership_id):
 def member_role(membership_id):
     membership = _own_membership(membership_id)
     try:
-        membership.change_role(request.form.get('role', 'member'))
+        role = _granted_role()
+        if (membership.user_id == current_user.id
+                and grants_more_than(role, membership.role)):
+            # Stepping down, or re-saving the role you already hold, is
+            # fine. Handing yourself more than you have is not.
+            raise ValidationError(t('members.cannot_promote_self'))
+        membership.change_role(role)
         flash(t('common.saved'), 'success')
     except ValidationError as e:
         db.session.rollback()
@@ -403,10 +495,10 @@ def member_transfer(membership_id):
 def create_invitation():
     from app.models.invitation import Invitation
     from app.platform.mailer import try_send_email
-    role = request.form.get('role', 'member')
     email = request.form.get('email', '').strip().lower() or None
     try:
-        invitation, token = Invitation.create(g.org.id, role=role, email=email)
+        invitation, token = Invitation.create(
+            g.org.id, role=_granted_role(), email=email)
     except ValidationError as e:
         flash(e.message, 'error')
         return redirect(url_for('manage.members'))
@@ -456,7 +548,7 @@ def media():
             flash(t('manage.no_file'), 'error')
         else:
             try:
-                Upload.from_file(file, visibility='public')
+                Upload.from_file(file, visibility=_upload_visibility())
                 flash(t('common.saved'), 'success')
             except ValidationError as e:
                 flash(e.message, 'error')
@@ -464,6 +556,34 @@ def media():
 
     uploads = Upload.query.order_by(Upload.created_at.desc()).all()
     return render_template('manage/media.html', uploads=uploads)
+
+
+def _upload_visibility(current: str = 'public') -> str:
+    """The posted visibility, or `current` if the field is absent.
+
+    Public is the default for a new upload: this is a publishing product
+    and most media belongs on the public site. On an update `current` is
+    the file's own setting, so a post that omits the field cannot quietly
+    turn a members-only file public.
+    """
+    choice = request.form.get('visibility')
+    if choice is None:
+        return current
+    return choice if choice in VISIBILITY_LEVELS else current
+
+
+@bp.route('/media/<int:upload_id>/visibility', methods=['POST'])
+@org_required
+@require('content.write')
+def media_visibility(upload_id):
+    upload = db.session.get(Upload, upload_id)
+    if upload is None:
+        abort(404)
+    upload.visibility = _upload_visibility(upload.visibility)
+    upload.stamp_audit()
+    upload.save()
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.media'))
 
 
 @bp.route('/media/<int:upload_id>/delete', methods=['POST'])
@@ -646,9 +766,7 @@ def send_content_newsletter(content_id):
     from app.platform.jobs import enqueue
     from app.platform.mailer import is_email_configured
 
-    content = db.session.get(Content, content_id)
-    if content is None:
-        abort(404)
+    content = _active_content_or_404(content_id)
     if not is_email_configured():
         flash(t('newsletter.email_required_to_send'), 'error')
         return redirect(url_for('manage.edit_content', content_id=content.id))
@@ -707,7 +825,9 @@ def toggle_group_visibility(group_id):
         abort(404)
     group.visibility = ('public' if group.visibility == 'members'
                         else 'members')
-    group.save()
+    # A flag flip on a row this request is not otherwise editing: a
+    # description saved before the length rule must not block it.
+    group.save_flag()
     flash(t('common.saved'), 'success')
     return redirect(url_for('manage.discussions'))
 
@@ -766,7 +886,9 @@ def settings():
                 updates = {}
                 for field in ('logo_upload_id', 'favicon_upload_id'):
                     raw = request.form.get(field, '')
-                    updates[field] = int(raw) if raw.isdigit() and int(raw) else None
+                    chosen = (Upload.query.filter_by(id=int(raw)).first()
+                              if raw.isdigit() else None)
+                    updates[field] = chosen.id if chosen else None
                 org.update_settings(**updates)
             elif section == 'privacy':
                 # Checkbox: absent from the form when unchecked.
@@ -792,7 +914,10 @@ def settings():
             flash(e.message, 'error')
         return redirect(url_for('manage.settings'))
 
-    uploads = Upload.query.filter(Upload.content_type.like('image/%')) \
+    # Only public images: the logo and favicon are rendered to visitors,
+    # so a members-only file here is a broken image, not a private one.
+    uploads = Upload.query.filter(Upload.content_type.like('image/%'),
+                                  Upload.visibility == 'public') \
         .order_by(Upload.created_at.desc()).all()
     return render_template('manage/settings.html', org=org, uploads=uploads,
                            themes=AVAILABLE_THEMES)

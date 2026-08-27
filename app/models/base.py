@@ -1,5 +1,6 @@
 """Base model, tenancy mixin, and audit mixin."""
 
+import re
 from contextlib import contextmanager
 from datetime import UTC, datetime
 
@@ -7,6 +8,7 @@ from sqlalchemy.orm import declared_attr
 
 from app.extensions import db
 from app.models.types import BigIntFK, BigIntPK, TZDateTime
+from app.platform.errors import ValidationError
 
 
 def utcnow() -> datetime:
@@ -45,6 +47,18 @@ class BaseModel(db.Model):
         db.session.commit()
         return self
 
+    def save_flag(self):
+        """Persist without validating.
+
+        For a change that touches only a flag on a row someone else wrote,
+        where re-running validate() would judge content this save is not
+        editing. Moderation is the case: a body too long to save is
+        exactly the body that needs hiding.
+        """
+        db.session.add(self)
+        db.session.commit()
+        return self
+
     def delete(self):
         db.session.delete(self)
         db.session.commit()
@@ -52,6 +66,54 @@ class BaseModel(db.Model):
     @classmethod
     def get_by_id(cls, id: int):
         return db.session.get(cls, id)
+
+
+CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b-\x1f\x7f]')
+
+
+def reject_control_characters(value: str, label: str) -> None:
+    """Refuse text that cannot travel in a header.
+
+    Titles and organization names are interpolated into email subjects.
+    The standard library refuses a newline there, so the whole message
+    raises rather than one recipient failing, and the job burns its
+    retries. Tabs are allowed; the rest are not.
+    """
+    if CONTROL_CHARS.search(value) or '\n' in value or '\r' in value:
+        raise ValidationError(f'{label} cannot contain line breaks or '
+                              'control characters')
+
+
+LIKE_ESCAPE = '\\'
+
+
+def like_contains(column, term: str):
+    """A case-insensitive 'contains' that treats the term as literal text.
+
+    Percent and underscore are wildcards in LIKE, so an unescaped search
+    for '%' matched every row and scanned the whole table. The value was
+    always bound as a parameter, so this is about the search meaning what
+    the visitor typed, not about injection.
+    """
+    return column.ilike(f'%{escape_like(term)}%', escape=LIKE_ESCAPE)
+
+
+def escape_like(term: str) -> str:
+    """Neutralise LIKE's own wildcards inside a search term."""
+    for char in (LIKE_ESCAPE, '%', '_'):
+        term = term.replace(char, LIKE_ESCAPE + char)
+    return term
+
+
+def scoped_to_own_org(query, row):
+    """Pin a uniqueness lookup to this row's organization.
+
+    The session filter does it inside a request, but seeding, the CLI
+    and background jobs run without one, where an unpinned lookup spans
+    every tenant: a false collision, and a way to learn that another
+    organization uses a name.
+    """
+    return query.filter_by(org_id=row.org_id) if row.org_id else query
 
 
 class OrgScoped:

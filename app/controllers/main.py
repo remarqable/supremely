@@ -40,7 +40,7 @@ def health():
 # RET503 is suppressed below: the function ends in abort(), which always
 # raises, but ruff does not resolve flask.abort as NoReturn.
 @bp.route('/tls-check')  # noqa: RET503
-@rate_limit(limit=300, window=60)
+@rate_limit(limit=300, window=60, methods=('GET',))
 def tls_check() -> ResponseReturnValue:
     """Caddy's on-demand TLS gate (`ask`): may this host get a certificate?
 

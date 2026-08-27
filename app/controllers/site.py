@@ -27,7 +27,12 @@ from app.models.content import Category
 from app.models.upload import VARIANTS
 from app.platform.authz import is_org_member, org_required
 from app.platform.content_types import type_for_base
-from app.platform.theming import AVAILABLE_THEMES, render_gate, render_site
+from app.platform.theming import (
+    AVAILABLE_THEMES,
+    page_template_allowed,
+    render_gate,
+    render_site,
+)
 
 bp = Blueprint('site', __name__)
 
@@ -61,9 +66,15 @@ def _visible(query):
 
 
 def _render_page(content):
+    ct = content.content_type
+    if not Content.section_readable_by_current_visitor(ct.slug):
+        # Section locked: gate the section, the way the archive does.
+        return render_gate(ct.plural)
     if not content.visible_to_current_visitor():
-        return render_gate(content.title, kind=content.content_type.singular)
-    tmpl = content.template or content.content_type.template
+        return render_gate(content.title, kind=ct.singular)
+    # A row written before this rule existed can still hold anything.
+    tmpl = (content.template
+            if page_template_allowed(content.template) else None) or ct.template
     return render_site([f'page-{content.slug}.html', f'{tmpl}.html', 'page.html'],
                        org=g.org, content=content, page=content)
 
@@ -83,6 +94,9 @@ def _render_archive(ct, title=None):
 
 
 def _render_single(ct, content):
+    if not Content.section_readable_by_current_visitor(ct.slug):
+        # Section locked: gate the section, the way the archive does.
+        return render_gate(ct.plural)
     if not content.visible_to_current_visitor():
         return render_gate(content.title, kind=ct.singular)
     return render_site(
@@ -178,8 +192,15 @@ def serve_upload(upload_id, variant):
     if not storage().exists(key):
         abort(404)
     mimetype = 'image/webp' if key.endswith('.webp') else upload.content_type
+    public = upload.visibility == 'public'
     response = send_file(storage().open(key), mimetype=mimetype,
-                         max_age=31536000, download_name=upload.filename)
+                         max_age=31536000 if public else 0,
+                         download_name=upload.filename)
+    if not public:
+        # send_file's max_age also decides Cache-Control: public, which
+        # would let any shared cache hand a members-only file to someone
+        # who could never have fetched it themselves.
+        response.headers['Cache-Control'] = 'private, no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 

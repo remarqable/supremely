@@ -95,3 +95,46 @@ def test_tag_and_category_queries(app, acme):
         by_cat = (Content.published_query('article')
                   .filter(Content.categories.contains(cat)).all())
         assert [x.slug for x in by_cat] == ['t']
+
+
+# --- template is a name, never a path ------------------------------------------------
+
+def _page(org, template):
+    """A page row, unsaved: these tests are about validate() itself."""
+    return Content(type='page', title='Probe', slug='tmpl-probe', body='x',
+                   org_id=org.id, fields={}, tags=[], template=template)
+
+
+@pytest.mark.parametrize('template', [
+    'manage/members',           # renders the member admin on a public URL
+    'admin/users',
+    'community/discussion-post',
+    'layouts/community',
+    '../../../etc/passwd',
+    'page/../admin/users',
+    'Manage/Members',           # the resolver is case sensitive; the rule is not
+])
+def test_page_template_rejects_anything_path_shaped(app, acme, template):
+    """`template` reaches render_site()'s candidate list, which also searches
+    app-owned directories. A slash in it pulls a manage/ or admin/ template
+    onto a public URL, where an anonymous visitor renders it."""
+    with app.test_request_context():
+        g.org = acme
+        with pytest.raises(ValidationError, match='not a path'):
+            _page(acme, template).validate()
+
+
+@pytest.mark.parametrize('template,stored', [
+    ('page', 'page'),
+    ('page-wide', 'page-wide'),
+    ('landing2', 'landing2'),
+    ('  page  ', 'page'),
+    ('', None),
+    (None, None),
+])
+def test_page_template_accepts_a_theme_template_name(app, acme, template, stored):
+    with app.test_request_context():
+        g.org = acme
+        page = _page(acme, template)
+        page.validate()
+        assert page.template == stored

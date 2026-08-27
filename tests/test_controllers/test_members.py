@@ -205,3 +205,119 @@ def test_directory_members_only(app, client, acme, globex, user):
     listing = client.get('/members', base_url=ACME)
     assert listing.status_code == 200
     assert user.name.encode() in listing.data
+
+
+# --- Who may hand out the owner role -------------------------------------------------
+
+def test_admin_cannot_promote_themselves_to_owner(app, client, acme, user):
+    """The escalation this guard exists for: members.manage belongs to admin
+    too, so without it an admin could make themselves a second owner, which
+    satisfies the keep-an-owner rule, and then remove the founder."""
+    admin = make_user(email='mallory@example.com')
+    own = Membership.add(admin.id, acme.id, role='admin')
+    founder = Membership.get(user.id, acme.id)
+    login_as(client, admin)
+
+    client.post(f'/manage/members/{own.id}/role', data={'role': 'owner'},
+                base_url=ACME)
+    assert Membership.get(admin.id, acme.id).role == 'admin'
+
+    client.post(f'/manage/members/{founder.id}/remove', base_url=ACME)
+    assert Membership.get(user.id, acme.id) is not None
+
+
+def test_admin_cannot_grant_owner_to_anyone(app, client, acme, user):
+    admin = make_user(email='adm2@example.com')
+    Membership.add(admin.id, acme.id, role='admin')
+    other = make_user(email='other2@example.com')
+    target = Membership.add(other.id, acme.id, role='member')
+    login_as(client, admin)
+
+    client.post(f'/manage/members/{target.id}/role', data={'role': 'owner'},
+                base_url=ACME)
+    assert Membership.get(other.id, acme.id).role == 'member'
+
+    outsider = make_user(email='outsider2@example.com')
+    client.post('/manage/members/add',
+                data={'email': outsider.email, 'role': 'owner'}, base_url=ACME)
+    assert Membership.get(outsider.id, acme.id) is None
+
+    client.post('/manage/invitations', data={'role': 'owner'}, base_url=ACME)
+    assert Invitation.query.filter_by(org_id=acme.id, role='owner').first() is None
+
+
+def test_admin_can_still_change_ordinary_roles(app, client, acme, user):
+    admin = make_user(email='adm3@example.com')
+    Membership.add(admin.id, acme.id, role='admin')
+    other = make_user(email='other3@example.com')
+    target = Membership.add(other.id, acme.id, role='member')
+    login_as(client, admin)
+
+    client.post(f'/manage/members/{target.id}/role', data={'role': 'admin'},
+                base_url=ACME)
+    assert Membership.get(other.id, acme.id).role == 'admin'
+
+
+def test_owner_can_still_grant_owner(app, client, acme, user):
+    other = make_user(email='other4@example.com')
+    target = Membership.add(other.id, acme.id, role='member')
+    login_as(client, user)
+
+    client.post(f'/manage/members/{target.id}/role', data={'role': 'owner'},
+                base_url=ACME)
+    assert Membership.get(other.id, acme.id).role == 'owner'
+
+
+def test_owner_can_still_step_down(app, client, acme, user):
+    """The guard refuses a self-change that GAINS access, not any self-change:
+    an owner with a co-owner must still be able to hand back the extra
+    permissions."""
+    co = make_user(email='co-owner@example.com')
+    Membership.add(co.id, acme.id, role='owner')
+    own = Membership.get(user.id, acme.id)
+    login_as(client, user)
+
+    client.post(f'/manage/members/{own.id}/role', data={'role': 'admin'},
+                base_url=ACME)
+    assert Membership.get(user.id, acme.id).role == 'admin'
+
+
+def test_resaving_your_own_unchanged_role_is_not_an_error(app, client, acme, user):
+    own = Membership.get(user.id, acme.id)
+    login_as(client, user)
+
+    response = client.post(f'/manage/members/{own.id}/role',
+                           data={'role': 'owner'}, base_url=ACME,
+                           follow_redirects=True)
+    assert b'more access than you already have' not in response.data
+    assert Membership.get(user.id, acme.id).role == 'owner'
+
+
+def test_transferring_ownership_to_yourself_is_refused(app, client, acme, user):
+    """Both writes would land on the same row, owner then admin, leaving the
+    organization with no owner and no route back to one."""
+    own = Membership.get(user.id, acme.id)
+    login_as(client, user)
+
+    client.post(f'/manage/members/{own.id}/transfer', base_url=ACME)
+    assert Membership.query.filter_by(org_id=acme.id, role='owner').count() == 1
+
+
+def test_role_dropdowns_hide_owner_from_an_admin(app, client, acme, user):
+    """A form must not offer a choice the server will refuse."""
+    admin = make_user(email='adm4@example.com')
+    Membership.add(admin.id, acme.id, role='admin')
+
+    login_as(client, admin)
+    assert b'value="owner"' not in client.get('/manage/members',
+                                              base_url=ACME).data
+    login_as(client, user)
+    assert b'value="owner"' in client.get('/manage/members', base_url=ACME).data
+
+
+def test_grants_more_than_compares_permissions_not_role_names(app):
+    from app.platform.authz import grants_more_than
+    assert grants_more_than('admin', 'member') is True
+    assert grants_more_than('owner', 'admin') is True
+    assert grants_more_than('member', 'admin') is False
+    assert grants_more_than('owner', 'owner') is False

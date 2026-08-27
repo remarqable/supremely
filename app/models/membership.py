@@ -92,6 +92,10 @@ class Membership(BaseModel):
             raise ValidationError('Only an owner can transfer ownership')
         if new_owner_membership.org_id != self.org_id:
             raise ValidationError('Membership belongs to a different organization')
+        if new_owner_membership.id == self.id:
+            # Both writes below land on the same row: owner, then admin.
+            # The organization would be left with no owner and no way back.
+            raise ValidationError('Ownership is already yours')
         new_owner_membership.role = 'owner'
         new_owner_membership.is_active = True
         self.role = 'admin'

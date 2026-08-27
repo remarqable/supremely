@@ -13,9 +13,23 @@ import re
 from app.extensions import db
 from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
+from app.platform.theming import PAGE_TEMPLATE_RE
 
-from .base import AuditMixin, BaseModel, OrgScoped, utcnow
+from .base import (
+    LIKE_ESCAPE,
+    AuditMixin,
+    BaseModel,
+    OrgScoped,
+    escape_like,
+    reject_control_characters,
+    scoped_to_own_org,
+    utcnow,
+)
 from .types import BigIntFK, JSONColumn, TZDateTime
+
+# An article body is longer than a forum post, but still bounded: it is
+# re-rendered through Markdown and the sanitiser on every view.
+BODY_MAX = 500_000
 
 content_category = db.Table(
     'content_category',
@@ -43,7 +57,8 @@ class Category(OrgScoped, BaseModel):
             raise ValidationError('Category name is required')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,98})?', self.slug):
             raise ValidationError('Category slug must be lowercase letters, numbers, hyphens')
-        existing = Category.query.filter_by(slug=self.slug).first()
+        existing = scoped_to_own_org(
+            Category.query.filter_by(slug=self.slug), self).first()
         if existing and existing.id != self.id:
             raise ValidationError('A category with that slug already exists')
 
@@ -97,7 +112,7 @@ class Content(OrgScoped, AuditMixin, BaseModel):
     VISIBILITIES = VISIBILITY_LEVELS   # single source: app.platform.authz
 
     def validate(self):
-        from app.platform.content_types import CONTENT_TYPES, feed_types
+        from app.platform.content_types import CONTENT_TYPES
         self.title = (self.title or '').strip()
         self.slug = (self.slug or '').strip().lower()
         self.type = self.type or 'article'
@@ -108,6 +123,17 @@ class Content(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('Title is required')
         if len(self.title) > 200:
             raise ValidationError('Title too long (max 200 chars)')
+        # This is the newsletter subject line (app/platform/newsletter.py).
+        reject_control_characters(self.title, 'Title')
+        # Columns declare these widths, but SQLite does not enforce them,
+        # so an over-long value stores in development and raises in
+        # production. The check has to live here.
+        for field, label, limit in (('excerpt', 'Excerpt', 500),
+                                    ('seo_title', 'SEO title', 200),
+                                    ('seo_description', 'SEO description', 300),
+                                    ('body', 'Body', BODY_MAX)):
+            if len(getattr(self, field) or '') > limit:
+                raise ValidationError(f'{label} too long (max {limit} chars)')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,198})?', self.slug):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
         if self.type not in CONTENT_TYPES:
@@ -119,17 +145,38 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         if self.tags is not None and not isinstance(self.tags, list):
             raise ValidationError('Tags must be a list')
 
+        # `template` names one of the theme's page templates. It reaches
+        # render_site()'s candidate list, which also searches app-owned
+        # directories, so an unchecked value renders an application
+        # template on a public URL. This is the structural half: a name,
+        # never a path. Whether the theme actually provides that name is
+        # checked where the value is accepted, in manage._content_from_form,
+        # so a value stranded by a later theme switch does not block
+        # unrelated edits to the same page.
+        if self.template is not None:
+            self.template = self.template.strip()
+            if not self.template:
+                self.template = None
+            elif not PAGE_TEMPLATE_RE.fullmatch(self.template):
+                raise ValidationError(
+                    'Template must be lowercase letters, numbers and '
+                    'hyphens: a template name, not a path')
+
         # Page slugs live at /<slug>, so they cannot shadow app routes or a
         # feed type's base segment (e.g. "blog", "events").
         if self.content_type.is_page:
-            bases = {ct.base.strip('/') for ct in feed_types()}
+            # Every archive base, not just the tenant's active ones: a page
+            # must not take a slug that a later plugin install would shadow.
+            bases = {ct.base.strip('/') for ct in CONTENT_TYPES.values()
+                     if ct.has_archive}
             if self.slug in RESERVED_PAGE_SLUGS or self.slug in bases:
                 raise ValidationError('That slug is reserved')
 
         # Unique per (org, type, slug): a page "about" and an article "about"
         # can coexist because they live at different URLs.
-        existing = Content.query.filter_by(type=self.type,
-                                           slug=self.slug).first()
+        existing = scoped_to_own_org(
+            Content.query.filter_by(type=self.type, slug=self.slug),
+            self).first()
         if existing and existing.id != self.id:
             raise ValidationError(
                 f'A {self.content_type.singular.lower()} with that slug already exists')
@@ -273,4 +320,6 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         import sqlalchemy as sa
         needle = json.dumps(tag)[1:-1]
         return (cls.published_query(type_slug)
-                .filter(sa.cast(cls.tags, sa.String).like(f'%"{needle}"%')))
+                .filter(sa.cast(cls.tags, sa.String)
+                        .like(f'%"{escape_like(needle)}"%',
+                              escape=LIKE_ESCAPE)))

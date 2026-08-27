@@ -21,20 +21,15 @@ from app.models import User
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
+from app.platform.redirects import safe_next
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 log = get_logger()
 
 
 def _safe_next(default: str) -> str:
-    nxt = request.args.get('next') or request.form.get('next') or ''
-    # Must be a site-relative path. Reject scheme-relative (//host) and
-    # backslash variants (/\host, browsers normalise \ to /), which are
-    # open-redirect vectors.
-    normalized = nxt.replace('\\', '/')
-    if normalized.startswith('/') and not normalized.startswith('//'):
-        return nxt
-    return default
+    return safe_next(request.args.get('next') or request.form.get('next'),
+                     default)
 
 
 def _signups_enabled() -> bool:
@@ -131,6 +126,7 @@ def logout():
 
 @bp.route('/password', methods=['GET', 'POST'])
 @login_required
+@rate_limit(limit=10, window=300)
 def change_password():
     if request.method == 'POST':
         current = request.form.get('current_password', '')
@@ -143,9 +139,14 @@ def change_password():
             flash(t('auth.passwords_do_not_match'), 'error')
         else:
             try:
-                current_user.set_password(new)
-                current_user.save()
-                log.info('password_changed', user_id=current_user.id)
+                user = current_user._get_current_object()
+                user.set_password(new)
+                user.save()
+                # The stamp in the session id is derived from the password,
+                # so every session and remember cookie is now stale --
+                # including this one. Re-issue the current one only.
+                login_user(user, remember=True)
+                log.info('password_changed', user_id=user.id)
                 flash(t('auth.password_changed'), 'success')
                 return redirect(url_for('auth.change_password'))
             except Exception as e:

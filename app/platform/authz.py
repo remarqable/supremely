@@ -6,7 +6,7 @@ never roles, so adding a moderator role later stays cheap.
 
 from functools import wraps
 
-from flask import abort, g, redirect, request, url_for
+from flask import abort, g, has_request_context, redirect, request, url_for
 from flask_login import current_user
 
 # Visibility levels an object or section may carry. Access lives on the
@@ -30,6 +30,12 @@ ROLE_PERMISSIONS = {
 }
 
 
+def grants_more_than(role: str, than: str) -> bool:
+    """True when `role` carries a permission that `than` does not."""
+    return bool(ROLE_PERMISSIONS.get(role, set())
+                - ROLE_PERMISSIONS.get(than, set()))
+
+
 def can(permission: str) -> bool:
     membership = getattr(g, 'membership', None)
     return bool(membership) and permission in ROLE_PERMISSIONS.get(membership.role, set())
@@ -43,6 +49,14 @@ def can_view(obj) -> bool:
     """Can the current visitor see this object? The single vocabulary for
     read access — delegates to the object's own policy. Rendering happens
     only after this says yes; themes never decide access."""
+    if not has_request_context():
+        return False            # no visitor to answer for: fail closed
+    org = getattr(g, 'org', None)
+    obj_org = getattr(obj, 'org_id', None)
+    if obj_org is not None and (org is None or obj_org != org.id):
+        # The loader filter already keeps other tenants' rows out of reach.
+        # This is the second line, for anything handed in directly.
+        return False
     if hasattr(obj, 'visible_to_current_visitor'):
         return obj.visible_to_current_visitor()
     if hasattr(obj, 'readable_by_current_visitor'):

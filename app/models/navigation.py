@@ -49,7 +49,10 @@ class NavigationItem(OrgScoped, BaseModel):
         if self.content_id and self.url:
             self.url = None         # a content link never also carries a URL
         if self.parent_id:
-            parent = db.session.get(NavigationItem, self.parent_id)
+            # A query, not session.get: get() can answer from the identity
+            # map without emitting SQL, and the tenant filter only runs on
+            # a real query.
+            parent = NavigationItem.query.filter_by(id=self.parent_id).first()
             if parent is None or parent.menu != self.menu:
                 raise ValidationError('Invalid parent item')
             if parent.parent_id is not None:
