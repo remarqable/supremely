@@ -18,11 +18,42 @@
 {% block main %}
 <main>
   {# ---- Hero ------------------------------------------------------------ #}
+  {# Rotating headline: when "Rotating words" is set, the accent line cycles
+     through them once and settles on the last (e.g. "Be Supremely … You.").
+     Without JS — and for prefers-reduced-motion — the last word renders
+     statically, so the settled state is also the fallback. #}
+  {% set rotate_words = (home.headline_rotate or '').split(',')
+                        | map('trim') | select | list %}
   <section class="mx-auto max-w-4xl px-6 pt-16 pb-4 text-center sm:pt-24">
     <h1 class="text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl md:text-7xl">
-      {{ home.headline_lead }}{% if home.headline_accent %}<br>
+      {{ home.headline_lead }}{% if rotate_words %}<br>
+      <span class="sup-gradient sup-rotate" data-words="{{ rotate_words | join(', ') }}">{{ rotate_words[-1] }}</span>
+      {% elif home.headline_accent %}<br>
       <span class="sup-gradient">{{ home.headline_accent }}</span>{% endif %}
     </h1>
+    {% if rotate_words | length > 1 %}
+    <script>
+      (function () {
+        var el = document.querySelector('.sup-rotate');
+        if (!el || (window.matchMedia
+                    && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+        var words = el.dataset.words.split(',')
+          .map(function (w) { return w.trim(); }).filter(Boolean);
+        var i = 0;
+        el.textContent = words[0];
+        function next() {
+          el.classList.add('sup-rotate-out');
+          setTimeout(function () {
+            i += 1;
+            el.textContent = words[i];
+            el.classList.remove('sup-rotate-out');
+            if (i < words.length - 1) setTimeout(next, 1500);
+          }, 200);
+        }
+        setTimeout(next, 1500);
+      })();
+    </script>
+    {% endif %}
     <p class="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-slate-500 sm:text-xl">
       {{ home.subhead }}
     </p>

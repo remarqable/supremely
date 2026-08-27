@@ -111,8 +111,10 @@ def seed_getsupremely_org():
     theme_content = dict(org.setting('theme_content') or {})
     if 'supremely' not in theme_content:
         theme_content['supremely'] = {
-            'headline_lead': 'The open-source',
-            'headline_accent': 'community platform.',
+            'headline_lead': 'Be Supremely',
+            'headline_accent': 'You.',      # static fallback if rotation is cleared
+            'headline_rotate': ('Bold., Curious., Creative., Connected., '
+                                'Independent., Human., You.'),
             'subhead': 'A simple home for your members, content, newsletters '
                        'and discussions.',
             'primary_label': 'Get Started',

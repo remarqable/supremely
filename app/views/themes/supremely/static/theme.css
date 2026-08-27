@@ -20,6 +20,21 @@ body.supremely {
   color: transparent;
 }
 
+/* Rotating headline word (front-page "Rotating words" content): the script
+   toggles .sup-rotate-out around each swap; reduced-motion visitors get the
+   settled last word with no animation. */
+.sup-rotate {
+  display: inline-block;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.sup-rotate-out {
+  opacity: 0;
+  transform: translateY(0.35em);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sup-rotate { transition: none; }
+}
+
 /* The product mockup fades into the page at its bottom edge, as in the
    marketing shot. */
 .sup-mockup-fade::after {
