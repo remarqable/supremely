@@ -18,52 +18,32 @@
 {% block main %}
 <main>
   {# ---- Hero ------------------------------------------------------------ #}
-  {# The headline (lead + optional accent line) stays as authored. When
-     "Rotating words" is set, a second, smaller line renders beneath it:
-     a static lead ("Be Supremely") plus an accent-colored word cycling
-     once and settling on the last. Without JS — and for
-     prefers-reduced-motion — the last word renders statically, so the
-     settled state is also the fallback. #}
+  {# When "Rotating words" is set, the headline stays a single all-black
+     statement and a second, smaller line renders beneath it: a static lead
+     ("Be Supremely") plus an accent-colored word cycling once and settling
+     on the last (rotate.js — a static asset because the CSP blocks inline
+     scripts; without JS the settled last word is what renders). The accent
+     line is the no-rotation design, so rotation supersedes it. #}
   {% set rotate_words = (home.headline_rotate or '').split(',')
                         | map('trim') | select | list %}
   <section class="mx-auto max-w-4xl px-6 pt-16 pb-4 text-center sm:pt-24">
-    <h1 class="text-5xl font-black leading-[1.02] tracking-tight sm:text-6xl md:text-7xl">
-      {{ home.headline_lead }}{% if home.headline_accent %}<br>
+    <h1 class="text-5xl font-black leading-[1.06] tracking-tight [text-wrap:balance] sm:text-6xl md:text-7xl">
+      {{ home.headline_lead }}{% if home.headline_accent and not rotate_words %}<br>
       <span class="sup-gradient">{{ home.headline_accent }}</span>{% endif %}
     </h1>
     {% if rotate_words %}
-    <p class="mt-5 text-3xl font-black leading-tight tracking-tight sm:text-4xl md:text-5xl">
+    <p class="mt-6 text-2xl font-extrabold tracking-tight text-[#14161a] sm:text-3xl md:text-4xl">
       {% if home.rotate_lead %}{{ home.rotate_lead }} {% endif %}<span class="sup-gradient sup-rotate" data-words="{{ rotate_words | join(', ') }}">{{ rotate_words[-1] }}</span>
     </p>
-    {% endif %}
     {% if rotate_words | length > 1 %}
-    <script>
-      (function () {
-        var el = document.querySelector('.sup-rotate');
-        if (!el || (window.matchMedia
-                    && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
-        var words = el.dataset.words.split(',')
-          .map(function (w) { return w.trim(); }).filter(Boolean);
-        var i = 0;
-        el.textContent = words[0];
-        function next() {
-          el.classList.add('sup-rotate-out');
-          setTimeout(function () {
-            i += 1;
-            el.textContent = words[i];
-            el.classList.remove('sup-rotate-out');
-            if (i < words.length - 1) setTimeout(next, 1500);
-          }, 200);
-        }
-        setTimeout(next, 1500);
-      })();
-    </script>
+    <script defer src="{{ theme_asset('rotate.js') }}"></script>
     {% endif %}
-    <p class="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-slate-500 sm:text-xl">
+    {% endif %}
+    <p class="mx-auto mt-7 max-w-xl text-lg leading-relaxed text-slate-500 sm:text-xl">
       {{ home.subhead }}
     </p>
 
-    <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+    <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
       <a href="{{ get_started }}"
          class="rounded-xl bg-[#14161a] px-7 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-black">
         {{ home.primary_label }}

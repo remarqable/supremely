@@ -37,16 +37,27 @@ def test_front_page_without_rotation_uses_accent(app, client, acme):
 def test_front_page_rotation_is_its_own_line(app, client, acme):
     use_supremely(app, acme,
                   headline_lead='The open-source community platform.',
+                  headline_accent='all in one place.',
                   rotate_lead='Be Supremely',
                   headline_rotate='Bold., Fast., You.')
     page = client.get('/', base_url=ACME)
     assert page.status_code == 200
-    # The headline stays as authored (all black — no accent span in the h1)
-    # and the rotating line renders beneath it: static lead plus the accent
-    # word. The no-JS/reduced-motion fallback shows the settled last word;
-    # the full list rides along as data for the script.
+    # Rotation supersedes the accent line: the headline stays all black and
+    # the rotating line renders beneath it — static lead plus accent word.
+    # Without JS the settled last word renders; the full list rides along
+    # as data for the script, which must be an external asset (the CSP
+    # blocks inline scripts).
     assert b'The open-source community platform.' in page.data
+    assert b'all in one place.' not in page.data
     assert b'Be Supremely' in page.data
     assert b'data-words="Bold., Fast., You."' in page.data
     assert b'>You.</span>' in page.data
-    assert b'sup-rotate' in page.data
+    assert b'rotate.js' in page.data
+    assert b'<script>' not in page.data
+
+
+def test_rotate_script_is_a_theme_asset(app, client, acme):
+    use_supremely(app, acme)
+    asset = client.get('/themes/supremely/static/rotate.js', base_url=ACME)
+    assert asset.status_code == 200
+    assert b'sup-rotate-out' in asset.data
