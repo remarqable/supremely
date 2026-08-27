@@ -12,6 +12,7 @@ import re
 from flask_login import current_user
 
 from app.extensions import db
+from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
@@ -43,7 +44,7 @@ class DiscussionGroup(OrgScoped, BaseModel):
             raise ValidationError('Group name is required')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,98})?', self.slug):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
-        if self.visibility not in ('public', 'members'):
+        if self.visibility not in VISIBILITY_LEVELS:
             raise ValidationError('Invalid visibility')
         existing = DiscussionGroup.query.filter_by(slug=self.slug).first()
         if existing and existing.id != self.id:

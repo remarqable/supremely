@@ -42,7 +42,7 @@ def render_org_home():
     there is no separate 'homepage' Page that can shadow it."""
     # The front page is the org's public landing: always themed, even for
     # members — the member home is /dashboard.
-    return render_site(['front-page.html'], member_shell=False,
+    return render_site(['front-page.html'], force_theme=True,
                        org=g.org, content=None, page=None)
 
 

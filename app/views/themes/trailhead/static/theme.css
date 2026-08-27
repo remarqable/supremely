@@ -1,0 +1,14 @@
+/* Trailhead — presentation only. Server-provided utilities (app.css) do the
+   heavy lifting; this file adds the theme's own voice. */
+.trailhead { font-family: ui-sans-serif, system-ui, sans-serif; }
+.trailhead .font-serif { font-family: Georgia, 'Times New Roman', serif; }
+.trail-hero {
+  background: linear-gradient(180deg, #f3eee4 0%, #faf7f2 100%);
+  border: 1px solid #e5ded2;
+}
+.trail-card {
+  display: block; padding: 1.5rem; border-radius: 1rem;
+  background: #fff; border: 1px solid #e5ded2;
+  transition: border-color .15s ease;
+}
+.trail-card:hover { border-color: var(--color-brand-600); }

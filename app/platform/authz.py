@@ -9,6 +9,13 @@ from functools import wraps
 from flask import abort, g, redirect, request, url_for
 from flask_login import current_user
 
+# Visibility levels an object or section may carry. Access lives on the
+# OBJECT (Content.visibility, DiscussionGroup.visibility) and is enforced
+# server-side before rendering — never by a theme. 'restricted' is reserved
+# for future group/paid access; do not implement semantics for it yet.
+VISIBILITY_LEVELS = ('public', 'members')
+
+
 ROLE_PERMISSIONS = {
     'owner': {
         'read', 'discuss', 'content.write', 'content.moderate',
@@ -30,6 +37,17 @@ def can(permission: str) -> bool:
 
 def is_org_member() -> bool:
     return getattr(g, 'membership', None) is not None
+
+
+def can_view(obj) -> bool:
+    """Can the current visitor see this object? The single vocabulary for
+    read access — delegates to the object's own policy. Rendering happens
+    only after this says yes; themes never decide access."""
+    if hasattr(obj, 'visible_to_current_visitor'):
+        return obj.visible_to_current_visitor()
+    if hasattr(obj, 'readable_by_current_visitor'):
+        return obj.readable_by_current_visitor()
+    raise TypeError(f'{type(obj).__name__} has no visibility policy')
 
 
 def require(permission: str):

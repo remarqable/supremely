@@ -26,7 +26,9 @@ make reset        # wipe data/ (DB, wizard config, uploads); re-runs setup wizar
 
 ## Internal documents
 
-Specs, policies, and direction memos live in the parallel private repo `../supremely-dev` — never in this open-source repo. Reference them by path when needed (e.g. the UI architecture direction, the schema policy); do not copy their content here.
+Specs, policies, and direction memos live in the parallel private repo `../supremely-dev` — never in this open-source repo. Reference them by path when needed (the UI architecture direction, the themes/visibility/presentation architecture, the Theme Simplicity Constraint, the schema policy); do not copy their content here. Public docs (architecture map, theme reference + tutorial) live in `docs/`.
+
+**Presentation seam**: presentation is chosen by the declared context at the `render_site` seam (`app/platform/theming.py` — publication/application/console, one policy mapping), never by ad-hoc membership tests at callsites. Themes are renderers only: no code, queries, or access logic — access lives on objects (`VISIBILITY_LEVELS`, `authz.can_view`) and is enforced before rendering.
 
 ## The blueprint is authoritative
 

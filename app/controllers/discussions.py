@@ -91,7 +91,7 @@ def index():
                        Post.body.ilike(f'%{q}%')))
                 .order_by(Post.last_activity_at.desc()).limit(20).all())
     # recent_posts keeps the public theme template working for visitors.
-    return render_site(['discussions.html'], groups=groups,
+    return render_site(['discussions.html'], context_name='application', groups=groups,
                        latest_by_group=latest_by_group,
                        search_results=search_results, q=q,
                        recent_posts=(search_results if q else recent[:20]))
@@ -109,7 +109,7 @@ def group(slug):
     posts = (query.order_by(Post.is_pinned.desc(),
                              Post.last_activity_at.desc())
               .limit(100).all())
-    return render_site(['discussion-group.html'], group=group,
+    return render_site(['discussion-group.html'], context_name='application', group=group,
                        posts=posts, q=q)
 
 
@@ -164,7 +164,7 @@ def post(slug, post_id):
 
     following = (current_user.is_authenticated and
                  PostFollow.is_following(current_user.id, post.id))
-    return render_site(['discussion-post.html'], group=group,
+    return render_site(['discussion-post.html'], context_name='application', group=group,
                        post=post, top_level=top_level, children=children,
                        reactions=reactions, following=following,
                        sort=sort, latest_in_group=latest_in_group,

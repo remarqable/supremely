@@ -11,6 +11,7 @@ import json
 import re
 
 from app.extensions import db
+from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
@@ -93,7 +94,7 @@ class Content(OrgScoped, AuditMixin, BaseModel):
     )
 
     STATUSES = ('draft', 'published', 'archived')
-    VISIBILITIES = ('public', 'members')
+    VISIBILITIES = VISIBILITY_LEVELS   # single source: app.platform.authz
 
     def validate(self):
         from app.platform.content_types import CONTENT_TYPES, feed_types

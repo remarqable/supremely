@@ -35,6 +35,12 @@ Useful commands: `flask users reset-password EMAIL` (recovery without
 email), `flask jobs run` (background worker), `flask setup reset`
 (re-enable the wizard), `flask seed getsupremely` (dogfood site).
 
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md) — how the system works: tenancy, the content graph, visibility vs presentation, theming, plugins.
+- [Themes](docs/themes/README.md) — the theme designer's reference.
+- [Building a theme](docs/themes/building-a-theme.md) — a start-to-finish tutorial (ships with the Trailhead example theme).
+
 We are starting with the problem, the principles, and the roadmap — and letting the product emerge through shipping, learning, and iteration.
 
 This repository is intentionally young. Expect change.

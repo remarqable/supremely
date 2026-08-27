@@ -167,29 +167,64 @@ def community_tokens() -> dict:
             and isinstance(value, str) and _HEX_RE.fullmatch(value)}
 
 
-def _member_shell_active(member_shell: bool, context: dict) -> bool:
-    """Members see community pages inside the app-owned member shell;
-    visitors get the theme. Same URLs, viewer-appropriate chrome. The front
-    page opts out (member_shell=False) and previews always show the public
-    look."""
+# --- Presentation contexts ----------------------------------------------------
+#
+# Access decides WHO may see an object; presentation decides HOW it appears
+# here. Every render through render_site() declares which surface it is:
+#
+#   publication  — the org's public-facing site: front page, pages, content
+#                  archives and singles, subscribe. Branding belongs to the
+#                  theme.
+#   application  — the community in use: discussions, members, the pages a
+#                  member interacts with. Standardized by Supremely.
+#   console      — /manage and /admin. Never themed; renders outside
+#                  render_site entirely (listed for vocabulary).
+#
+# SHELL_FOR_MEMBERS is the single policy point mapping context -> whether a
+# MEMBER sees the standardized community shell instead of the theme. Change
+# presentation policy here (or per-org later) — never with ad-hoc membership
+# tests at callsites. Direction: supremely-dev/docs/"Supremely — Themes,
+# Visibility, and Presentation Architecture".
+
+PRESENTATION_CONTEXTS = ('publication', 'application', 'console')
+
+SHELL_FOR_MEMBERS = {
+    'publication': True,     # today members see even public content in-app;
+                             # flipping this is a product decision, not a
+                             # refactor
+    'application': True,
+}
+
+
+def _use_community_shell(context_name: str, force_theme: bool,
+                         context: dict) -> bool:
+    """The one place presentation is decided. Previews and force_theme
+    always show the public look; visitors always get the theme; members get
+    the shell where SHELL_FOR_MEMBERS says so."""
     from flask import g
-    return (member_shell and not context.get('preview')
-            and getattr(g, 'membership', None) is not None)
+    if force_theme or context.get('preview'):
+        return False
+    if not SHELL_FOR_MEMBERS.get(context_name, False):
+        return False
+    return getattr(g, 'membership', None) is not None
 
 
-def render_site(candidates: list[str], member_shell: bool = True,
-                **context) -> str:
+def render_site(candidates: list[str], context_name: str = 'publication',
+                force_theme: bool = False, **context) -> str:
     """Render through the WordPress-style template hierarchy: for each
     candidate in specificity order, try the active theme, then Origin (the
     fallback theme), then core/plugin templates by bare name.
 
-    When the member shell is active, app-owned community templates
+    `context_name` declares the presentation context (see above). When the
+    member shell is active, app-owned community templates
     (app/views/community/) win over theme templates: the community surface
     is the application and is never theme-resolvable — themes control the
-    public site only (see the UI architecture direction doc)."""
+    public site only."""
     from flask import render_template
+    if context_name not in PRESENTATION_CONTEXTS:
+        raise ValueError(f'Unknown presentation context: {context_name!r}')
     theme = current_theme()
-    shell = _member_shell_active(member_shell, context)
+    shell = _use_community_shell(context_name, force_theme, context)
     # Any community template beats any theme template — the shell is never
     # theme-resolvable. Themes remain the fallback for pages that have no
     # community version yet (e.g. subscribe).

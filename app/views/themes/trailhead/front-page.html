@@ -1,0 +1,34 @@
+{% extends site_layout %}
+
+{% block title %}{{ g.org.name }}{% endblock %}
+
+{% block content %}
+{# The landing hero: theme-declared fields, edited under Manage -> Home page.
+   Themes render what they are given — no queries, no access checks. #}
+{% set hero = theme_content() %}
+<div class="trail-hero rounded-2xl px-6 py-20 text-center">
+  <h1 class="font-serif text-5xl font-bold text-[var(--trail-heading)]">{{ hero.headline or g.org.name }}</h1>
+  {% set subhead = hero.subhead or g.org.description %}
+  {% if subhead %}
+  <p class="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-600">{{ subhead }}</p>
+  {% endif %}
+  {% if hero.cta_label %}
+  <a href="{{ hero.cta_url or '/auth/register' }}" class="btn-primary mt-8 px-6 py-2.5 text-base">{{ hero.cta_label }}</a>
+  {% endif %}
+</div>
+
+<div class="mt-14 grid gap-6 sm:grid-cols-3 text-center">
+  <a href="/blog" class="trail-card">
+    <span class="font-serif text-lg font-bold text-[var(--trail-heading)]">Stories</span>
+    <span class="mt-1 block text-sm text-slate-600">Field notes and long reads — open to everyone.</span>
+  </a>
+  <a href="/events" class="trail-card">
+    <span class="font-serif text-lg font-bold text-[var(--trail-heading)]">Events</span>
+    <span class="mt-1 block text-sm text-slate-600">Meetups and group hikes, public calendar.</span>
+  </a>
+  <a href="/discussions" class="trail-card">
+    <span class="font-serif text-lg font-bold text-[var(--trail-heading)]">Trail Talk</span>
+    <span class="mt-1 block text-sm text-slate-600">Member discussions — join to post and reply.</span>
+  </a>
+</div>
+{% endblock %}

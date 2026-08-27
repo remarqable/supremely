@@ -1,0 +1,11 @@
+<footer class="mt-16 border-t border-[#e5ded2] bg-[#f3eee4]">
+  <div class="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-sm text-slate-600">
+    <span class="font-serif font-bold text-[var(--trail-heading)]">{{ g.org.name }}</span>
+    <nav class="flex flex-wrap gap-4" aria-label="{{ _('site.footer_nav') }}">
+      {% for item in nav_items('footer') if not item.is_group %}
+      <a href="{{ item.href }}" class="hover:text-[var(--color-brand-600)]">{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+    <span>Powered by Supremely</span>
+  </div>
+</footer>

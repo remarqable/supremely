@@ -111,7 +111,7 @@ def directory():
                    .join(Membership.user)
                    .filter(User.is_active.is_(True))
                    .order_by(Membership.created_at).all())
-    return render_site(['members.html'], members=member_list)
+    return render_site(['members.html'], context_name='application', members=member_list)
 
 
 # --- Profile ------------------------------------------------------------------------

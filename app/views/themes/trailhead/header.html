@@ -1,0 +1,19 @@
+<header class="border-b-2 border-[var(--color-brand-600)] bg-[#faf7f2]">
+  <div class="mx-auto flex max-w-4xl items-center gap-6 px-4 py-5">
+    <a href="/" class="flex items-center gap-3 font-serif text-xl font-bold text-[var(--trail-heading)]">
+      {% set logo = g.org.logo() %}
+      {% if logo %}<img src="{{ logo.url('thumb') }}" alt="" class="h-9 w-9 rounded-full object-cover">{% endif %}
+      {{ g.org.name }}
+    </a>
+    <nav class="ms-auto flex flex-wrap items-center gap-5 text-sm" aria-label="{{ _('site.primary_nav') }}">
+      {% for item in nav_items('primary') if not item.is_group %}
+      <a href="{{ item.href }}" class="hover:text-[var(--color-brand-600)]">{{ item.label }}</a>
+      {% endfor %}
+      {% if current_user.is_authenticated and is_org_member() %}
+      <a href="{{ url_for('orgs.dashboard') }}" class="btn-primary">{{ _('site.community_cta') }}</a>
+      {% elif not current_user.is_authenticated %}
+      <a href="{{ url_for('auth.login') }}" class="hover:text-[var(--color-brand-600)]">{{ _('nav.login') }}</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>

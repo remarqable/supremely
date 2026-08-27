@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ g.org.name }}{% endblock %}</title>
+  {% block meta %}
+  {% if g.org.description %}<meta name="description" content="{{ g.org.description }}">{% endif %}
+  {% endblock %}
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  <link href="{{ theme_asset('theme.css') }}" rel="stylesheet">
+  {% set favicon = g.org.favicon() %}
+  {% if favicon %}<link rel="icon" href="{{ favicon.url('original') }}">{% endif %}
+  {# Theme settings become CSS variables. Values are validated server-side
+     (clean_theme_config) before they reach this block. #}
+  <style>
+    :root {
+      --color-brand-500: {{ theme_settings.get('forest', '#2d6a4f') }};
+      --color-brand-600: {{ theme_settings.get('forest', '#2d6a4f') }};
+      --color-brand-700: {{ theme_settings.get('bark', '#40241a') }};
+      --trail-heading: {{ theme_settings.get('bark', '#40241a') }};
+    }
+  </style>
+  <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="trailhead min-h-screen bg-[#faf7f2] font-sans text-slate-800">
+
+{% include themed('header.html') %}
+
+<main class="mx-auto max-w-4xl px-4 py-10">
+  {% include 'partials/_flash.html' %}
+  {% block content %}{% endblock %}
+</main>
+
+{% include themed('footer.html') %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
