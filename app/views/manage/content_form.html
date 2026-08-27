@@ -69,6 +69,7 @@
       <div>
         <label for="template" class="label">{{ _('manage.template') }}</label>
         <input type="text" id="template" name="template" class="input mt-1"
+               maxlength="50"
                value="{{ content.template or '' if content else '' }}">
         <p class="mt-1 text-xs text-slate-500">{{ _('manage.template_hint') }}</p>
       </div>

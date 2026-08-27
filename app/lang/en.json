@@ -101,6 +101,8 @@
   "manage.gated_teasers_hint": "When on, members-only content appears to visitors as locked titles with a members-only page behind them — a preview of what membership unlocks. When off, gated content is completely hidden from visitors.",
   "manage.template": "Template",
   "manage.template_hint": "Theme template name. Leave as 'page' unless your theme provides others.",
+  "manage.template_unknown": "No template called \"{name}\" in this theme. Leave it empty to use the default page template.",
+  "manage.template_dropped": "The template \"{name}\" is no longer allowed and has been cleared. This page now uses the default template.",
   "manage.seo_title": "SEO title",
   "manage.seo_description": "SEO description",
   "manage.published": "Published",

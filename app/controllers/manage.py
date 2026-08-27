@@ -25,7 +25,12 @@ from app.platform.content_types import CONTENT_TYPES, active_types, get_content_
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
-from app.platform.theming import AVAILABLE_THEMES, current_theme
+from app.platform.theming import (
+    AVAILABLE_THEMES,
+    current_theme,
+    page_template_allowed,
+    page_template_exists,
+)
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
 log = get_logger()
@@ -84,8 +89,28 @@ def _content_from_form(content):
     content.visibility = request.form.get('visibility', 'public')
     content.seo_title = request.form.get('seo_title', '').strip() or None
     content.seo_description = request.form.get('seo_description', '').strip() or None
+    # `template` reaches render_site()'s candidate list, so a value the rule
+    # refuses is ignored at render. Here we also stop it blocking future saves.
+    stored_template = content.template
+    if not page_template_allowed(stored_template):
+        # Types without a Template field in their editor have no other way to
+        # clear a value stored before the rule existed.
+        content.template = None
+        flash(t('manage.template_dropped', name=stored_template), 'warning')
     if content.content_type.is_page:
-        content.template = (request.form.get('template', '').strip() or None)
+        template = request.form.get('template', '').strip() or None
+        if template and not page_template_allowed(template):
+            if template == stored_template:
+                template = None         # the form posting a legacy value back
+            else:
+                raise ValidationError(
+                    t('manage.template_unknown', name=template))
+        elif (template and template != stored_template
+                and not page_template_exists(template)):
+            # Only a value the author is actually choosing: a theme switch can
+            # strand an older one, and render_site falls back to page.html.
+            raise ValidationError(t('manage.template_unknown', name=template))
+        content.template = template
     raw = request.form.get('featured_upload_id', '')
     content.featured_upload_id = int(raw) if raw.isdigit() and int(raw) else None
     content.tags = [tag.strip() for tag in
@@ -179,7 +204,10 @@ def preview_content(content_id):
     content = _active_content_or_404(content_id)
     ct = content.content_type
     if ct.is_page:
-        tmpl = content.template or ct.template
+        # Preview is the same sink as the public page; a stored value can
+        # predate the rule.
+        tmpl = (content.template
+                if page_template_allowed(content.template) else None) or ct.template
         names = [f'{tmpl}.html', 'page.html']
     else:
         names = [f'{ct.template}.html', 'single.html']

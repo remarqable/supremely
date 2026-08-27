@@ -27,7 +27,12 @@ from app.models.content import Category
 from app.models.upload import VARIANTS
 from app.platform.authz import is_org_member, org_required
 from app.platform.content_types import type_for_base
-from app.platform.theming import AVAILABLE_THEMES, render_gate, render_site
+from app.platform.theming import (
+    AVAILABLE_THEMES,
+    page_template_allowed,
+    render_gate,
+    render_site,
+)
 
 bp = Blueprint('site', __name__)
 
@@ -67,7 +72,9 @@ def _render_page(content):
         return render_gate(ct.plural)
     if not content.visible_to_current_visitor():
         return render_gate(content.title, kind=ct.singular)
-    tmpl = content.template or ct.template
+    # A row written before this rule existed can still hold anything.
+    tmpl = (content.template
+            if page_template_allowed(content.template) else None) or ct.template
     return render_site([f'page-{content.slug}.html', f'{tmpl}.html', 'page.html'],
                        org=g.org, content=content, page=content)
 

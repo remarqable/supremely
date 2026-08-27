@@ -289,6 +289,39 @@ def _template_exists(name: str) -> bool:
         return False
 
 
+PAGE_TEMPLATE_RE = re.compile(r'[a-z0-9][a-z0-9_-]{0,49}')
+
+
+def page_template_allowed(name: str | None) -> bool:
+    """Is this safe to hand to render_site() as a page template?
+
+    render_site() searches community/ ahead of every theme, then the bare
+    name against the whole view tree, so an unchecked value renders an
+    application template on a public URL. Two ways that goes wrong: a
+    value shaped like a path, and a name the application already owns.
+
+    Enforced at every point of use, not only where the value is written:
+    a row stored before this existed is still read on every request.
+    """
+    if not name or not PAGE_TEMPLATE_RE.fullmatch(name):
+        return False
+    return not _template_exists(f'community/{name}.html')
+
+
+def page_template_exists(name: str) -> bool:
+    """Allowed, and provided by the active theme chain.
+
+    The theme half is a write-time courtesy: it gives the author a clear
+    error instead of a silent fallback. It is deliberately not enforced
+    on read, so switching theme cannot strand a page.
+    """
+    if not page_template_allowed(name):
+        return False
+    theme = current_theme()
+    return (_template_exists(f'themes/{theme}/{name}.html')
+            or _template_exists(f'themes/origin/{name}.html'))
+
+
 def theme_asset(filename: str) -> str:
     from flask import url_for
     theme = current_theme()

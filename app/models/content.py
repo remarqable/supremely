@@ -13,6 +13,7 @@ import re
 from app.extensions import db
 from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
+from app.platform.theming import PAGE_TEMPLATE_RE
 
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
@@ -118,6 +119,23 @@ class Content(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('Invalid visibility')
         if self.tags is not None and not isinstance(self.tags, list):
             raise ValidationError('Tags must be a list')
+
+        # `template` names one of the theme's page templates. It reaches
+        # render_site()'s candidate list, which also searches app-owned
+        # directories, so an unchecked value renders an application
+        # template on a public URL. This is the structural half: a name,
+        # never a path. Whether the theme actually provides that name is
+        # checked where the value is accepted, in manage._content_from_form,
+        # so a value stranded by a later theme switch does not block
+        # unrelated edits to the same page.
+        if self.template is not None:
+            self.template = self.template.strip()
+            if not self.template:
+                self.template = None
+            elif not PAGE_TEMPLATE_RE.fullmatch(self.template):
+                raise ValidationError(
+                    'Template must be lowercase letters, numbers and '
+                    'hyphens: a template name, not a path')
 
         # Page slugs live at /<slug>, so they cannot shadow app routes or a
         # feed type's base segment (e.g. "blog", "events").
