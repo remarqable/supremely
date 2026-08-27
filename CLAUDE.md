@@ -24,6 +24,10 @@ make reset        # wipe data/ (DB, wizard config, uploads); re-runs setup wizar
 - Everything goes through `uv run` — there is no requirements.txt and no venv activation.
 - Useful CLI: `flask users reset-password EMAIL`, `flask users create-admin EMAIL`, `flask jobs work-off` (drain queue once), `flask setup reset`, `flask seed getsupremely` (dogfood site).
 
+## Internal documents
+
+Specs, policies, and direction memos live in the parallel private repo `../supremely-dev` — never in this open-source repo. Reference them by path when needed (e.g. the UI architecture direction, the schema policy); do not copy their content here.
+
 ## The blueprint is authoritative
 
 `blueprint/` is the engineering pattern library (its own `CLAUDE.md` + `patterns/`). Before adding a feature, find the relevant pattern doc and follow it — do not invent a second way to do something the blueprint covers. Supremely's configuration: `tenancy: shared`, `plugins/theming/uploads/jobs: true`, `auth: password`, `database: sqlite` (PostgreSQL via `DATABASE_URL`), `deploy: docker`. Read layer docs only for enabled layers.
