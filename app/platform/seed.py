@@ -59,6 +59,32 @@ publishing. Configure email later in Administration to unlock invitations
 by mail, notification copies, and newsletters.
 """
 
+TERMS_BODY = """\
+These Terms of Service govern your use of this site and community.
+
+## Placeholder
+
+This page was created automatically so the footer's legal links work from
+day one. Replace it with your real terms under **Manage → Content**.
+
+- Be respectful in discussions.
+- Content you post remains yours; you grant us a license to display it here.
+- Accounts that break the rules may be suspended.
+"""
+
+PRIVACY_BODY = """\
+This Privacy Policy describes what we collect and how we use it.
+
+## Placeholder
+
+This page was created automatically so the footer's legal links work from
+day one. Replace it with your real policy under **Manage → Content**.
+
+- We store the account details you give us (name, email) to run the community.
+- Newsletter subscriptions are double opt-in where email is configured.
+- We do not sell your data.
+"""
+
 FIRST_POST = """\
 Supremely now runs its own website — pages, navigation, theming, articles,
 discussions, and the newsletter you can subscribe to below.
@@ -176,6 +202,13 @@ def seed_getsupremely_org():
         nav('primary', 'Community', url='/discussions')
         nav('footer', 'Subscribe', url='/subscribe')
         nav('footer', 'Source', url='https://github.com/remarqable/supremely')
+
+        # Standard legal links: flat footer items render in the theme's
+        # bottom bar next to the copyright line.
+        terms = page('terms', 'Terms of Service', TERMS_BODY)
+        privacy = page('privacy', 'Privacy Policy', PRIVACY_BODY)
+        nav('footer', 'Terms', terms)
+        nav('footer', 'Privacy', privacy)
 
         if Content.query.filter_by(type='article',
                                    slug='supremely-runs-supremely').first() is None:

@@ -1,6 +1,5 @@
-{# Supremely marketing header: brand mark, centered product nav, primary CTA.
-   The nav links are the theme's identity; swap them for nav_items('primary')
-   if this theme is ever reused for a nav-driven site. #}
+{# Supremely marketing header: brand mark, the org's primary menu, GitHub,
+   and the primary CTA. #}
 {% set get_started = url_for('orgs.dashboard') if (current_user.is_authenticated and is_org_member()) else url_for('auth.login') %}
 <header class="sticky top-0 z-40 border-b border-black/5 bg-[#ffffffd9] backdrop-blur">
   <div class="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4">
@@ -17,12 +16,38 @@
       <span>{{ theme_content().brand_name or g.org.name or 'Supremely' }}</span>
     </a>
 
-    <nav class="ms-auto hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex"
+    {# Navigation is content, not theme code: the org's primary menu
+       (Manage → Navigation) drives these links, so nothing here can 404
+       unless the org configured it to. The fixed product links remain only
+       as the out-of-the-box fallback for orgs with no menu yet. #}
+    {% set primary_items = nav_items('primary') %}
+    <nav class="ms-auto hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex"
          aria-label="{{ _('site.primary_nav') }}">
-      <a href="/features" class="transition-colors hover:text-[#14161a]">Features</a>
-      <a href="/pricing" class="transition-colors hover:text-[#14161a]">Pricing</a>
-      <a href="/docs" class="transition-colors hover:text-[#14161a]">Docs</a>
+      {% if primary_items %}
+      {% for item in primary_items %}
+        {% if item.is_group %}
+        <div x-data="{ open: false }" class="relative">
+          <button @click="open = !open" @keydown.escape="open = false"
+                  :aria-expanded="open" aria-haspopup="menu"
+                  class="flex items-center gap-1 transition-colors hover:text-[#14161a]">
+            {{ item.label }}<span aria-hidden="true" class="text-xs text-slate-400">▾</span>
+          </button>
+          <div x-show="open" @click.outside="open = false" x-cloak x-transition role="menu"
+               class="absolute start-0 z-30 mt-2 w-48 rounded-xl border border-slate-200/80 bg-white py-1.5 shadow-lg">
+            {% for child in item.children %}
+            <a href="{{ child.href }}" role="menuitem"
+               class="block px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-[#14161a]">{{ child.label }}</a>
+            {% endfor %}
+          </div>
+        </div>
+        {% else %}
+        <a href="{{ item.href }}" class="transition-colors hover:text-[#14161a]">{{ item.label }}</a>
+        {% endif %}
+      {% endfor %}
+      {% else %}
       <a href="/blog" class="transition-colors hover:text-[#14161a]">Blog</a>
+      <a href="/discussions" class="transition-colors hover:text-[#14161a]">Community</a>
+      {% endif %}
       <a href="https://github.com/remarqable/supremely" rel="noopener"
          class="inline-flex items-center gap-1 transition-colors hover:text-[#14161a]">
         GitHub
