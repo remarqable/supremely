@@ -4,7 +4,7 @@
    smoothing, and the [x-cloak] guard for the header dropdowns. */
 
 body.supremely {
-  background-color: #f6f5f1;
+  background-color: #ffffff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -43,6 +43,6 @@ body.supremely {
   inset-inline: 0;
   bottom: 0;
   height: 6rem;
-  background: linear-gradient(to bottom, rgba(246, 245, 241, 0), #f6f5f1);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #ffffff);
   pointer-events: none;
 }

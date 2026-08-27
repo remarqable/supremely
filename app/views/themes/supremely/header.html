@@ -2,7 +2,7 @@
    The nav links are the theme's identity; swap them for nav_items('primary')
    if this theme is ever reused for a nav-driven site. #}
 {% set get_started = url_for('orgs.dashboard') if (current_user.is_authenticated and is_org_member()) else url_for('auth.login') %}
-<header class="sticky top-0 z-40 border-b border-black/5 bg-[#f6f5f1d9] backdrop-blur">
+<header class="sticky top-0 z-40 border-b border-black/5 bg-[#ffffffd9] backdrop-blur">
   <div class="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4">
     <a href="/" class="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
       {% set logo = g.org.logo() %}
