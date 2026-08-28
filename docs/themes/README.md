@@ -93,6 +93,7 @@ reaches a visitor's template.
   "version": "1.0.0",
   "author": "You",
   "description": "One sentence.",
+  "capabilities": {"footer_groups": true},
   "settings": {
     "accent": {"type": "color", "label": "Accent color", "default": "#2d6a4f"}
   },
@@ -105,6 +106,13 @@ reaches a visitor's template.
 }
 ```
 
+- **capabilities** declare what your templates actually render, so Manage
+  can warn organizers when an edit won't be visible. Today there is one:
+  `footer_groups` — whether your footer shows the organizer's link columns
+  (grouped footer menu items) or only the flat bottom-bar links. Omitted
+  capabilities default to `true`; declare `false` only for what you
+  deliberately leave out (Trailhead's footer, for example, is a single row
+  of links, so it sets `"footer_groups": false`).
 - **settings** appear under Manage → Settings → Theme. Color values are
   validated server-side before they reach your templates — interpolate them
   into a `<style>` block with confidence.

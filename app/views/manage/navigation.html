@@ -1,95 +1,212 @@
 {% extends 'manage/_layout.html' %}
 {% from 'partials/_ui.html' import page_header with context %}
 
-{% macro item_row(item, nested=False) %}
+{% macro controls(item) %}
+<span class="ms-auto flex shrink-0 gap-1">
+  <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="direction" value="up">
+    <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><span aria-hidden="true">↑</span><span class="sr-only">{{ _('manage.move_up') }}</span></button>
+  </form>
+  <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="direction" value="down">
+    <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><span aria-hidden="true">↓</span><span class="sr-only">{{ _('manage.move_down') }}</span></button>
+  </form>
+  <form method="POST" action="{{ url_for('manage.delete_navigation', item_id=item.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"><span aria-hidden="true">✕</span><span class="sr-only">{{ _('common.delete') }}</span></button>
+  </form>
+</span>
+{% endmacro %}
+
+{% macro link_row(item, nested=False) %}
 <li class="flex items-center gap-2.5 py-2 text-sm {{ 'ms-6 border-s border-slate-100 ps-4' if nested }}">
   <span class="font-medium text-slate-900">{{ item.label }}</span>
-  {% if not item.is_group or item.url or item.content_id %}
-  <span class="font-mono text-xs text-slate-400">{{ item.href }}</span>
-  {% else %}
-  <span class="badge-slate">{{ _('manage.nav_group_hint') }}</span>
-  {% endif %}
-  <span class="ms-auto flex gap-1">
-    <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="direction" value="up">
-      <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><span aria-hidden="true">↑</span><span class="sr-only">{{ _('manage.move_up') }}</span></button>
-    </form>
-    <form method="POST" action="{{ url_for('manage.move_navigation', item_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="direction" value="down">
-      <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><span aria-hidden="true">↓</span><span class="sr-only">{{ _('manage.move_down') }}</span></button>
-    </form>
-    <form method="POST" action="{{ url_for('manage.delete_navigation', item_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"><span aria-hidden="true">✕</span><span class="sr-only">{{ _('common.delete') }}</span></button>
-    </form>
-  </span>
+  <span class="truncate font-mono text-xs text-slate-400">{{ item.href }}</span>
+  {{ controls(item) }}
 </li>
+{% endmacro %}
+
+{# One field pair a link submits as its destination: an own page/content
+   row, or a URL. The server requires one of the two. #}
+{% macro destination_fields() %}
+<label class="block">
+  <span class="label">{{ _('manage.link_content') }}</span>
+  <select name="content_id" class="select mt-1 w-full">
+    <option value="">—</option>
+    {% for target in linkable %}
+    <option value="{{ target.id }}">{{ target.title }} ({{ target.content_type.singular }})</option>
+    {% endfor %}
+  </select>
+</label>
+<label class="block">
+  <span class="label">{{ _('manage.link_url') }}</span>
+  <input type="text" name="url" class="input mt-1 w-full" placeholder="https:// or /path">
+</label>
+{% endmacro %}
+
+{# Collapsed add-a-link form for inside a group (dropdown or column). #}
+{% macro add_link_into(menu, parent_id) %}
+<details class="mt-2">
+  <summary class="cursor-pointer select-none text-sm font-medium text-brand-600">+ {{ _('manage.add_link') }}</summary>
+  <form method="POST" action="{{ url_for('manage.navigation') }}" class="mt-3 space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="kind" value="link">
+    <input type="hidden" name="menu" value="{{ menu }}">
+    <input type="hidden" name="parent_id" value="{{ parent_id }}">
+    <label class="block">
+      <span class="label">{{ _('manage.link_label') }}</span>
+      <input type="text" name="label" class="input mt-1 w-full" required maxlength="100">
+    </label>
+    {{ destination_fields() }}
+    <button type="submit" class="btn-secondary">{{ _('manage.add_link') }}</button>
+  </form>
+</details>
+{% endmacro %}
+
+{# Always-visible add-a-link row for a flat list (primary top level,
+   footer bottom bar). #}
+{% macro add_link_row(menu) %}
+<form method="POST" action="{{ url_for('manage.navigation') }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="kind" value="link">
+  <input type="hidden" name="menu" value="{{ menu }}">
+  <label class="block">
+    <span class="label">{{ _('manage.link_label') }}</span>
+    <input type="text" name="label" class="input mt-1" required maxlength="100">
+  </label>
+  <label class="block">
+    <span class="label">{{ _('manage.link_content') }}</span>
+    <select name="content_id" class="select mt-1">
+      <option value="">—</option>
+      {% for target in linkable %}
+      <option value="{{ target.id }}">{{ target.title }} ({{ target.content_type.singular }})</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="block flex-1">
+    <span class="label">{{ _('manage.link_url') }}</span>
+    <input type="text" name="url" class="input mt-1 w-full" placeholder="https:// or /path">
+  </label>
+  <button type="submit" class="btn-secondary">{{ _('manage.add_link') }}</button>
+</form>
 {% endmacro %}
 
 {% block manage_content %}
 {{ page_header(_('manage.navigation'), _('manage.nav_help')) }}
-<div class="grid gap-5 lg:grid-cols-2">
-  {% for menu, items in menus.items() %}
-  <div class="card">
-    <h3 class="mb-2 section-title">{{ _('manage.menu_' + menu) }}</h3>
-    <ul class="divide-y divide-slate-100">
-      {% for item in items %}
-        {{ item_row(item) }}
-        {% for child in item.children %}
-          {{ item_row(child, nested=True) }}
-        {% endfor %}
+
+{% set footer_columns = menus['footer'] | selectattr('is_group') | list %}
+{% set footer_bar_links = menus['footer'] | rejectattr('is_group') | list %}
+
+{# --- Primary navigation: the site header menu --------------------------- #}
+<div class="card">
+  <h3 class="section-title">{{ _('manage.menu_primary') }}</h3>
+  <p class="mt-1 text-sm text-slate-500">{{ _('manage.nav_primary_help') }}</p>
+  <ul class="mt-3 divide-y divide-slate-100">
+    {% for item in menus['primary'] %}
+      {% if item.is_group %}
+      <li class="py-2">
+        <div class="flex items-center gap-2.5 text-sm">
+          <span class="font-medium text-slate-900">{{ item.label }}</span>
+          <span class="badge-slate">{{ _('manage.nav_group_hint') }}</span>
+          {{ controls(item) }}
+        </div>
+        <ul>
+          {% for child in item.children %}
+            {{ link_row(child, nested=True) }}
+          {% endfor %}
+        </ul>
+        <div class="ms-6 ps-4">
+          {{ add_link_into('primary', item.id) }}
+        </div>
+      </li>
       {% else %}
-      <li class="text-sm text-slate-500">{{ _('common.none') }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endfor %}
+        {{ link_row(item) }}
+      {% endif %}
+    {% else %}
+    <li class="py-2 text-sm text-slate-500">{{ _('common.none') }}</li>
+    {% endfor %}
+  </ul>
+  {{ add_link_row('primary') }}
+  <form method="POST" action="{{ url_for('manage.navigation') }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="kind" value="group">
+    <input type="hidden" name="menu" value="primary">
+    <label class="block">
+      <span class="label">{{ _('manage.nav_dropdown_name') }}</span>
+      <input type="text" name="label" class="input mt-1" required maxlength="100">
+    </label>
+    <button type="submit" class="btn-secondary">{{ _('manage.nav_add_dropdown') }}</button>
+  </form>
 </div>
 
+{# --- Footer link columns ------------------------------------------------ #}
 <div class="card mt-5">
-  <h3 class="mb-4 section-title">{{ _('manage.add_link') }}</h3>
-  <form method="POST" class="flex flex-wrap items-end gap-3">
+  <h3 class="section-title">{{ _('manage.nav_footer_columns') }}</h3>
+  <p class="mt-1 text-sm text-slate-500">{{ _('manage.nav_columns_help') }}</p>
+  {% if not theme_capabilities().get('footer_groups', True) %}
+  <div class="mt-3 rounded-md bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
+    {{ _('manage.nav_theme_no_columns') }}
+  </div>
+  {% endif %}
+
+  {% if footer_columns %}
+  <div class="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    {% for column in footer_columns %}
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="flex items-center gap-2.5 text-sm">
+        <span class="font-semibold text-slate-900">{{ column.label }}</span>
+        {{ controls(column) }}
+      </div>
+      <ul class="mt-1 divide-y divide-slate-100">
+        {% for child in column.children %}
+        <li class="flex items-center gap-2.5 py-2 text-sm">
+          <span class="font-medium text-slate-900">{{ child.label }}</span>
+          <span class="truncate font-mono text-xs text-slate-400">{{ child.href }}</span>
+          {{ controls(child) }}
+        </li>
+        {% else %}
+        <li class="py-2 text-sm text-slate-500">{{ _('manage.nav_no_links') }}</li>
+        {% endfor %}
+      </ul>
+      {{ add_link_into('footer', column.id) }}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="mt-4 flex flex-wrap items-center gap-4">
+    <p class="text-sm text-slate-500">{{ _('manage.nav_no_columns') }}</p>
+    <form method="POST" action="{{ url_for('manage.navigation_suggested_columns') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary">{{ _('manage.nav_use_suggested') }}</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('manage.navigation') }}" class="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-4">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div>
-      <label for="menu" class="label">{{ _('manage.menu') }}</label>
-      <select id="menu" name="menu" class="select mt-1">
-        <option value="primary">{{ _('manage.menu_primary') }}</option>
-        <option value="footer">{{ _('manage.menu_footer') }}</option>
-      </select>
-    </div>
-    <div>
-      <label for="label" class="label">{{ _('manage.link_label') }}</label>
-      <input type="text" id="label" name="label" class="input mt-1" required maxlength="100">
-    </div>
-    <div>
-      <label for="parent_id" class="label">{{ _('manage.nav_group') }}</label>
-      <select id="parent_id" name="parent_id" class="select mt-1">
-        <option value="">{{ _('manage.nav_top_level') }}</option>
-        {% for menu, items in menus.items() %}
-        <optgroup label="{{ _('manage.menu_' + menu) }}">
-          {% for item in items %}
-          <option value="{{ item.id }}">{{ item.label }}</option>
-          {% endfor %}
-        </optgroup>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="content_id" class="label">{{ _('manage.link_content') }}</label>
-      <select id="content_id" name="content_id" class="select mt-1">
-        <option value="">—</option>
-        {% for item in linkable %}
-        <option value="{{ item.id }}">{{ item.title }} ({{ item.content_type.singular }})</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="flex-1">
-      <label for="url" class="label">{{ _('manage.link_url') }}</label>
-      <input type="text" id="url" name="url" class="input mt-1" placeholder="https:// or /path">
-    </div>
-    <button type="submit" class="btn-primary">{{ _('manage.add_link') }}</button>
+    <input type="hidden" name="kind" value="group">
+    <input type="hidden" name="menu" value="footer">
+    <label class="block">
+      <span class="label">{{ _('manage.column_heading') }}</span>
+      <input type="text" name="label" class="input mt-1" required maxlength="100">
+    </label>
+    <button type="submit" class="btn-secondary">{{ _('manage.add_column') }}</button>
   </form>
+</div>
+
+{# --- Footer bottom bar --------------------------------------------------- #}
+<div class="card mt-5">
+  <h3 class="section-title">{{ _('manage.nav_bottom_bar') }}</h3>
+  <p class="mt-1 text-sm text-slate-500">{{ _('manage.nav_bottom_bar_help') }}</p>
+  <ul class="mt-3 divide-y divide-slate-100">
+    {% for item in footer_bar_links %}
+      {{ link_row(item) }}
+    {% else %}
+    <li class="py-2 text-sm text-slate-500">{{ _('common.none') }}</li>
+    {% endfor %}
+  </ul>
+  {{ add_link_row('footer') }}
 </div>
 {% endblock %}

@@ -11,6 +11,15 @@ from .types import BigIntFK
 
 MENUS = ('primary', 'footer')
 
+# One-click starter column offered in Manage → Navigation when an
+# organization has no footer columns (orgs provisioned before columns
+# existed, or after deleting them all). Only routes every install has.
+SUGGESTED_FOOTER_COLUMN = ('Explore', (
+    ('Blog', '/blog'),
+    ('Community', '/discussions'),
+    ('Newsletter', '/subscribe'),
+))
+
 
 class NavigationItem(OrgScoped, BaseModel):
     __tablename__ = 'navigation_item'
@@ -43,12 +52,15 @@ class NavigationItem(OrgScoped, BaseModel):
             raise ValidationError('Label is required')
         if self.menu not in MENUS:
             raise ValidationError('Invalid menu')
-        # A link may be label-only: it renders as a dropdown heading.
+        # A top-level item may be label-only: it is a group (a dropdown in
+        # the primary menu, a link column in the footer).
         if self.url and not (self.url.startswith(('http://', 'https://', '/', '#'))):
             raise ValidationError('URL must be absolute (http/https) or site-relative')
         if self.content_id and self.url:
             self.url = None         # a content link never also carries a URL
         if self.parent_id:
+            if not (self.url or self.content_id):
+                raise ValidationError('A link inside a group needs a page or URL')
             # A query, not session.get: get() can answer from the identity
             # map without emitting SQL, and the tenant filter only runs on
             # a real query.
@@ -57,6 +69,9 @@ class NavigationItem(OrgScoped, BaseModel):
                 raise ValidationError('Invalid parent item')
             if parent.parent_id is not None:
                 raise ValidationError('Navigation nests one level only')
+            if parent.url or parent.content_id:
+                raise ValidationError('Links can only go inside a group, '
+                                      'not another link')
 
     @property
     def href(self) -> str:
@@ -66,7 +81,12 @@ class NavigationItem(OrgScoped, BaseModel):
 
     @property
     def is_group(self) -> bool:
-        return bool(self.children)
+        """A group is a top-level item with no destination of its own: a
+        dropdown in the primary menu, a link column in the footer. Defined
+        by shape, not by children, so a just-created empty group already
+        renders (and edits) as a group."""
+        return (self.parent_id is None
+                and not self.url and not self.content_id)
 
     @classmethod
     def items_for(cls, menu: str):
@@ -77,6 +97,20 @@ class NavigationItem(OrgScoped, BaseModel):
     @classmethod
     def top_level_for(cls, menu: str):
         return cls.items_for(menu)
+
+    @classmethod
+    def create_suggested_footer_column(cls):
+        """Create the starter footer column for the current org. No-op when
+        any column already exists, so the Manage button can't duplicate."""
+        if any(item.is_group for item in cls.items_for('footer')):
+            return
+        heading, links = SUGGESTED_FOOTER_COLUMN
+        group = cls(menu='footer', label=heading,
+                    position=cls.next_position('footer'))
+        group.save()
+        for position, (label, url) in enumerate(links, start=1):
+            cls(menu='footer', label=label, url=url,
+                parent_id=group.id, position=position).save()
 
     @classmethod
     def next_position(cls, menu: str, parent_id=None) -> int:

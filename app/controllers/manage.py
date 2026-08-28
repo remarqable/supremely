@@ -310,12 +310,25 @@ def delete_category(category_id):
 def navigation():
     if request.method == 'POST':
         parent_id = request.form.get('parent_id', type=int) or None
+        url = request.form.get('url', '').strip() or None
+        submitted_content_id = request.form.get('content_id', type=int)
+        content_id = _own_content_id(submitted_content_id)
+        # The UI says which it is adding; a raw POST without `kind` keeps
+        # the old convention (destination → link, label-only → group).
+        kind = request.form.get('kind') or (
+            'link' if (url or submitted_content_id) else 'group')
+        if kind == 'group':
+            url = content_id = parent_id = None
+        elif not (url or content_id):
+            # Covers the empty form and a content_id pointing at another
+            # tenant's row (_own_content_id nulls it): nothing is created.
+            flash(t('manage.nav_link_needs_destination'), 'error')
+            return redirect(url_for('manage.navigation'))
         item = NavigationItem(
             menu=request.form.get('menu', 'primary'),
             label=request.form.get('label', ''),
-            url=request.form.get('url', '').strip() or None,
-            content_id=_own_content_id(request.form.get('content_id',
-                                                        type=int)),
+            url=url,
+            content_id=content_id,
             parent_id=parent_id,
         )
         item.position = NavigationItem.next_position(item.menu, parent_id)
@@ -333,6 +346,15 @@ def navigation():
                 .order_by(Content.type, Content.title).all())
     return render_template('manage/navigation.html', menus=menus,
                            linkable=linkable)
+
+
+@bp.route('/navigation/columns/suggested', methods=['POST'])
+@org_required
+@require('content.write')
+def navigation_suggested_columns():
+    NavigationItem.create_suggested_footer_column()
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.navigation'))
 
 
 @bp.route('/navigation/<int:item_id>/move', methods=['POST'])

@@ -402,7 +402,9 @@ def _globex_rows(app, globex):
 def test_a_navigation_link_cannot_point_at_another_tenants_page(app, client, acme,
                                                                 globex, user):
     """A relationship load is exempt from the tenant filter, so an unchecked
-    id here would render another organization's address in this one's menu."""
+    id here would render another organization's address in this one's menu.
+    The foreign id is nulled, which leaves the link without a destination —
+    so nothing is created at all."""
     _, foreign_page_id = _globex_rows(app, globex)
     login_as(client, user)
 
@@ -412,7 +414,7 @@ def test_a_navigation_link_cannot_point_at_another_tenants_page(app, client, acm
 
     db.session.expire_all()
     item = NavigationItem.query.filter_by(org_id=acme.id, label='Foreign').first()
-    assert item is not None and item.content_id is None
+    assert item is None
 
 
 def test_a_navigation_link_to_our_own_page_still_works(app, client, acme,

@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "author": "Supremely",
   "description": "An earthy, outdoors-flavored theme \u2014 and the worked example for the theme-building tutorial (docs/themes/building-a-theme.md).",
+  "capabilities": {"footer_groups": false},
   "settings": {
     "forest": {
       "type": "color",

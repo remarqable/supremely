@@ -5,6 +5,7 @@
   "author": "Supremely",
   "extends": "origin",
   "overrides": ["layout.html"],
+  "capabilities": {"footer_groups": true},
   "settings": {
     "accent": {
       "type": "color",

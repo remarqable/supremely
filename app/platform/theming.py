@@ -57,6 +57,7 @@ def init_theming(app) -> None:
     # Resolved editable content for the active theme (defaults filled in).
     app.jinja_env.globals['theme_content'] = lambda: resolve_content(current_theme())
     app.jinja_env.globals['community_tokens'] = community_tokens
+    app.jinja_env.globals['theme_capabilities'] = theme_capabilities
 
 
 def scan_themes() -> None:
@@ -87,6 +88,10 @@ def scan_themes() -> None:
                     # fields here is what surfaces the Landing editor for the
                     # theme in Manage.
                     'content': manifest.get('content', {}) or {},
+                    # What the theme's templates render (see
+                    # THEME_CAPABILITY_DEFAULTS). Manage uses this to warn
+                    # when an edit won't be visible on the site.
+                    'capabilities': manifest.get('capabilities', {}) or {},
                 }
             except (json.JSONDecodeError, OSError) as e:
                 log.error('theme_manifest_invalid', path=str(manifest_path),
@@ -103,6 +108,23 @@ def current_theme() -> str:
     if theme == 'default':              # legacy alias for the fallback theme
         theme = 'origin'
     return theme if theme in AVAILABLE_THEMES else 'origin'
+
+
+# Capabilities a theme is assumed to have unless its theme.json says
+# otherwise. Permissive defaults: most themes derive from Origin and render
+# everything; a minimal theme opts out (e.g. Trailhead's footer shows only
+# bottom-bar links, so it declares "footer_groups": false).
+THEME_CAPABILITY_DEFAULTS = {'footer_groups': True}
+
+
+def theme_capabilities(theme: str | None = None) -> dict:
+    """The active (or given) theme's declared rendering capabilities, with
+    defaults filled in. Themes are still just renderers — this changes no
+    behavior, it only lets Manage say "your theme won't show this"."""
+    capabilities = dict(THEME_CAPABILITY_DEFAULTS)
+    manifest = AVAILABLE_THEMES.get(theme or current_theme(), {})
+    capabilities.update(manifest.get('capabilities', {}) or {})
+    return capabilities
 
 
 def theme_config() -> dict:
