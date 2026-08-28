@@ -4,6 +4,8 @@ import secrets
 
 from flask import abort, request, session
 
+from app.platform.logger import log_refusal
+
 
 def generate_csrf_token() -> str:
     if '_csrf_token' not in session:
@@ -37,4 +39,5 @@ def init_csrf(app):
         if request.path == '/health':
             return
         if not validate_csrf_token():
+            log_refusal('csrf_rejected')
             abort(403, 'CSRF token invalid')

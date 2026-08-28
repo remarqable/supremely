@@ -346,10 +346,25 @@ get_public_ip() {
 #   data/config.env - written by the in-app setup wizard.
 #===============================================================================
 
+# Adds one key if the file does not already carry it. Never edits a value
+# an operator has set: the point is only that a key introduced after their
+# install stops being absent.
+ensure_env_default() {
+  local key="$1" value="$2" why="$3"
+  grep -q "^[[:space:]]*${key}=" "$ENV_FILE" 2>/dev/null && return 0
+  # Private mask here too. Appending creates the file if it is somehow
+  # absent, and it would otherwise be created world readable.
+  ( umask 077; printf '\n# %s\n%s=%s\n' "$why" "$key" "$value" >> "$ENV_FILE" )
+  echo "  Added ${key}=${value} to ${ENV_FILE}"
+}
+
 ensure_env_file() {
   mkdir -p "$DATA_DIR"
   if [ ! -f "$ENV_FILE" ]; then
-    cat > "$ENV_FILE" << 'ENV_EOF'
+    # Written with a private umask rather than created readable and
+    # narrowed a moment later: the file holds the secret key, and
+    # /opt/supremely is world traversable.
+    (umask 077; cat > "$ENV_FILE" << 'ENV_EOF'
 # Supremely operator configuration.
 # Written by the Supremely installer. These are real environment variables and take
 # precedence over anything the in-app setup wizard writes.
@@ -364,8 +379,19 @@ TRUSTED_PROXIES=1
 # run: sudo /opt/supremely/installer --update
 # DATABASE_URL=postgresql+psycopg://user:password@host:5432/supremely
 ENV_EOF
+    )
     chmod 600 "$ENV_FILE"
   fi
+
+  # The block above runs only when the file is absent, so a host installed
+  # before a key entered the template never gains it. TRUSTED_PROXIES is
+  # the one that matters: left unset behind Caddy, every visitor counts
+  # against one rate limit bucket, so a single caller can lock the whole
+  # installation out of signing in.
+  ensure_env_default "APP_ENV" "production" \
+    "Added by the installer: this key postdates your install."
+  ensure_env_default "TRUSTED_PROXIES" "1" \
+    "Number of reverse proxies in front of the app. Caddy on this host = 1."
 }
 
 # Docker's --env-file is NOT a shell: quotes are kept as part of the value,
@@ -765,6 +791,15 @@ create_caddyfile() {
       echo "}"
       echo ""
       echo "(supremely_app) {"
+      echo "    # Without this Caddy records no access log at all, and"
+      echo "    # neither does anything else on the host, so there is no"
+      echo "    # way to reconstruct an incident or notice scanning."
+      echo "    # stderr reaches journalctl -u caddy; shipping it somewhere"
+      echo "    # durable is a separate decision."
+      echo "    log {"
+      echo "        output stderr"
+      echo "        format json"
+      echo "    }"
       echo "    # /tls-check is for Caddy over the loopback only; never public."
       echo "    handle /tls-check {"
       echo "        respond 404"
@@ -807,6 +842,12 @@ create_caddyfile() {
   else
     cat > "$caddyfile" << EOF
 :80 {
+    # Same reason as the domain configuration above: without this nothing
+    # on the host records that a request happened.
+    log {
+        output stderr
+        format json
+    }
     handle /tls-check {
         respond 404
     }

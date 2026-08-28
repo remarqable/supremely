@@ -9,6 +9,8 @@ from functools import wraps
 from flask import abort, g, has_request_context, redirect, request, url_for
 from flask_login import current_user
 
+from app.platform.logger import log_refusal
+
 # Visibility levels an object or section may carry. Access lives on the
 # OBJECT (Content.visibility, DiscussionGroup.visibility) and is enforced
 # server-side before rendering — never by a theme. 'restricted' is reserved
@@ -72,6 +74,7 @@ def require(permission: str):
             if not current_user.is_authenticated:
                 return redirect(url_for('auth.login', next=request.path))
             if not can(permission):
+                log_refusal('permission_denied', permission=permission)
                 abort(403)
             return f(*args, **kwargs)
         return wrapped
@@ -95,6 +98,9 @@ def platform_admin_required(f):
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login', next=request.path))
         if not current_user.is_platform_admin:
+            # Logged as the denial it is, even though the visitor is told
+            # the page does not exist.
+            log_refusal('platform_admin_denied')
             abort(404)          # do not confirm /admin exists to non-admins
         return f(*args, **kwargs)
     return wrapped

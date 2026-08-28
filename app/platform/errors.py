@@ -33,6 +33,16 @@ class RateLimitError(AppError):
         super().__init__(message)
 
 
+class TenantViolation(RuntimeError):
+    """An attempt to read or write across organizations.
+
+    Its own type rather than a bare RuntimeError: in a system whose whole
+    job is keeping tenants apart, this is the most significant thing that
+    can go wrong, and it should not be indistinguishable in a log from a
+    programming mistake.
+    """
+
+
 class EmailNotConfiguredError(AppError):
     code, http_status = 'E_EMAIL_NOT_CONFIGURED', 400
 

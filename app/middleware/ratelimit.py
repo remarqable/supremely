@@ -16,7 +16,7 @@ from functools import wraps
 from flask import current_app, request
 
 from app.platform.errors import RateLimitError
-from app.platform.logger import get_logger
+from app.platform.logger import get_logger, log_refusal
 
 log = get_logger()
 
@@ -65,6 +65,8 @@ def rate_limit(limit: int = 100, window: int = 60,
 
             key = f'{f.__name__}:{_get_client_ip()}'
             if not _check_limit(key, limit, window):
+                log_refusal('rate_limited', route=f.__name__, limit=limit,
+                            window=window)
                 raise RateLimitError()
             return f(*args, **kwargs)
         return decorated

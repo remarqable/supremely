@@ -14,4 +14,8 @@ fi
 
 # Web container: the one process that runs migrations, before Gunicorn starts.
 flask db upgrade
-exec gunicorn wsgi:app -w "${WEB_CONCURRENCY:-4}" -b "0.0.0.0:${PORT:-8000}"
+# Access log to stdout, where the container collects it. Without it no
+# layer of this stack records that a request happened at all, so an
+# incident cannot be reconstructed and scanning cannot be noticed.
+exec gunicorn wsgi:app -w "${WEB_CONCURRENCY:-4}" -b "0.0.0.0:${PORT:-8000}" \
+    --access-logfile - --error-logfile -

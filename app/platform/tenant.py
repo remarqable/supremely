@@ -22,6 +22,8 @@ from sqlalchemy.orm import Session, with_loader_criteria
 
 from app.extensions import db
 from app.models.base import OrgScoped
+from app.platform.errors import TenantViolation
+from app.platform.logger import log_refusal
 
 # Paths that belong to the installation, not to any organization.
 # /files is NOT here: uploads are tenant data and must resolve the org.
@@ -275,7 +277,8 @@ def _apply_tenant_filter(state):
     # OrgScoped model from a request. Fail loudly rather than cross tenants.
     if (state.is_update or state.is_delete) and not state.is_select \
             and _targets_org_scoped(state.statement):
-        raise RuntimeError(
+        log_refusal('tenant_bulk_statement_refused')
+        raise TenantViolation(
             'Bulk UPDATE/DELETE on an OrgScoped model must filter org_id '
             'explicitly (or run under unscoped()).')
 
@@ -310,10 +313,15 @@ def _stamp_org(session, _ctx, _instances):
         if isinstance(obj, OrgScoped):
             if obj.org_id is None:
                 if org_id is None:
-                    raise RuntimeError(f'{type(obj).__name__} created without a tenant')
+                    log_refusal('tenant_missing_on_create',
+                                model=type(obj).__name__)
+                    raise TenantViolation(
+                        f'{type(obj).__name__} created without a tenant')
                 obj.org_id = org_id
             elif org_id is not None and obj.org_id != org_id:
-                raise RuntimeError('Refusing to write across tenants')
+                log_refusal('tenant_write_refused', model=type(obj).__name__,
+                            row_org_id=obj.org_id, acting_org_id=org_id)
+                raise TenantViolation('Refusing to write across tenants')
     # Updates and deletes too: the read filter makes cross-tenant rows
     # unreachable, but one smuggled in through the identity map must not
     # be written or removed.
@@ -322,7 +330,9 @@ def _stamp_org(session, _ctx, _instances):
             continue
         owner = _persisted_org_id(obj)
         if owner is not None and owner != org_id:
-            raise RuntimeError('Refusing to write across tenants')
+            log_refusal('tenant_write_refused', model=type(obj).__name__,
+                        row_org_id=owner, acting_org_id=org_id)
+            raise TenantViolation('Refusing to write across tenants')
 
 
 @contextmanager
