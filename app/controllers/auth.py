@@ -18,6 +18,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 
 from app.middleware.ratelimit import rate_limit
 from app.models import User
+from app.models.user import verify_credentials
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -83,9 +84,10 @@ def login():
 
         user = User.get_by_email(email)
 
-        # One generic failure message: distinguishing "no such user" from
-        # "wrong password" is a user-enumeration oracle.
-        if user is None or not user.is_active or not user.check_password(password):
+        # One generic failure message, and one fixed cost to produce it:
+        # distinguishing "no such user" from "wrong password" by wording or
+        # by the clock is the same oracle.
+        if not verify_credentials(user, password):
             log.info('login_failed', email=email)
             flash(t('auth.invalid_credentials'), 'error')
             return render_template('auth/login.html'), 401

@@ -5,6 +5,7 @@ blueprint/patterns/core/auth.md."""
 import hashlib
 import hmac
 import re
+import secrets
 from typing import Optional
 
 from flask import current_app
@@ -15,6 +16,44 @@ from app.extensions import db
 from app.platform.errors import ValidationError
 
 from .base import BaseModel
+
+_ABSENT_USER_HASH = None
+
+
+def _absent_user_hash() -> str:
+    """A throwaway digest, built once and kept for the life of the process.
+
+    Not a constant in the source: it would then be identical everywhere the
+    project is installed, and a digest anyone can reproduce is one anyone
+    can time against.
+
+    Built on first use rather than at import, which keeps a hash off the
+    start of every command and test run. The cost is that the first miss in
+    a process is twice the usual, once, for any address.
+    """
+    global _ABSENT_USER_HASH
+    if _ABSENT_USER_HASH is None:
+        _ABSENT_USER_HASH = generate_password_hash(secrets.token_urlsafe(32))
+    return _ABSENT_USER_HASH
+
+
+def verify_credentials(user: Optional['User'], password: str) -> bool:
+    """Whether this password signs this user in, at a fixed cost.
+
+    Stopping at `user is None` let the clock answer the question the
+    wording carefully refuses to. A missing address returned after one
+    indexed lookup, a real one after a full hash comparison, and the two
+    differ by more than a hundredfold. Same message, same status, same
+    length, and the timing gave it away regardless.
+
+    So the comparison always runs, against a throwaway digest when there is
+    no account, and being suspended is judged after it rather than before.
+    """
+    if user is None:
+        check_password_hash(_absent_user_hash(), password)
+        return False
+    matched = user.check_password(password)
+    return matched and user.is_active
 
 
 class User(BaseModel, UserMixin):
