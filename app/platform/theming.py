@@ -266,7 +266,7 @@ def render_site(candidates: list[str], context_name: str = 'publication',
     return render_template(names, **context)
 
 
-def render_gate(title: str, kind: str = None):
+def render_gate(title: str, kind: str | None = None):
     """The members-only gate: a friendly 200 page for an object the visitor
     may know exists but cannot read. Tease-don't-hide is the default stance —
     gated items appear in public lists as locked titles, and clicking one
