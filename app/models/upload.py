@@ -5,6 +5,7 @@ every file has a row and rows are org-scoped like any business data.
 """
 
 import io
+import re
 import secrets
 from typing import TYPE_CHECKING
 
@@ -85,14 +86,22 @@ def open_bounded(data: bytes, draft_to: int | None = None) -> 'ImageFile':
 
 def _sanitize_raster(data: bytes, content_type: str) -> bytes:
     """Decode and re-encode a raster image, dropping EXIF and any smuggled
-    payload. Returns original bytes if Pillow can't process it."""
-    import io as _io
-    try:
-        from PIL import ImageOps
+    payload.
 
-        # No draft: this re-encodes the original a visitor can download,
-        # so it must keep full resolution.
-        img = open_bounded(data)
+    Refuses rather than falling back to the uploaded bytes. Returning them
+    was quiet and looked harmless, but the caller had no way to tell, so a
+    file that failed here was stored with its location data intact and
+    served from the /files/<id>/original route as though it had been
+    cleaned.
+    """
+    import io as _io
+
+    from PIL import ImageOps
+
+    # No draft: this re-encodes the original a visitor can download,
+    # so it must keep full resolution.
+    img = open_bounded(data)
+    try:
         img = ImageOps.exif_transpose(img)
         fmt = {'image/png': 'PNG', 'image/jpeg': 'JPEG',
                'image/webp': 'WEBP'}[content_type]
@@ -100,9 +109,22 @@ def _sanitize_raster(data: bytes, content_type: str) -> bytes:
             img = img.convert('RGB')
         out = _io.BytesIO()
         img.save(out, fmt)
-        return out.getvalue()
-    except Exception:       # noqa: BLE001 -- non-decodable: keep original bytes
-        return data
+    except (OSError, ValueError) as exc:
+        raise ValidationError('That image could not be read in full') from exc
+    return out.getvalue()
+
+
+CONTROL_CHARS = re.compile(r'[\x00-\x1f\x7f]')
+
+
+def safe_filename(name: str | None) -> str:
+    """The stored name is handed to send_file as the download name.
+
+    A line break in a header makes Werkzeug refuse to build the response,
+    so one poisoned name turns every later request for that file into a
+    server error. Multipart parsing lets an encoded one through.
+    """
+    return CONTROL_CHARS.sub('', (name or 'upload').strip())[:255] or 'upload'
 
 
 def sniff(head: bytes) -> tuple[str, str] | None:
@@ -154,8 +176,8 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('File type not allowed')
         content_type, ext = sniffed
 
-        # Has to sit here, not inside _sanitize_raster, whose fallback
-        # would swallow the refusal and store the original anyway.
+        # Re-encoding below covers PNG, JPEG and WebP. This also bounds a
+        # GIF, which is stored as sent and so is never opened again.
         if content_type in RASTER_TYPES:
             open_bounded(head)
 
@@ -169,7 +191,7 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
         key = f'org/{g.org.id}/{secrets.token_hex(16)}{ext}'
         storage().save(key, io.BytesIO(head))
 
-        upload = cls(key=key, filename=(file.filename or 'upload')[:255],
+        upload = cls(key=key, filename=safe_filename(file.filename),
                      content_type=content_type, size=len(head),
                      visibility=visibility)
         upload.stamp_audit()
