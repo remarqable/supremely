@@ -52,7 +52,7 @@ def open_bounded(data: bytes, draft_to: int | None = None) -> 'ImageFile':
 
     Pass draft_to only when the result is about to be scaled down anyway.
     It asks the decoder for a smaller image, which a JPEG can do cheaply,
-    and would otherwise shrink an original a visitor can download.
+    and would otherwise reduce an original a visitor can download.
     """
     from PIL import Image, UnidentifiedImageError
 
