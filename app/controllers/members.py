@@ -22,7 +22,7 @@ from app.extensions import db
 from app.middleware.ratelimit import rate_limit
 from app.models import Membership, User
 from app.models.invitation import Invitation
-from app.models.upload import sniff
+from app.models.upload import open_bounded, sniff
 from app.platform.authz import is_org_member, org_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -119,6 +119,7 @@ def directory():
 
 @bp.route('/profile', methods=['GET', 'POST'])
 @login_required
+@rate_limit(limit=10, window=300)
 def profile():
     if request.method == 'POST':
         current_user.name = request.form.get('name', current_user.name)
@@ -142,8 +143,11 @@ def profile():
     return render_template('members/profile.html')
 
 
+AVATAR_EDGE = 400
+
+
 def _set_avatar(user, file) -> None:
-    from PIL import Image, ImageOps
+    from PIL import ImageOps
 
     from app.platform.storage import storage
 
@@ -155,14 +159,21 @@ def _set_avatar(user, file) -> None:
                                              'image/webp'):
         raise ValidationError('Avatar must be a PNG, JPEG, or WebP image')
 
-    Image.MAX_IMAGE_PIXELS = 30_000_000
-    img = Image.open(io.BytesIO(head))
-    img = ImageOps.exif_transpose(img)
-    if img.mode == 'P':
-        img = img.convert('RGBA')
-    img.thumbnail((400, 400))
-    out = io.BytesIO()
-    img.save(out, 'WEBP', quality=85)
+    # The result is a 400px square whatever came in, so ask for a reduced
+    # decode. A JPEG can do it and drops from hundreds of megabytes to a
+    # dozen; a PNG cannot, which is what the size ceiling is for.
+    img = open_bounded(head, draft_to=AVATAR_EDGE)
+    try:
+        img = ImageOps.exif_transpose(img)
+        if img.mode == 'P':
+            img = img.convert('RGBA')
+        img.thumbnail((AVATAR_EDGE, AVATAR_EDGE))
+        out = io.BytesIO()
+        img.save(out, 'WEBP', quality=85)
+    except (OSError, ValueError) as exc:
+        # A header can parse and the pixels still be missing, which is what
+        # an upload cut short by a dropped connection looks like.
+        raise ValidationError('That image could not be read in full') from exc
     out.seek(0)
 
     old_key = user.avatar_key

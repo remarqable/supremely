@@ -6,6 +6,7 @@ every file has a row and rows are org-scoped like any business data.
 
 import io
 import secrets
+from typing import TYPE_CHECKING
 
 from flask import g
 
@@ -13,6 +14,9 @@ from app.extensions import db
 from app.platform.errors import ValidationError
 
 from .base import AuditMixin, BaseModel, OrgScoped
+
+if TYPE_CHECKING:
+    from PIL.ImageFile import ImageFile
 
 # Sniffed from magic bytes -- extensions and client headers are untrusted.
 MAGIC = (
@@ -28,15 +32,67 @@ RASTER_TYPES = {'image/png', 'image/jpeg', 'image/webp', 'image/gif'}
 VARIANTS = {'thumb': 200, 'medium': 800, 'full': 1600}   # max long edge, px
 MAX_SIZE = 10 * 1024 * 1024
 
+# Opening an image costs up to thirteen bytes a pixel here, not the four a
+# single raster suggests: rotating returns a copy, re-encoding holds
+# another, and a palette or transparent image becomes four bytes a pixel
+# first. Compressed size predicts none of it, since a 8000x8000 PNG of one
+# flat colour is 200 KB on disk and around 800 MB to process. This ceiling
+# clears every phone and consumer camera, including a 61 megapixel full
+# frame; how often someone may spend it is the rate limits' job.
+MAX_PIXELS = 64_000_000
+
+
+def open_bounded(data: bytes, draft_to: int | None = None) -> 'ImageFile':
+    """Open an image, refusing one too large to decode safely.
+
+    Image.open reads the header and stops, so the size check runs before a
+    pixel is allocated. Pillow's own MAX_IMAGE_PIXELS is not that check: it
+    warns at the limit and only raises at twice it.
+
+    Pass draft_to only when the result is about to be scaled down anyway.
+    It asks the decoder for a smaller image, which a JPEG can do cheaply,
+    and would otherwise shrink an original a visitor can download.
+    """
+    from PIL import Image, UnidentifiedImageError
+
+    # Pillow refuses inside open() at twice this, before the check below
+    # runs. Pinning it here keeps the two limits from disagreeing.
+    Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+    try:
+        img = Image.open(io.BytesIO(data))
+    except (Image.DecompressionBombError,
+            Image.DecompressionBombWarning) as exc:
+        # Refused inside open(), before a size could be reported.
+        raise ValidationError(
+            f'Image too large to process (max {MAX_PIXELS // 1_000_000} '
+            'megapixels)') from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        # Magic bytes said image, content disagreed. Better to say so than
+        # to store a file that can never be displayed.
+        raise ValidationError('That file is not a readable image') from exc
+
+    width, height = img.size
+    if width * height > MAX_PIXELS:
+        raise ValidationError(
+            f'Image too large to process (max {MAX_PIXELS // 1_000_000} '
+            f'megapixels, this one is {width}x{height})')
+    if draft_to:
+        # A no-op where the format cannot do it. JPEG decodes at 1/2, 1/4
+        # or 1/8 scale for a fraction of the work.
+        img.draft(None, (draft_to, draft_to))
+    return img
+
 
 def _sanitize_raster(data: bytes, content_type: str) -> bytes:
     """Decode and re-encode a raster image, dropping EXIF and any smuggled
     payload. Returns original bytes if Pillow can't process it."""
     import io as _io
     try:
-        from PIL import Image, ImageOps
-        Image.MAX_IMAGE_PIXELS = 30_000_000
-        img = Image.open(_io.BytesIO(data))
+        from PIL import ImageOps
+
+        # No draft: this re-encodes the original a visitor can download,
+        # so it must keep full resolution.
+        img = open_bounded(data)
         img = ImageOps.exif_transpose(img)
         fmt = {'image/png': 'PNG', 'image/jpeg': 'JPEG',
                'image/webp': 'WEBP'}[content_type]
@@ -98,6 +154,11 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('File type not allowed')
         content_type, ext = sniffed
 
+        # Has to sit here, not inside _sanitize_raster, whose fallback
+        # would swallow the refusal and store the original anyway.
+        if content_type in RASTER_TYPES:
+            open_bounded(head)
+
         # Re-encode raster images so the STORED ORIGINAL is sanitized too:
         # strips EXIF (GPS) and drops anything hiding in the container. The
         # /files/<id>/original route is public, so this must not be
@@ -124,12 +185,13 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
         return upload
 
     def make_variants(self, data: bytes) -> None:
-        from PIL import Image, ImageOps
+        from PIL import ImageOps
 
         from app.platform.storage import storage
 
-        Image.MAX_IMAGE_PIXELS = 30_000_000     # decompression-bomb guard
-        img = Image.open(io.BytesIO(data))
+        # Every variant is scaled down, so a reduced decode costs less
+        # and changes nothing in the output.
+        img = open_bounded(data, draft_to=max(VARIANTS.values()))
         img = ImageOps.exif_transpose(img)      # honour rotation, then strip EXIF
         if img.mode in ('P', 'CMYK'):
             img = img.convert('RGBA' if img.mode == 'P' else 'RGB')

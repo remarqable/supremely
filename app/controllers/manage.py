@@ -16,6 +16,7 @@ from flask import (
 from flask_login import current_user
 
 from app.extensions import db
+from app.middleware.ratelimit import rate_limit
 from app.models import Content, Upload
 from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
@@ -563,6 +564,7 @@ def toggle_directory():
 @bp.route('/media', methods=['GET', 'POST'])
 @org_required
 @require('content.write')
+@rate_limit(limit=60, window=60)
 def media():
     if request.method == 'POST':
         file = request.files.get('file')
