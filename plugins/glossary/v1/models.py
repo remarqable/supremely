@@ -1,7 +1,7 @@
 """Glossary tables, prefixed with slug AND major: glossary_v1_*."""
 
 from app.extensions import db
-from app.models.base import AuditMixin, BaseModel, OrgScoped
+from app.models.base import AuditMixin, BaseModel, OrgScoped, scoped_to_own_org
 from app.platform.errors import ValidationError
 
 
@@ -21,6 +21,10 @@ class GlossaryTerm(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError('Term is required')
         if not (self.definition or '').strip():
             raise ValidationError('Definition is required')
-        existing = GlossaryTerm.query.filter_by(term=self.term).first()
+        # Pinned to this row's organization: outside a request the filter
+        # does not run, and an unpinned lookup reports a clash with a term
+        # another community happens to define.
+        existing = scoped_to_own_org(
+            GlossaryTerm.query.filter_by(term=self.term), self).first()
         if existing and existing.id != self.id:
             raise ValidationError('That term is already defined')

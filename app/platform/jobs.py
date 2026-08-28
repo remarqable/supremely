@@ -15,6 +15,7 @@ from app.extensions import db
 from app.models.base import utcnow
 from app.models.job import Job
 from app.platform.logger import get_logger
+from app.platform.tenant import org_scope
 
 log = get_logger()
 
@@ -70,8 +71,23 @@ def _claim_next() -> Job | None:
 
 def _execute(job_row: Job) -> None:
     job_id = job_row.id
+    # The scope covers the bookkeeping below as well as the handler. The
+    # commit in the finally is a write like any other, and outside the
+    # scope it was the one write the guard could not see: a handler that
+    # left a row pending and did not commit had it written for it, with no
+    # tenant in force. Job itself is not org scoped, so recording the
+    # outcome here is unaffected by the filter.
+    with org_scope(job_row.org_id):
+        _run(job_row, job_id)
+
+
+def _run(job_row: Job, job_id: int) -> None:
     try:
         HANDLERS[job_row.name](job_row.payload or {})
+        # Flush what the handler left behind while we are still inside the
+        # try, so a refusal fails this job rather than escaping through the
+        # finally and stopping the worker.
+        db.session.flush()
         job_row.status, job_row.finished_at = 'done', utcnow()
     except Exception as e:            # noqa: BLE001 -- worker must survive any handler error
         db.session.rollback()

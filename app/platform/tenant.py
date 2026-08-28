@@ -3,9 +3,15 @@
 See blueprint/patterns/tenancy.md. Supremely runs with PUBLIC_TENANTS=True:
 g.org is set for anonymous visitors too, so every query stays tenant-scoped;
 content visibility is a model-layer concern.
+
+Scoping follows the organization in force, not the request. A request sets
+it by resolving the host; the job worker sets it with org_scope() from the
+organization the job was queued for. Only work with no organization at all,
+the command line and migrations, runs unfiltered.
 """
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 from urllib.parse import quote
 
 from flask import abort, current_app, g, has_request_context, request
@@ -212,12 +218,57 @@ def _targets_org_scoped(statement) -> bool:
     return False
 
 
+# The organization a piece of work belongs to when there is no request to
+# read it from. A job records the tenant it was queued for; this is how
+# that record becomes the same guard a request gets.
+_ambient_org: ContextVar = ContextVar('ambient_org_id', default=None)
+
+
+@contextmanager
+def org_scope(org_id):
+    """Run work as though a request had resolved this organization.
+
+    The filter used to key off the request, so everything outside one ran
+    with no filter at all: the worker read and wrote across every tenant,
+    and the only thing stopping it was that no handler happened to take an
+    identifier from a visitor. Pass None for work that genuinely spans
+    tenants, which then behaves as it always did.
+    """
+    token = _ambient_org.set(org_id)
+    try:
+        yield
+    finally:
+        _ambient_org.reset(token)
+
+
+def current_org_id():
+    """The tenant in force, from the request or from org_scope().
+
+    Reads the identity rather than the attribute. This runs inside the
+    query listener, and an expired instance would answer org.id by issuing
+    a refresh, which enters the listener again and does not come back.
+    """
+    if has_request_context():
+        org = getattr(g, 'org', None)
+        if org is not None:
+            identity = sa_inspect(org).identity
+            return identity[0] if identity else org.id
+    # Falls through rather than answering None for a request. A handler
+    # that pushes its own request context, to build an absolute link or
+    # render a template, has no resolved organization in it, and answering
+    # from the request alone would throw away the one the job carries.
+    return _ambient_org.get()
+
+
 @event.listens_for(Session, 'do_orm_execute')
 def _apply_tenant_filter(state):
     if state.session.info.get('unscoped'):
         return
-    if not has_request_context():
-        return                      # CLI, migrations, workers: use unscoped()
+
+    org_id = current_org_id()
+    scoped = has_request_context() or org_id is not None
+    if not scoped:
+        return                      # CLI and migrations: use unscoped()
 
     # Bulk UPDATE/DELETE cannot be transparently scoped by loader criteria and
     # bypasses before_flush, so it must not be issued unscoped against an
@@ -231,11 +282,9 @@ def _apply_tenant_filter(state):
     if not state.is_select or state.is_column_load or state.is_relationship_load:
         return
 
-    org = getattr(g, 'org', None)
-    if org is None:
+    if org_id is None:
         return
 
-    org_id = org.id
     state.statement = state.statement.options(
         with_loader_criteria(OrgScoped, lambda cls: cls.org_id == org_id,
                              include_aliases=True)
@@ -254,25 +303,25 @@ def _persisted_org_id(obj):
 
 @event.listens_for(Session, 'before_flush')
 def _stamp_org(session, _ctx, _instances):
-    if not has_request_context():
+    org_id = current_org_id()
+    if org_id is None and not has_request_context():
         return
-    org = getattr(g, 'org', None)
     for obj in session.new:
         if isinstance(obj, OrgScoped):
             if obj.org_id is None:
-                if org is None:
+                if org_id is None:
                     raise RuntimeError(f'{type(obj).__name__} created without a tenant')
-                obj.org_id = org.id
-            elif org is not None and obj.org_id != org.id:
+                obj.org_id = org_id
+            elif org_id is not None and obj.org_id != org_id:
                 raise RuntimeError('Refusing to write across tenants')
     # Updates and deletes too: the read filter makes cross-tenant rows
     # unreachable, but one smuggled in through the identity map must not
     # be written or removed.
     for obj in (*session.dirty, *session.deleted):
-        if not isinstance(obj, OrgScoped) or org is None:
+        if not isinstance(obj, OrgScoped) or org_id is None:
             continue
         owner = _persisted_org_id(obj)
-        if owner is not None and owner != org.id:
+        if owner is not None and owner != org_id:
             raise RuntimeError('Refusing to write across tenants')
 
 

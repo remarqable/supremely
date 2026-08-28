@@ -764,7 +764,7 @@ def newsletter():
     deliveries = (Delivery.query.order_by(Delivery.created_at.desc())
                   .limit(20).all())
     stats = {
-        'subscribed': Subscriber.audience().count(),
+        'subscribed': Subscriber.audience(g.org.id).count(),
         'pending': Subscriber.query.filter_by(status='pending').count(),
         'unsubscribed': Subscriber.query.filter_by(status='unsubscribed').count(),
     }
@@ -812,7 +812,7 @@ def send_content_newsletter(content_id):
     if not is_email_configured():
         flash(t('newsletter.email_required_to_send'), 'error')
         return redirect(url_for('manage.edit_content', content_id=content.id))
-    if Subscriber.audience().count() == 0:
+    if Subscriber.audience(g.org.id).count() == 0:
         flash(t('newsletter.no_subscribers'), 'error')
         return redirect(url_for('manage.edit_content', content_id=content.id))
 

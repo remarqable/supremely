@@ -50,7 +50,10 @@ class Subscriber(OrgScoped, BaseModel):
                   require_confirmation: bool) -> 'Subscriber':
         """Subscribe (or re-subscribe) an email. Deduplicates per org."""
         email = (email or '').strip().lower()
-        existing = cls.query.filter_by(email=email).first()
+        # Pinned to the organization being subscribed to. The session
+        # filter does this inside a request, and outside one this returned
+        # another tenant's row, re-subscribed it, and handed it back.
+        existing = cls.query.filter_by(email=email, org_id=org_id).first()
         if existing:
             if existing.status != 'subscribed':
                 existing.status = ('pending' if require_confirmation
@@ -82,8 +85,16 @@ class Subscriber(OrgScoped, BaseModel):
         return self.save()
 
     @classmethod
-    def audience(cls):
-        return cls.query.filter_by(status='subscribed')
+    def audience(cls, org_id: int):
+        """Everyone a send to this organization would reach.
+
+        The organization is required rather than assumed. Inside a request
+        the session filter would supply it, but this is the method whose
+        whole failure mode is gathering every tenant list into one send, so
+        it should not be possible to ask the question without saying whose
+        audience is meant.
+        """
+        return cls.query.filter_by(status='subscribed', org_id=org_id)
 
 
 class Delivery(OrgScoped, AuditMixin, BaseModel):
@@ -105,7 +116,7 @@ class Delivery(OrgScoped, AuditMixin, BaseModel):
     def create_for_content(cls, content) -> 'Delivery':
         """Snapshot the audience and create per-recipient rows upfront, so
         the send job is idempotent: it only mails rows not yet marked."""
-        subscribers = Subscriber.audience().all()
+        subscribers = Subscriber.audience(content.org_id).all()
         delivery = cls(content_id=content.id, org_id=content.org_id,
                        recipients_total=len(subscribers))
         delivery.stamp_audit()
