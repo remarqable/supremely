@@ -51,12 +51,20 @@
 {%- endif -%}
 {% endmacro %}
 
+{# The initials sit behind the picture, not instead of it. An avatar is
+   served only where its owner is a member, so a post by someone who has
+   since left resolves to nothing, and an empty alt collapses the image to
+   reveal the letter rather than a broken-image icon. #}
 {% macro avatar(name, url=None, size='h-6 w-6', text='text-[10px]') %}
+{%- set circle = size ~ ' ' ~ text ~ ' flex shrink-0 select-none items-center
+    justify-center rounded-full bg-slate-200 font-semibold uppercase
+    text-slate-600' -%}
 {%- if url -%}
-<img src="{{ url }}" alt="" class="{{ size }} shrink-0 rounded-full object-cover ring-1 ring-slate-900/5">
+<span class="{{ circle }} relative overflow-hidden" aria-hidden="true">{{ (name or '?')[:1] }}
+  <img src="{{ url }}" alt=""
+       class="absolute inset-0 h-full w-full rounded-full object-cover ring-1 ring-slate-900/5">
+</span>
 {%- else -%}
-<span class="{{ size }} {{ text }} flex shrink-0 select-none items-center justify-center
-             rounded-full bg-slate-200 font-semibold uppercase text-slate-600"
-      aria-hidden="true">{{ (name or '?')[:1] }}</span>
+<span class="{{ circle }}" aria-hidden="true">{{ (name or '?')[:1] }}</span>
 {%- endif -%}
 {% endmacro %}

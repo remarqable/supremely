@@ -183,15 +183,37 @@ def _set_avatar(user, file) -> None:
         storage().delete(old_key)
 
 
+def _avatar_is_visible(user) -> bool:
+    """Whose picture this host is allowed to show.
+
+    User is not org scoped, so nothing here is filtered for us. Without a
+    check the route served any picture on any host, which leaked the faces
+    of a private community to anyone, and answered 200 or 404 per id, which
+    listed every account on the installation.
+    """
+    # Your own follows you. The top bar renders it on installation pages,
+    # where no organization is resolved at all.
+    if current_user.is_authenticated and current_user.id == user.id:
+        return True
+    org = getattr(g, 'org', None)
+    if org is None:
+        return False
+    return Membership.query.filter_by(org_id=org.id, user_id=user.id,
+                                      is_active=True).first() is not None
+
+
 @bp.route('/avatars/<int:user_id>')
 def avatar(user_id):
     user = db.session.get(User, user_id)
-    if user is None or not user.avatar_key:
+    if user is None or not user.avatar_key or not _avatar_is_visible(user):
         abort(404)
     from app.platform.storage import storage
     if not storage().exists(user.avatar_key):
         abort(404)
+    # Private, not public: the answer now depends on who is asking, so a
+    # shared cache must not hand one visitor's copy to the next.
     response = send_file(storage().open(user.avatar_key),
                          mimetype='image/webp', max_age=86400)
+    response.headers['Cache-Control'] = 'private, max-age=86400'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
