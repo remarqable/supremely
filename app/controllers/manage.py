@@ -439,12 +439,26 @@ def _own_membership(membership_id):
     return membership
 
 
+def _manageable_membership(membership_id):
+    """The target, refused when it holds more than the caller does.
+
+    members.manage belongs to admin as well as owner, and these routes only
+    ever checked what the caller may grant, never what the target already
+    holds. An admin could demote, suspend or remove a founding owner, which
+    the keep-an-owner rule allowed as long as a second owner existed.
+    """
+    membership = _own_membership(membership_id)
+    if grants_more_than(membership.role, g.membership.role):
+        raise ValidationError(t('members.cannot_manage_higher_role'))
+    return membership
+
+
 @bp.route('/members/<int:membership_id>/role', methods=['POST'])
 @org_required
 @require('members.manage')
 def member_role(membership_id):
-    membership = _own_membership(membership_id)
     try:
+        membership = _manageable_membership(membership_id)
         role = _granted_role()
         if (membership.user_id == current_user.id
                 and grants_more_than(role, membership.role)):
@@ -463,8 +477,8 @@ def member_role(membership_id):
 @org_required
 @require('members.manage')
 def member_suspend(membership_id):
-    membership = _own_membership(membership_id)
     try:
+        membership = _manageable_membership(membership_id)
         membership.suspend()
         flash(t('members.suspended'), 'success')
     except ValidationError as e:
@@ -477,8 +491,12 @@ def member_suspend(membership_id):
 @org_required
 @require('members.manage')
 def member_unsuspend(membership_id):
-    _own_membership(membership_id).unsuspend()
-    flash(t('common.saved'), 'success')
+    try:
+        _manageable_membership(membership_id).unsuspend()
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
     return redirect(url_for('manage.members'))
 
 
@@ -486,8 +504,8 @@ def member_unsuspend(membership_id):
 @org_required
 @require('members.manage')
 def member_remove(membership_id):
-    membership = _own_membership(membership_id)
     try:
+        membership = _manageable_membership(membership_id)
         membership.remove()
         flash(t('admin.member_removed'), 'success')
     except ValidationError as e:

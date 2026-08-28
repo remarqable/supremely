@@ -193,6 +193,7 @@
   "members.make_owner": "Make owner",
   "members.ownership_transferred": "Ownership transferred to {name}.",
   "members.cannot_grant_owner": "Only an owner can make someone an owner. Use Transfer ownership instead.",
+  "members.cannot_manage_higher_role": "You cannot change the role of someone with more access than you. Ask an owner.",
   "members.cannot_promote_self": "You cannot give yourself a role with more access than you already have. Ask an owner, or use Transfer ownership.",
   "members.add_existing": "Add existing user by email",
   "members.user_not_found": "No account with email {email}. Send them an invitation link instead.",
