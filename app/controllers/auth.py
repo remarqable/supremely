@@ -16,7 +16,12 @@ from flask import (
 )
 from flask_login import current_user, login_required, login_user, logout_user
 
-from app.middleware.ratelimit import rate_limit
+from app.middleware.ratelimit import (
+    clear_failures,
+    rate_limit,
+    record_failure,
+    too_many_failures,
+)
 from app.models import User
 from app.models.user import verify_credentials
 from app.platform.errors import ValidationError
@@ -72,6 +77,27 @@ def register():
     return render_template('auth/register.html')
 
 
+# Per address limits bound one attacker; this bounds one account being
+# guessed at from anywhere. Both together is what OWASP asks for, and it
+# says to count against the account rather than the caller, since counting
+# the caller is what an attacker escapes by using more of them.
+#
+# A hundred is the ceiling NIST sets on consecutive failures for one
+# account. Anything lower protects a little more and costs a lot more,
+# because a budget is also what someone spends to hold an account shut:
+# nobody reaches a hundred by fumbling, and an attacker must spend all
+# hundred, repeatedly, to keep it shut.
+#
+# The counter is consecutive in the sense that matters. Signing in clears
+# it, so an ordinary bad week never accumulates.
+#
+# Not done here, and worth knowing why: NIST also offers a delay that grows
+# as the budget runs down. A delay holds a worker open, and these are
+# synchronous workers, so a slow refusal is its own denial of service.
+LOGIN_FAILURES = 100
+LOGIN_FAILURE_WINDOW = 900
+
+
 @bp.route('/login', methods=['GET', 'POST'])
 @rate_limit(limit=10, window=60)
 def login():
@@ -84,13 +110,29 @@ def login():
 
         user = User.get_by_email(email)
 
+        # Counted against the address that was typed, whether or not it
+        # names an account. Counting only real ones would say which is
+        # which, which is the oracle the rest of this block avoids.
+        spent = too_many_failures(email, LOGIN_FAILURES, LOGIN_FAILURE_WINDOW)
+
         # One generic failure message, and one fixed cost to produce it:
         # distinguishing "no such user" from "wrong password" by wording or
-        # by the clock is the same oracle.
-        if not verify_credentials(user, password):
-            log.info('login_failed', email=email)
+        # by the clock is the same oracle. The comparison runs even when the
+        # budget is spent, so a refusal costs what an attempt costs.
+        ok = verify_credentials(user, password)
+        if spent or not ok:
+            if not ok:
+                record_failure(email, LOGIN_FAILURE_WINDOW)
+            # Truncated for the same reason the counter key is: the field
+            # is whatever was typed, and a log line is another place it
+            # would otherwise arrive at full size.
+            if spent:
+                log.warning('login_throttled', email=email[:255])
+            log.info('login_failed', email=email[:255])
             flash(t('auth.invalid_credentials'), 'error')
             return render_template('auth/login.html'), 401
+
+        clear_failures(email)
 
         session.clear()                  # regenerate: prevents session fixation
         login_user(user, remember=True)

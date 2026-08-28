@@ -485,6 +485,7 @@
   "setup.admin_username_hint": "Fixed for every installation. Not an email address.",
   "setup.admin_body": "This account manages the installation. It works without any email service.",
   "setup.password_too_short": "Password must be at least {n} characters.",
+  "setup.password_too_common": "That password is one of the most commonly used. Please choose another.",
   "setup.org_title": "First organization",
   "setup.org_body": "An organization is the website or community you operate. You can also create it later from Administration.",
   "setup.create_org": "Create organization",

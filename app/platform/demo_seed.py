@@ -7,8 +7,10 @@ demonstrating seed content itself lives in the provisioner
 (app/platform/defaults.py) and ships to every real install too.
 
 Fixed, guessable credentials (everything is `password`), so this refuses
-to run in production — belt to the suspenders that production runs the
-Docker image, whose entrypoint never invokes make.
+to run in production, belt to the suspenders that production runs the
+Docker image, whose entrypoint never invokes make. The model otherwise
+refuses the passwords guessed first; this asks for the one exemption, and
+that exemption is itself ignored in production, so it cannot travel.
 """
 
 from flask import current_app
@@ -35,14 +37,14 @@ def seed_demo() -> dict:
 
     admin = User.get_by_email(ADMIN_EMAIL) or User.create(
         email=ADMIN_EMAIL, name='Admin', password=PASSWORD,
-        is_platform_admin=True)
+        is_platform_admin=True, allow_common=True)
     mark_installed(current_app)
 
     org = Organization.provision(name='Demo Community', slug='demo',
                                  owner=admin)
 
     member = User.create(email=MEMBER_EMAIL, name='Demo Member',
-                         password=PASSWORD)
+                         password=PASSWORD, allow_common=True)
     member.bio = 'A regular member account for testing the member view.'
     member.save()
     Membership.add(member.id, org.id, role='member')

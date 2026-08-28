@@ -16,6 +16,15 @@ from app.extensions import db
 from app.platform.errors import ValidationError
 
 from .base import BaseModel
+from .common_passwords import COMMON_PASSWORDS
+
+
+def _is_production() -> bool:
+    """True on a real installation. Read here rather than trusted from the
+    caller, so an exemption meant for development cannot be carried into
+    one by a later caller passing the wrong argument."""
+    return current_app.config.get('APP_ENV') == 'production'
+
 
 _ABSENT_USER_HASH = None
 
@@ -116,10 +125,29 @@ class User(BaseModel, UserMixin):
         """
         return bool(self.email) and bool(self.EMAIL_RE.match(self.email))
 
-    def set_password(self, password: str) -> None:
+    def set_password(self, password: str, allow_common: bool = False) -> None:
+        """Set the password, refusing the ones guessed first.
+
+        allow_common exists for the development seed, whose whole purpose
+        is a login someone can type from memory. It is ignored when APP_ENV
+        says production, so there is nothing to gain by reaching for it.
+
+        That is the same value the seed itself checks, so the two are one
+        gate written twice rather than two independent ones. An install
+        that leaves APP_ENV unset has a debug console and cleartext session
+        cookies before it has a weak seed password, so this is not the
+        thing that would go wrong first.
+        """
         if not password or len(password) < self.MIN_PASSWORD_LENGTH:
             raise ValidationError(
                 f'Password must be at least {self.MIN_PASSWORD_LENGTH} characters')
+        # A length rule alone still admits the handful of strings a spraying
+        # attack tries first, and those are exactly what it is aimed at.
+        if password.lower() in COMMON_PASSWORDS and not (
+                allow_common and not _is_production()):
+            raise ValidationError(
+                'That password is one of the most commonly used. '
+                'Please choose another.')
         self.password_hash = generate_password_hash(password)
 
     def session_auth_stamp(self) -> str:
@@ -184,7 +212,8 @@ class User(BaseModel, UserMixin):
 
     @classmethod
     def create(cls, email: str, name: str, password: str,
-               is_platform_admin: bool = False) -> 'User':
+               is_platform_admin: bool = False,
+               allow_common: bool = False) -> 'User':
         user = cls(email=email, name=name, is_platform_admin=is_platform_admin)
-        user.set_password(password)
+        user.set_password(password, allow_common=allow_common)
         return user.save()

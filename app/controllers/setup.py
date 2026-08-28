@@ -32,6 +32,7 @@ from flask_login import login_user
 
 from app.extensions import db
 from app.models import Organization, User
+from app.models.common_passwords import COMMON_PASSWORDS
 from app.platform.config_store import mark_installed, write_runtime_config
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -141,6 +142,11 @@ def admin() -> ResponseReturnValue:
 
         if len(password) < User.MIN_PASSWORD_LENGTH:
             flash(t('setup.password_too_short', n=User.MIN_PASSWORD_LENGTH), 'error')
+        elif password.lower() in COMMON_PASSWORDS:
+            # Judged here rather than at the end of the wizard, where the
+            # refusal would land two steps later as an error page with no
+            # way back to the field.
+            flash(t('setup.password_too_common'), 'error')
         elif password != confirm:
             flash(t('auth.passwords_do_not_match'), 'error')
         else:

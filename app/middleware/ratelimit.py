@@ -93,12 +93,59 @@ def _warn_if_proxied() -> None:
                        'to the number of proxies in front of the app.')
 
 
-def _check_limit(key: str, limit: int, window: int) -> bool:
+def _maybe_sweep(now: float) -> None:
     global _last_sweep
-    now = time.time()
     if len(_rate_limits) > _SWEEP_AT and now - _last_sweep > _SWEEP_EVERY:
         _sweep(now)
         _last_sweep = now
+
+
+# An identity is whatever was typed into a form, and it becomes a dict key
+# held for the length of the window. Werkzeug accepts half a megabyte of
+# form data and the entry cap counts entries rather than their size, so an
+# unbounded key is a way to fill a worker's memory from outside. Nothing
+# longer than an address column can be a real one.
+_MAX_IDENTITY = 255
+
+
+def _failure_key(identity: str) -> str:
+    return f'failure:{identity[:_MAX_IDENTITY]}'
+
+
+def too_many_failures(identity: str, limit: int, window: int) -> bool:
+    """Whether this identity has already spent its budget of failures.
+
+    Counted per identity rather than per address, because the per address
+    limit bounds one attacker and does nothing about the same account being
+    guessed at from many.
+    """
+    data = _rate_limits.get(_failure_key(identity))
+    if data is None:
+        return False
+    count, start, length = data
+    return count >= limit and time.time() - start <= length
+
+
+def record_failure(identity: str, window: int) -> None:
+    now = time.time()
+    _maybe_sweep(now)
+    key = _failure_key(identity)
+    data = _rate_limits.get(key)
+    if data is None or now - data[1] > data[2]:
+        _rate_limits[key] = (1, now, window)
+        return
+    _rate_limits[key] = (data[0] + 1, data[1], data[2])
+
+
+def clear_failures(identity: str) -> None:
+    """Called on success, so an ordinary run of typos costs nothing once
+    the person remembers."""
+    _rate_limits.pop(_failure_key(identity), None)
+
+
+def _check_limit(key: str, limit: int, window: int) -> bool:
+    now = time.time()
+    _maybe_sweep(now)
     data = _rate_limits.get(key)
 
     if data is None:
