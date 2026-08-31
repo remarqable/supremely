@@ -6,7 +6,7 @@
 **Supremely is an open-source, multi-tenant platform for publishing,
 memberships, newsletters, and community — being built in public.**
 
-> **Status:** Supremely is under active development toward v0.1.0.
+> **Status:** Supremely is under active development toward v1.0.0.
 > APIs, schemas, and extension interfaces may change.
 
 ![The Supremely community surface: published content, forum activity, and the
