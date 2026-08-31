@@ -1,7 +1,16 @@
 # Supremely
 
+[![Tests](https://github.com/remarqable/supremely/actions/workflows/test.yml/badge.svg)](https://github.com/remarqable/supremely/actions/workflows/test.yml)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+
 **Supremely is an open-source, multi-tenant platform for publishing,
 memberships, newsletters, and community — being built in public.**
+
+> **Status:** Supremely is under active development toward v0.1.0.
+> APIs, schemas, and extension interfaces may change.
+
+![The Supremely community surface: published content, forum activity, and the
+member rail](docs/images/screenshot.png)
 
 One codebase serves self-hosted installations, third-party SaaS providers,
 and the official hosted service. The tenant is the **Organization**: a
@@ -27,7 +36,7 @@ For local development without Docker:
 ```bash
 make install   # uv sync
 make css       # build Tailwind (downloads the standalone binary once)
-make run       # migrate + dev server on :8000
+make run       # sync dev schema from models, then dev server on :8000
 make test      # pytest
 ```
 
@@ -41,10 +50,6 @@ email), `flask jobs run` (background worker), `flask setup reset`
 - [Themes](docs/themes/README.md) — the theme designer's reference.
 - [Building a theme](docs/themes/building-a-theme.md) — a start-to-finish tutorial (ships with the Trailhead example theme).
 
-We are starting with the problem, the principles, and the roadmap — and letting the product emerge through shipping, learning, and iteration.
-
-This repository is intentionally young. Expect change.
-
 ## Build in public
 
 Supremely is being developed AI-first. AI may generate essentially all implementation code, but humans remain accountable for architecture, security, testing, review, product decisions, and what ultimately ships.
@@ -52,6 +57,8 @@ Supremely is being developed AI-first. AI may generate essentially all implement
 We do not treat AI-generated code as inherently good or bad. Code earns its place by meeting the project's standards.
 
 The history of the project may include experiments, reversals, ugly intermediate states, and changed assumptions. That is part of building software.
+
+We are starting with the problem, the principles, and the roadmap — and letting the product emerge through shipping, learning, and iteration.
 
 ## Project principles
 
@@ -66,9 +73,7 @@ The history of the project may include experiments, reversals, ugly intermediate
 
 See [MANIFESTO.md](MANIFESTO.md) and [docs/ENGINEERING.md](docs/ENGINEERING.md).
 
-## Status
-
-Supremely is pre-v0.1 and under active development.
+## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -88,3 +93,7 @@ See [LICENSE](LICENSE).
 
 - Website: https://getsupremely.com
 - Organization: https://supremely.org
+
+---
+
+Built and maintained by the [Remarqable team](docs/TEAM.md).
