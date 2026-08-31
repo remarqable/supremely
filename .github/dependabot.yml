@@ -1,16 +1,10 @@
-# Dependabot version updates: routine bumps on a schedule.
-#
-# The two security features are repository settings rather than configuration
-# and are enabled separately: alerts, which raise a published advisory against
-# uv.lock, and security updates, which open a pull request only when there is
-# an alert to fix. Neither is controlled by this file.
+# Version updates only. Alerts and security updates are repository settings,
+# enabled separately, and not controlled by this file.
 version: 2
 
 updates:
-  # Python dependencies. The constraints in pyproject.toml are mostly open, so
-  # the versions that actually pin this project live in uv.lock, and that is
-  # the file these pull requests change. ruff is pinned exactly on purpose, so
-  # a new release cannot fail an unrelated pull request, and stays put.
+  # Constraints in pyproject.toml are mostly open, so uv.lock is what these
+  # pull requests mostly change.
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
@@ -18,13 +12,11 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
     groups:
-      # One pull request a week rather than one per package. Thirty-odd
-      # packages on separate branches is a review queue nobody reads.
+      # One pull request a week rather than one per package.
       python:
         patterns: ["*"]
 
-  # The workflow's own actions. Nothing else watches these, so without this
-  # they sit on whatever major version they were written against.
+  # The workflow's own actions. Nothing else watches these.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

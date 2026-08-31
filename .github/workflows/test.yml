@@ -1,6 +1,23 @@
 name: Tests
 
-on: [push, pull_request]
+# Push is limited to main and tags: a branch with a pull request open would
+# otherwise match both events and run everything twice.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+# Least privilege: these jobs only check out code and run it, so none needs the
+# write token the repository hands out by default.
+permissions:
+  contents: read
+
+# Drop superseded pull request runs. Not on main or a tag, where the run is the
+# record that a commit was green.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   test:
@@ -71,13 +88,9 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Warns rather than fails. A dependency publishing an advisory overnight
-      # should not turn an unrelated pull request red, and a red build nobody
-      # caused is a build people learn to ignore. Findings go to the run
-      # summary; Dependabot alerts are the durable record.
-      #
-      # Audits the locked versions, dev tools included: they do not ship, but
-      # they run here on every push, so an advisory against one still matters.
+      # Warns rather than fails: an advisory published overnight should not turn
+      # an unrelated pull request red. Dev tools are audited too, since they run
+      # here even though they never ship.
       - name: Audit locked dependencies
         run: |
           uv export --frozen --no-emit-project --format requirements-txt \
