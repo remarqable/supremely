@@ -28,6 +28,11 @@ class InstallationSetting(BaseModel):
         return value.strip().lower() in ('true', '1', 'yes', 'on')
 
     @classmethod
+    def organization_signups_enabled(cls) -> bool:
+        """May a signed-in user create an organization of their own?"""
+        return cls.get_bool('installation.allow_organization_signups', False)
+
+    @classmethod
     def set(cls, key: str, value: str) -> 'InstallationSetting':
         setting = cls.query.filter_by(key=key).first()
         if setting:

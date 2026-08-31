@@ -19,13 +19,12 @@ from flask import (
     send_file,
     send_from_directory,
 )
-from flask_login import current_user
 
 from app.extensions import db
 from app.models import Content, Upload
 from app.models.content import Category
 from app.models.upload import VARIANTS
-from app.platform.authz import is_org_member, org_required
+from app.platform.authz import is_member_or_platform_admin, org_required
 from app.platform.content_types import type_for_base
 from app.platform.theming import (
     AVAILABLE_THEMES,
@@ -58,9 +57,7 @@ def render_org_home():
 
 
 def _visible(query):
-    if (g.org.teases_gated_content() or is_org_member()
-            or (current_user.is_authenticated
-                and current_user.is_platform_admin)):
+    if g.org.teases_gated_content() or is_member_or_platform_admin():
         return query
     return query.filter_by(visibility='public')
 
@@ -175,14 +172,10 @@ def serve_upload(upload_id, variant):
     # @org_required ensures g.org is set, so the tenant filter scopes this
     # lookup. Without it, the bare installation host (g.org is None) would
     # serve ANY tenant's upload by id.
-    upload = db.session.get(Upload, upload_id)
-    if upload is None:
-        abort(404)
+    upload = db.get_or_404(Upload, upload_id)
     if variant not in VARIANTS and variant != 'original':
         abort(404)
-    if upload.visibility != 'public' and not (
-            is_org_member()
-            or (current_user.is_authenticated and current_user.is_platform_admin)):
+    if upload.visibility != 'public' and not is_member_or_platform_admin():
         abort(404)
 
     from app.platform.storage import storage

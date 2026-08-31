@@ -11,7 +11,7 @@ from app.platform.errors import ValidationError
 
 from .base import AuditMixin, BaseModel, OrgScoped, utcnow
 from .membership import ROLES
-from .types import TZDateTime
+from .types import BigIntFK, TZDateTime
 
 
 def _hash_token(token: str) -> str:
@@ -26,7 +26,7 @@ class Invitation(OrgScoped, AuditMixin, BaseModel):
     token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
     expires_at = db.Column(TZDateTime, nullable=False)
     accepted_at = db.Column(TZDateTime, nullable=True)
-    accepted_by_id = db.Column(db.BigInteger().with_variant(db.Integer, 'sqlite'),
+    accepted_by_id = db.Column(BigIntFK,
                                db.ForeignKey('user.id', ondelete='SET NULL'),
                                nullable=True)
 

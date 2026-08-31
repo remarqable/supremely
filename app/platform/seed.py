@@ -168,7 +168,6 @@ def seed_getsupremely_org():
     # Everything below runs as if on the org's host.
     from flask import current_app
 
-    from app import create_app  # noqa: F401  (context helper below)
     with current_app.test_request_context():
         g.org = org
         g.membership = owner_membership

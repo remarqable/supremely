@@ -69,10 +69,7 @@ def _own_content_id(content_id):
 
 
 def _content_or_404(content_id) -> Content:
-    content = db.session.get(Content, content_id)
-    if content is None:
-        abort(404)
-    return content
+    return db.get_or_404(Content, content_id)
 
 
 def _active_content_or_404(content_id) -> Content:
@@ -296,9 +293,7 @@ def categories():
 @org_required
 @require('content.write')
 def delete_category(category_id):
-    category = db.session.get(Category, category_id)
-    if category is None:
-        abort(404)
+    category = db.get_or_404(Category, category_id)
     category.delete()
     return redirect(url_for('manage.categories'))
 
@@ -362,9 +357,7 @@ def navigation_suggested_columns():
 @org_required
 @require('content.write')
 def move_navigation(item_id):
-    item = db.session.get(NavigationItem, item_id)
-    if item is None:
-        abort(404)
+    item = db.get_or_404(NavigationItem, item_id)
     item.move(-1 if request.form.get('direction') == 'up' else 1)
     return redirect(url_for('manage.navigation'))
 
@@ -373,9 +366,7 @@ def move_navigation(item_id):
 @org_required
 @require('content.write')
 def delete_navigation(item_id):
-    item = db.session.get(NavigationItem, item_id)
-    if item is None:
-        abort(404)
+    item = db.get_or_404(NavigationItem, item_id)
     item.delete()
     return redirect(url_for('manage.navigation'))
 
@@ -559,9 +550,7 @@ def create_invitation():
 @require('members.manage')
 def revoke_invitation(invitation_id):
     from app.models.invitation import Invitation
-    invitation = db.session.get(Invitation, invitation_id)
-    if invitation is None:
-        abort(404)
+    invitation = db.get_or_404(Invitation, invitation_id)
     invitation.delete()
     flash(t('members.invite_revoked'), 'success')
     return redirect(url_for('manage.members'))
@@ -618,9 +607,7 @@ def _upload_visibility(current: str = 'public') -> str:
 @org_required
 @require('content.write')
 def media_visibility(upload_id):
-    upload = db.session.get(Upload, upload_id)
-    if upload is None:
-        abort(404)
+    upload = db.get_or_404(Upload, upload_id)
     upload.visibility = _upload_visibility(upload.visibility)
     upload.stamp_audit()
     upload.save()
@@ -632,9 +619,7 @@ def media_visibility(upload_id):
 @org_required
 @require('content.write')
 def delete_media(upload_id):
-    upload = db.session.get(Upload, upload_id)
-    if upload is None:
-        abort(404)
+    upload = db.get_or_404(Upload, upload_id)
     settings = g.org.settings or {}
     updates = {key: None for key in ('logo_upload_id', 'favicon_upload_id')
                if settings.get(key) == upload.id}
@@ -792,9 +777,7 @@ def add_subscriber():
 @require('content.write')
 def remove_subscriber(subscriber_id):
     from app.models.newsletter import Subscriber
-    subscriber = db.session.get(Subscriber, subscriber_id)
-    if subscriber is None:
-        abort(404)
+    subscriber = db.get_or_404(Subscriber, subscriber_id)
     subscriber.delete()
     flash(t('newsletter.subscriber_removed'), 'success')
     return redirect(url_for('manage.newsletter'))
@@ -852,7 +835,7 @@ def discussions():
         except ValidationError as e:
             flash(e.message, 'error')
         return redirect(url_for('manage.discussions'))
-    groups = DiscussionGroup.query.order_by(DiscussionGroup.position, DiscussionGroup.name).all()
+    groups = DiscussionGroup.in_order()
     return render_template('manage/discussions.html', groups=groups)
 
 
@@ -862,9 +845,7 @@ def discussions():
 def toggle_group_visibility(group_id):
     """Lock/unlock one group (flips public <-> members)."""
     from app.models.discussion import DiscussionGroup
-    group = db.session.get(DiscussionGroup, group_id)
-    if group is None:
-        abort(404)
+    group = db.get_or_404(DiscussionGroup, group_id)
     group.visibility = ('public' if group.visibility == 'members'
                         else 'members')
     # A flag flip on a row this request is not otherwise editing: a
@@ -879,9 +860,7 @@ def toggle_group_visibility(group_id):
 @require('content.moderate')
 def delete_group(group_id):
     from app.models.discussion import DiscussionGroup
-    group = db.session.get(DiscussionGroup, group_id)
-    if group is None:
-        abort(404)
+    group = db.get_or_404(DiscussionGroup, group_id)
     group.delete()
     flash(t('manage.group_deleted'), 'success')
     return redirect(url_for('manage.discussions'))
@@ -902,9 +881,7 @@ def flags():
 @require('content.moderate')
 def resolve_flag(flag_id):
     from app.models.discussion import Flag
-    flag = db.session.get(Flag, flag_id)
-    if flag is None:
-        abort(404)
+    flag = db.get_or_404(Flag, flag_id)
     flag.resolve()
     flash(t('common.saved'), 'success')
     return redirect(url_for('manage.flags'))

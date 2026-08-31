@@ -130,6 +130,15 @@ class OrgScoped:
                          nullable=False, index=True)
 
 
+class MarkdownBody:
+    """Mixin: renders this row's `body` column as sanitized markdown."""
+
+    @property
+    def html(self) -> str:
+        from app.platform.content import render_markdown
+        return render_markdown(self.body)
+
+
 class AuditMixin:
     """Track who created and last updated a record (audit_logging: true)."""
 
@@ -150,6 +159,10 @@ class AuditMixin:
     @declared_attr
     def updated_by(cls):
         return db.relationship('User', foreign_keys=[cls.updated_by_id], lazy='select')
+
+    @property
+    def author(self):
+        return self.created_by
 
     def stamp_audit(self):
         """Set audit fields from the current user, if any."""

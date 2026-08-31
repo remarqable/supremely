@@ -8,8 +8,8 @@ public dispatcher re-matches the URL against the tenant's pinned version.
 Plugins are trusted first-party code. This is not a sandbox.
 """
 
-import contextlib
 import importlib
+import importlib.util
 import pkgutil
 from graphlib import TopologicalSorter
 from pathlib import Path
@@ -102,7 +102,10 @@ def load_plugins(app) -> None:
 
             # Import models for EVERY version, installed or not: migrations
             # are global and Alembic must see every table.
-            with contextlib.suppress(ModuleNotFoundError):
+            # find_spec, not suppress(ModuleNotFoundError): suppressing also
+            # swallows a bad import INSIDE models, which silently leaves the
+            # plugin's tables off db.metadata and out of every migration.
+            if importlib.util.find_spec(f'plugins.{slug}.v{major}.models'):
                 importlib.import_module(f'plugins.{slug}.v{major}.models')
 
             plugin = module.plugin
@@ -124,6 +127,13 @@ def load_plugins(app) -> None:
                     raise RuntimeError(
                         f'Content type {content_type.slug} already owned by '
                         f'{existing.plugin or "core"}')
+                elif existing != content_type:
+                    # Two majors of one plugin defining the same slug
+                    # differently: the first registered would win silently and
+                    # a pinned tenant would get the other one's fields.
+                    raise RuntimeError(
+                        f'{slug} majors disagree about content type '
+                        f'{content_type.slug}')
 
             lang_dir = Path(module.__path__[0]) / 'lang'
             if lang_dir.exists():

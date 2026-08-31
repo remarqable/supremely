@@ -21,7 +21,8 @@ NAMING_CONVENTION = {
 db = SQLAlchemy(metadata=sa.MetaData(naming_convention=NAMING_CONVENTION))
 # render_as_batch: required for ALTER support on SQLite. compare_type: detect
 # column type changes. See blueprint/patterns/core/portability.md.
-migrate = Migrate(render_as_batch=True, compare_type=True)
+migrate = Migrate(render_as_batch=True, compare_type=True,
+                  compare_server_default=True)
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message_category = 'warning'

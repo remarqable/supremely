@@ -23,7 +23,7 @@ from app.middleware.ratelimit import rate_limit
 from app.models import Membership, User
 from app.models.invitation import Invitation
 from app.models.upload import open_bounded, sniff
-from app.platform.authz import is_org_member, org_required
+from app.platform.authz import is_member_or_platform_admin, org_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -101,8 +101,7 @@ def signup_via_invite(token):
 def directory():
     if not g.org.setting('member_directory'):
         abort(404)
-    if not (is_org_member() or (current_user.is_authenticated
-                                and current_user.is_platform_admin)):
+    if not is_member_or_platform_admin():
         # Member data stays members-only; the gate explains instead of 404ing.
         from app.platform.i18n import t
         from app.platform.theming import render_gate

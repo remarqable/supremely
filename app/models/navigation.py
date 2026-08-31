@@ -95,10 +95,6 @@ class NavigationItem(OrgScoped, BaseModel):
                 .order_by(cls.position, cls.id).all())
 
     @classmethod
-    def top_level_for(cls, menu: str):
-        return cls.items_for(menu)
-
-    @classmethod
     def create_suggested_footer_column(cls):
         """Create the starter footer column for the current org. No-op when
         any column already exists, so the Manage button can't duplicate."""

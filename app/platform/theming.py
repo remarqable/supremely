@@ -92,6 +92,9 @@ def scan_themes() -> None:
                     # THEME_CAPABILITY_DEFAULTS). Manage uses this to warn
                     # when an edit won't be visible on the site.
                     'capabilities': manifest.get('capabilities', {}) or {},
+                    # Whitelisted brand tokens a theme may tint the app-owned
+                    # community shell with (community_tokens()).
+                    'community_tokens': manifest.get('community_tokens', {}) or {},
                 }
             except (json.JSONDecodeError, OSError) as e:
                 log.error('theme_manifest_invalid', path=str(manifest_path),
@@ -138,7 +141,7 @@ def theme_config() -> dict:
     return values
 
 
-_COLOR_RE = re.compile(r'#[0-9a-fA-F]{6}')
+HEX_COLOR_RE = re.compile(r'#[0-9a-fA-F]{6}')
 
 
 def clean_theme_config(theme: str, submitted: dict) -> dict:
@@ -158,7 +161,7 @@ def clean_theme_config(theme: str, submitted: dict) -> dict:
         kind = spec.get('type', 'string')
         label = spec.get('label', key)
         if kind == 'color':
-            if not _COLOR_RE.fullmatch(raw):
+            if not HEX_COLOR_RE.fullmatch(raw):
                 raise ValidationError(f'{label} must be a #RRGGBB colour')
         elif kind == 'number':
             if not re.fullmatch(r'-?\d+(\.\d+)?', raw):
@@ -175,7 +178,6 @@ def clean_theme_config(theme: str, submitted: dict) -> dict:
 # <style> block, so anything but #RRGGBB is discarded (CSS injection guard,
 # same rationale as Organization.validate).
 COMMUNITY_TOKEN_KEYS = ('brand-500', 'brand-600', 'brand-700')
-_HEX_RE = re.compile(r'#[0-9a-fA-F]{6}')
 
 
 def community_tokens() -> dict:
@@ -186,7 +188,7 @@ def community_tokens() -> dict:
         return {}
     return {key: value for key, value in declared.items()
             if key in COMMUNITY_TOKEN_KEYS
-            and isinstance(value, str) and _HEX_RE.fullmatch(value)}
+            and isinstance(value, str) and HEX_COLOR_RE.fullmatch(value)}
 
 
 # --- Presentation contexts ----------------------------------------------------
@@ -258,11 +260,12 @@ def render_site(candidates: list[str], context_name: str = 'publication',
         names.append(candidate)        # core partials and plugin templates
     names = list(dict.fromkeys(names))
     context.setdefault('theme_settings', theme_config())
-    if shell:
-        context.setdefault('site_layout', 'layouts/community.html')
     # Site templates extend {{ site_layout }} so a theme's layout override
     # applies even to pages the theme does not override itself.
-    context.setdefault('site_layout', themed('layout.html'))
+    if shell:
+        context.setdefault('site_layout', 'layouts/community.html')
+    else:
+        context.setdefault('site_layout', themed('layout.html'))
     return render_template(names, **context)
 
 

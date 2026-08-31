@@ -40,8 +40,7 @@ def _safe_next(default: str) -> str:
 
 def _signups_enabled() -> bool:
     from app.models import InstallationSetting
-    return InstallationSetting.get_bool(
-        'installation.allow_organization_signups', False)
+    return InstallationSetting.organization_signups_enabled()
 
 
 @bp.route('/register', methods=['GET', 'POST'])

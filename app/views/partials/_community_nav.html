@@ -48,7 +48,7 @@
 {% macro community_nav(active='') %}
 {# The shell serves visitors too: member-only rows swap for public
    equivalents or carry a lock (tease-don't-hide). #}
-{% set member_view = is_org_member() or (current_user.is_authenticated and current_user.is_platform_admin) %}
+{% set member_view = is_member_or_platform_admin() %}
 <aside class="shrink-0 border-b border-slate-200/70 bg-white px-3.5 py-5 lg:min-h-[calc(100vh-3.5rem)] lg:w-60 lg:border-b-0 lg:border-e">
   <div class="lg:sticky lg:top-6">
     <nav aria-label="{{ _('community.nav') }}">

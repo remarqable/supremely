@@ -3,6 +3,7 @@
 import pytest
 from flask import g
 
+from app.extensions import db
 from app.models import DiscussionGroup, Post
 from app.platform.community_seed import (
     DEFAULT_SEED,
@@ -82,7 +83,7 @@ def test_seeded_posts_are_ordinary_posts(app, client, acme, user):
     assert response.status_code == 302
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        assert Post.query.get(post_id) is None
+        assert db.session.get(Post, post_id) is None
 
 
 # --- Overlay resolver ----------------------------------------------------------

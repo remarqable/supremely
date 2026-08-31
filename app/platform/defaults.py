@@ -228,6 +228,8 @@ def seed_community_forum(session, org, owner_id=None, vertical=None) -> None:
     from app.models.discussion import DiscussionGroup, Post
     from app.platform.community_seed import resolve_seed
 
+    # Provisioning runs with no tenant resolved, so the global filter does not
+    # apply and this filter is what keeps the read to the org being seeded.
     existing = {group.slug for group in
                 DiscussionGroup.query.filter_by(org_id=org.id).all()}
     for group_spec in resolve_seed(vertical)['groups']:

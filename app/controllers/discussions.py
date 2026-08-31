@@ -44,8 +44,7 @@ def _all_groups():
     """Every group, in listing order. Gated groups are teased, not hidden:
     listings show name/description/count with a lock, but post queries must
     stay restricted to readable groups (titles are gated content)."""
-    return DiscussionGroup.query.order_by(DiscussionGroup.position,
-                                          DiscussionGroup.name).all()
+    return DiscussionGroup.in_order()
 
 
 def _group_or_404(slug) -> DiscussionGroup:
@@ -245,9 +244,7 @@ def edit_post(slug, post_id):
 @org_required
 @login_required
 def edit_reply(reply_id):
-    reply = db.session.get(Reply, reply_id)
-    if reply is None:
-        abort(404)
+    reply = db.get_or_404(Reply, reply_id)
     if not reply.can_edit():
         abort(403)
     reply.body = request.form.get('body', reply.body)
@@ -278,9 +275,7 @@ def delete_post(slug, post_id):
 @org_required
 @login_required
 def delete_reply(reply_id):
-    reply = db.session.get(Reply, reply_id)
-    if reply is None:
-        abort(404)
+    reply = db.get_or_404(Reply, reply_id)
     if not reply.can_edit():
         abort(403)
     post = reply.post
@@ -330,9 +325,7 @@ def hide_post(slug, post_id):
 @org_required
 @require('content.moderate')
 def hide_reply(reply_id):
-    reply = db.session.get(Reply, reply_id)
-    if reply is None:
-        abort(404)
+    reply = db.get_or_404(Reply, reply_id)
     reply.is_hidden = not reply.is_hidden
     reply.save_flag()
     if reply.is_hidden:

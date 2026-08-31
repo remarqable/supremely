@@ -114,7 +114,9 @@ def _sanitize_raster(data: bytes, content_type: str) -> bytes:
     return out.getvalue()
 
 
-CONTROL_CHARS = re.compile(r'[\x00-\x1f\x7f]')
+# Stricter than base.CONTROL_CHARS: a filename lands in a Content-Disposition
+# header, so tabs go too.
+FILENAME_CONTROL_CHARS = re.compile(r'[\x00-\x1f\x7f]')
 
 
 def safe_filename(name: str | None) -> str:
@@ -124,7 +126,7 @@ def safe_filename(name: str | None) -> str:
     so one poisoned name turns every later request for that file into a
     server error. Multipart parsing lets an encoded one through.
     """
-    return CONTROL_CHARS.sub('', (name or 'upload').strip())[:255] or 'upload'
+    return FILENAME_CONTROL_CHARS.sub('', (name or 'upload').strip())[:255] or 'upload'
 
 
 def sniff(head: bytes) -> tuple[str, str] | None:

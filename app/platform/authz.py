@@ -47,6 +47,14 @@ def is_org_member() -> bool:
     return getattr(g, 'membership', None) is not None
 
 
+def is_member_or_platform_admin() -> bool:
+    """Sees this organization from the inside: an active member, or a
+    platform admin. Spelled out at fifteen callsites before this existed,
+    which is fourteen chances for one copy to drift."""
+    return is_org_member() or (current_user.is_authenticated
+                               and current_user.is_platform_admin)
+
+
 def can_view(obj) -> bool:
     """Can the current visitor see this object? The single vocabulary for
     read access — delegates to the object's own policy. Rendering happens

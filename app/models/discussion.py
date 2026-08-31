@@ -18,6 +18,7 @@ from app.platform.errors import ValidationError
 from .base import (
     AuditMixin,
     BaseModel,
+    MarkdownBody,
     OrgScoped,
     reject_control_characters,
     scoped_to_own_org,
@@ -86,21 +87,24 @@ class DiscussionGroup(OrgScoped, BaseModel):
         """Can the current visitor see the discussions area at all? False
         only when the org gated the whole area and the visitor is neither a
         member nor a platform admin."""
-        from app.platform.authz import is_org_member
-        if is_org_member() or (current_user.is_authenticated
-                               and current_user.is_platform_admin):
+        from app.platform.authz import is_member_or_platform_admin
+        if is_member_or_platform_admin():
             return True
         return cls.area_visibility() != 'members'
 
     def readable_by_current_visitor(self) -> bool:
-        from app.platform.authz import is_org_member
-        if is_org_member() or (current_user.is_authenticated
-                               and current_user.is_platform_admin):
+        from app.platform.authz import is_member_or_platform_admin
+        if is_member_or_platform_admin():
             return True
         area = self.area_visibility()
         if area != 'per_group':
             return area == 'public'
         return self.visibility == 'public'
+
+    @classmethod
+    def in_order(cls):
+        """Every group for this tenant, in display order."""
+        return cls.query.order_by(cls.position, cls.name).all()
 
     @classmethod
     def get_by_slug(cls, slug: str):
@@ -111,7 +115,17 @@ class DiscussionGroup(OrgScoped, BaseModel):
                                      is_hidden=False).count()
 
 
-class Post(OrgScoped, AuditMixin, BaseModel):
+class OwnerEditable:
+    """Mixin: the author may edit their own, a moderator may edit anyone's."""
+
+    def can_edit(self) -> bool:
+        from app.platform.authz import can
+        return can('content.moderate') or (
+            current_user.is_authenticated
+            and self.created_by_id == current_user.id)
+
+
+class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
     __tablename__ = 'discussion_post'
 
     group_id = db.Column(BigIntFK,
@@ -152,23 +166,8 @@ class Post(OrgScoped, AuditMixin, BaseModel):
             raise ValidationError(f'Body too long (max {BODY_MAX} chars)')
 
     @property
-    def html(self) -> str:
-        from app.platform.content import render_markdown
-        return render_markdown(self.body)
-
-    @property
-    def author(self):
-        return self.created_by
-
-    @property
     def url(self) -> str:
         return f'/discussions/{self.group.slug}/{self.id}'
-
-    def can_edit(self) -> bool:
-        from app.platform.authz import can
-        return can('content.moderate') or (
-            current_user.is_authenticated
-            and self.created_by_id == current_user.id)
 
     def touch(self):
         self.last_activity_at = utcnow()
@@ -180,7 +179,7 @@ class Post(OrgScoped, AuditMixin, BaseModel):
         return self
 
 
-class Reply(OrgScoped, AuditMixin, BaseModel):
+class Reply(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
     __tablename__ = 'discussion_reply'
 
     post_id = db.Column(BigIntFK,
@@ -210,21 +209,6 @@ class Reply(OrgScoped, AuditMixin, BaseModel):
                 raise ValidationError('Invalid parent reply')
             if parent.parent_id is not None:
                 raise ValidationError('Replies nest one level only')
-
-    @property
-    def html(self) -> str:
-        from app.platform.content import render_markdown
-        return render_markdown(self.body)
-
-    @property
-    def author(self):
-        return self.created_by
-
-    def can_edit(self) -> bool:
-        from app.platform.authz import can
-        return can('content.moderate') or (
-            current_user.is_authenticated
-            and self.created_by_id == current_user.id)
 
 
 REACTION_EMOJI = ('👍', '❤️', '🎉')

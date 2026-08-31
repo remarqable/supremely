@@ -8,7 +8,7 @@ from flask import Blueprint, abort, flash, g, redirect, request
 
 from app.middleware.ratelimit import rate_limit
 from app.models.newsletter import Subscriber
-from app.platform.authz import org_required
+from app.platform.authz import is_member_or_platform_admin, org_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -25,14 +25,12 @@ def archive():
     """Past issues, for members: sent deliveries whose post is still
     published. Visitors get the gate (tease-don't-hide), not a 404."""
     from flask import render_template
-    from flask_login import current_user
 
     from app.models import Content
     from app.models.newsletter import Delivery
     from app.platform.i18n import t
     from app.platform.theming import render_gate
-    if g.membership is None and not (current_user.is_authenticated
-                                     and current_user.is_platform_admin):
+    if not is_member_or_platform_admin():
         return render_gate(t('newsletters.archive_title'))
     issues = (Delivery.query.filter_by(status='done')
               .join(Delivery.content)

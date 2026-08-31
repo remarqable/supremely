@@ -3,6 +3,8 @@
 See blueprint/patterns/core/portability.md.
 """
 
+import datetime as dt
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -29,7 +31,6 @@ class TZDateTime(sa.TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
-        import datetime as dt
         if value is None:
             return None
         if value.tzinfo is not None and dialect.name == 'sqlite':
@@ -37,7 +38,6 @@ class TZDateTime(sa.TypeDecorator):
         return value
 
     def process_result_value(self, value, dialect):
-        import datetime as dt
         if value is not None and value.tzinfo is None:
             return value.replace(tzinfo=dt.UTC)
         return value

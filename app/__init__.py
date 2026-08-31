@@ -145,7 +145,12 @@ def _init_setup_gate(app):
 
 def _init_context(app):
     from .models import InstallationSetting
-    from .platform.authz import can, can_view, is_org_member
+    from .platform.authz import (
+        can,
+        can_view,
+        is_member_or_platform_admin,
+        is_org_member,
+    )
     from .platform.redirects import current_target
 
     @app.context_processor
@@ -181,9 +186,7 @@ def _init_context(app):
         def _member_view():
             """The shell serves visitors too; rail cards must not leak
             gated content or member data to them."""
-            from flask_login import current_user
-            return is_org_member() or (current_user.is_authenticated
-                                       and current_user.is_platform_admin)
+            return is_member_or_platform_admin()
 
         def latest_announcement():
             """Newest announcement the current viewer may read, for the
@@ -247,6 +250,7 @@ def _init_context(app):
             'current_target': current_target,
             'can_view': can_view,
             'is_org_member': is_org_member,
+            'is_member_or_platform_admin': is_member_or_platform_admin,
             'app_version': APP_VERSION,
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,

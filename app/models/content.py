@@ -19,6 +19,7 @@ from .base import (
     LIKE_ESCAPE,
     AuditMixin,
     BaseModel,
+    MarkdownBody,
     OrgScoped,
     escape_like,
     reject_control_characters,
@@ -77,7 +78,7 @@ RESERVED_PAGE_SLUGS = {
 }
 
 
-class Content(OrgScoped, AuditMixin, BaseModel):
+class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     __tablename__ = 'content'
 
     type = db.Column(db.String(50), nullable=False, default='article')
@@ -187,11 +188,6 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         return get_content_type(self.type)
 
     @property
-    def html(self) -> str:
-        from app.platform.content import render_markdown
-        return render_markdown(self.body)
-
-    @property
     def is_published(self) -> bool:
         return self.status == 'published'
 
@@ -201,10 +197,6 @@ class Content(OrgScoped, AuditMixin, BaseModel):
         if ct.is_page:
             return f'/{self.slug}'
         return f'{ct.base}/{self.slug}'
-
-    @property
-    def author(self):
-        return self.created_by
 
     def excerpt_or_summary(self, length: int = 200) -> str:
         if self.excerpt:
@@ -246,11 +238,8 @@ class Content(OrgScoped, AuditMixin, BaseModel):
 
     @classmethod
     def section_readable_by_current_visitor(cls, type_slug: str) -> bool:
-        from flask_login import current_user
-
-        from app.platform.authz import is_org_member
-        if is_org_member() or (current_user.is_authenticated
-                               and current_user.is_platform_admin):
+        from app.platform.authz import is_member_or_platform_admin
+        if is_member_or_platform_admin():
             return True
         return cls.section_visibility(type_slug) == 'public'
 
@@ -261,11 +250,8 @@ class Content(OrgScoped, AuditMixin, BaseModel):
             return False
         if self.visibility == 'public':
             return True
-        from flask_login import current_user
-
-        from app.platform.authz import is_org_member
-        return is_org_member() or (
-            current_user.is_authenticated and current_user.is_platform_admin)
+        from app.platform.authz import is_member_or_platform_admin
+        return is_member_or_platform_admin()
 
     # --- queries -----------------------------------------------------------
 

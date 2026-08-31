@@ -13,7 +13,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from app.models import InstallationSetting, Organization
-from app.platform.authz import org_required
+from app.platform.authz import is_member_or_platform_admin, org_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -25,7 +25,7 @@ log = get_logger()
 
 
 def signups_enabled() -> bool:
-    return InstallationSetting.get_bool('installation.allow_organization_signups', False)
+    return InstallationSetting.organization_signups_enabled()
 
 
 def user_may_create_org() -> bool:
@@ -118,13 +118,12 @@ def dashboard():
     """Community home: where members land inside the organization. The right
     rail (announcement, members, event) rides the shell layout and feeds
     itself through template helpers."""
-    if g.membership is None and not current_user.is_platform_admin:
+    if not is_member_or_platform_admin():
         abort(404)
     from app.models.discussion import DiscussionGroup
 
     groups = [group for group in
-              DiscussionGroup.query.order_by(DiscussionGroup.position,
-                                             DiscussionGroup.name).all()
+              DiscussionGroup.in_order()
               if group.readable_by_current_visitor()]
 
     return render_template('orgs/dashboard.html', org=g.org, groups=groups,
