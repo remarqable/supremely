@@ -60,3 +60,40 @@ jobs:
 
       - name: Ruff
         run: uv run ruff check --output-format=github .
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+
+      # Warns rather than fails. A dependency publishing an advisory overnight
+      # should not turn an unrelated pull request red, and a red build nobody
+      # caused is a build people learn to ignore. Findings go to the run
+      # summary; Dependabot alerts are the durable record.
+      #
+      # Audits the locked versions, dev tools included: they do not ship, but
+      # they run here on every push, so an advisory against one still matters.
+      - name: Audit locked dependencies
+        run: |
+          uv export --frozen --no-emit-project --format requirements-txt \
+            > /tmp/requirements.txt
+          uvx pip-audit -r /tmp/requirements.txt --format markdown \
+            > /tmp/audit.md 2>&1 || true
+          cat /tmp/audit.md
+          {
+            echo "## Dependency audit"
+            echo
+            if grep -q 'No known vulnerabilities found' /tmp/audit.md; then
+              echo 'No known vulnerabilities in the locked dependencies.'
+            else
+              echo 'pip-audit reported findings. This step warns and does not'
+              echo 'fail the build. Fixes land by updating uv.lock.'
+              echo
+              cat /tmp/audit.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

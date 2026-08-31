@@ -14,6 +14,14 @@ Include enough information to reproduce and evaluate the issue, but do not inclu
 
 Supremely is currently pre-v1.0.0. Until stable releases exist, security fixes will generally target the current development version.
 
+## Dependency alerts
+
+Dependabot alerts are enabled, so a published advisory against anything in `uv.lock` is raised automatically, and Dependabot opens a pull request when it can fix one. Routine version bumps arrive as one grouped pull request a week.
+
+CI also runs `pip-audit` against the locked versions on every push and pull request. It reports findings on the run summary and deliberately does not fail the build: an advisory published overnight should not block unrelated work, and a red build nobody caused is a build people stop reading.
+
+An alert is triaged by whether the vulnerable code path is actually reachable from Supremely, not by severity score alone. Fixes are applied through `uv` so that `uv.lock` and `pyproject.toml` stay in step.
+
 ## AI-generated code
 
 Supremely uses AI extensively during development. AI-generated code receives no exemption from normal security expectations. Generated dependencies, authentication logic, data handling, permissions, cryptography, and external integrations require appropriate human review and testing before release.
