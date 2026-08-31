@@ -46,6 +46,7 @@ email), `flask jobs run` (background worker), `flask setup reset`
 
 ## Documentation
 
+- [Deployment](docs/deployment/README.md) — running Supremely on your own server: the one-command installer, or Docker behind your own proxy.
 - [Architecture](docs/ARCHITECTURE.md) — how the system works: tenancy, the content graph, visibility vs presentation, theming, plugins.
 - [Themes](docs/themes/README.md) — the theme designer's reference.
 - [Building a theme](docs/themes/building-a-theme.md) — a start-to-finish tutorial (ships with the Trailhead example theme).
