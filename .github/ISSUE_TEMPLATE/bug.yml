@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in Supremely is broken or behaves incorrectly.
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Not for security vulnerabilities.** Read
+        [SECURITY.md](https://github.com/remarqable/supremely/blob/main/SECURITY.md)
+        and report those privately.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, what you expected instead, and any error message.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `make demo`
+        2. Sign in as the owner
+        3. Open /events
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-running
+    attributes:
+      label: How are you running Supremely
+      options:
+        - "Docker (docker compose up)"
+        - "Local development (make run)"
+        - "Other"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: A release tag, or `git rev-parse --short HEAD`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or traceback
+      description: Optional. Remove secrets and personal data first.
+      render: text

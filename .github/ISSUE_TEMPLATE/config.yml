@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/remarqable/supremely/blob/main/SECURITY.md
+    about: Never open a public issue for a suspected vulnerability. Report it privately.
+  - name: Contributing guide
+    url: https://github.com/remarqable/supremely/blob/main/CONTRIBUTING.md
+    about: Read this before starting a large change.
+  - name: Documentation
+    url: https://github.com/remarqable/supremely/tree/main/docs
+    about: Architecture, engineering principles, roadmap, and theme guides.

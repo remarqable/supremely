@@ -1,0 +1,33 @@
+name: Feature or improvement
+description: Propose new behavior, or an improvement to behavior that already exists.
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Supremely is young and direction is still forming. For anything large,
+        open the issue before writing code so we can agree on the shape first.
+        See [CONTRIBUTING.md](https://github.com/remarqable/supremely/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the situation you are in, not the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Taking part
+      options:
+        - label: I am willing to work on this myself
+          required: false
