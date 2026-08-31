@@ -22,7 +22,7 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-cov",
-    "ruff==0.16.4",
+    "ruff==0.16.5",
 ]
 
 [tool.uv]
