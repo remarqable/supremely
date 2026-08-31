@@ -9,7 +9,7 @@ from .config import Config
 from .extensions import db, init_sqlite_pragmas, login_manager, migrate
 from .platform.logger import get_logger, init_logger
 
-APP_VERSION = '0.1.0'
+APP_VERSION = '1.0.0'
 
 
 def create_app(config_class=Config):

@@ -1,6 +1,6 @@
 [project]
 name = "supremely"
-version = "0.1.0"
+version = "1.0.0"
 description = "Open-source, multi-tenant platform for publishing, memberships, newsletters, and discussions."
 requires-python = ">=3.12"
 dependencies = [
