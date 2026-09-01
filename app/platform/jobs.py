@@ -98,6 +98,9 @@ def _run(job_row: Job, job_id: int) -> None:
         job_row.last_error = f'{type(e).__name__}: {e}'
         if job_row.attempts >= job_row.max_attempts:
             job_row.status = 'failed'
+            # Record when it gave up: the admin list needs a time to show, and
+            # _cleanup only purges rows that have one.
+            job_row.finished_at = utcnow()
         else:
             job_row.status = 'pending'
             backoff = 30 * 4 ** max(job_row.attempts - 1, 0)

@@ -101,3 +101,74 @@ def test_failing_job_retries_then_fails(app):
     row = Job.query.first()
     assert row.status == 'failed'           # terminal after max_attempts
     assert len(attempts) == 2
+
+
+def test_terminal_failure_records_when_it_gave_up(app):
+    """finished_at is what the admin list shows and what _cleanup filters on.
+    Without it a failed job had no timestamp and could never be purged."""
+    @job('test.doomed')
+    def doomed(payload):
+        raise RuntimeError('nope')
+
+    enqueue('test.doomed', max_attempts=1)
+    run_pending_jobs()
+    row = Job.query.filter_by(name='test.doomed').first()
+    assert row.status == 'failed'
+    assert row.finished_at is not None
+
+
+def test_cleanup_purges_old_failed_jobs_too(app):
+    """The cleanup has always named 'failed' in its status filter, but no
+    failed row carried the finished_at it also requires, so the clause was
+    dead and failures accumulated forever."""
+    from datetime import timedelta
+
+    from app.models.base import utcnow
+    from app.platform.jobs import DONE_RETENTION
+
+    old_failure = Job(name='x', status='failed', last_error='RuntimeError: old',
+                      finished_at=utcnow() - DONE_RETENTION - timedelta(days=1))
+    recent_failure = Job(name='y', status='failed', finished_at=utcnow())
+    db.session.add_all([old_failure, recent_failure])
+    db.session.commit()
+    old_id, recent_id = old_failure.id, recent_failure.id
+
+    enqueue('system.cleanup')
+    run_pending_jobs(limit=1)
+
+    assert db.session.get(Job, old_id) is None
+    assert db.session.get(Job, recent_id) is not None
+
+
+def test_retry_is_refused_for_a_job_that_did_not_fail(app):
+    from app.platform.errors import ValidationError
+    row = Job(name='x', status='done')
+    db.session.add(row)
+    db.session.commit()
+    with pytest.raises(ValidationError):
+        row.retry()
+
+
+def test_cli_lists_failed_jobs_and_retries_one(app, runner):
+    @job('test.cli_boom')
+    def boom(payload):
+        raise RuntimeError('cli kaboom')
+
+    enqueue('test.cli_boom', max_attempts=1)
+    run_pending_jobs()
+    row = Job.query.filter_by(name='test.cli_boom').first()
+
+    listed = runner.invoke(args=['jobs', 'failed'])
+    assert 'test.cli_boom' in listed.output
+    assert 'cli kaboom' in listed.output
+
+    retried = runner.invoke(args=['jobs', 'retry', str(row.id)])
+    assert 'queued to run again' in retried.output
+    assert db.session.get(Job, row.id).status == 'pending'
+
+    missing = runner.invoke(args=['jobs', 'retry', '999999'])
+    assert 'No job with id' in missing.output
+
+
+def test_cli_says_so_when_nothing_failed(app, runner):
+    assert 'No failed jobs' in runner.invoke(args=['jobs', 'failed']).output

@@ -77,6 +77,41 @@ def work_off():
     click.echo(f'Executed {count} job(s).')
 
 
+@jobs_bp.cli.command('failed')
+def list_failed_jobs():
+    """List terminally failed jobs and the error that stopped each one."""
+    from app.models.job import Job
+    rows = Job.failed()
+    if not rows:
+        click.echo('No failed jobs.')
+        return
+    for row in rows:
+        org = row.organization.name if row.organization else '-'
+        when = (row.finished_at.strftime('%Y-%m-%d %H:%M')
+                if row.finished_at else '-')
+        click.echo(f'{row.id}\t{row.name}\t{org}\t'
+                   f'{row.attempts}/{row.max_attempts}\t{when}\t'
+                   f'{row.last_error or ""}')
+
+
+@jobs_bp.cli.command('retry')
+@click.argument('job_id', type=int)
+def retry_job_command(job_id: int):
+    """Put a failed job back in the queue with a clean slate."""
+    from app.models.job import Job
+    from app.platform.errors import ValidationError
+    row = db.session.get(Job, job_id)
+    if row is None:
+        click.echo(f'No job with id {job_id}.')
+        raise SystemExit(1)
+    try:
+        row.retry()
+    except ValidationError as e:
+        click.echo(e.message)
+        raise SystemExit(1) from e
+    click.echo(f'Job {job_id} ({row.name}) queued to run again.')
+
+
 @setup_bp.cli.command('reset')
 def reset_wizard():
     """Re-enable the first-run wizard (server-side explicit reset)."""

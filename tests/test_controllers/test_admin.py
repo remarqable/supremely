@@ -1,4 +1,11 @@
-from app.models import InstallationSetting, Membership, Organization, User
+from app.extensions import db
+from app.models import (
+    InstallationSetting,
+    Job,
+    Membership,
+    Organization,
+    User,
+)
 from tests.conftest import login_as
 
 
@@ -78,3 +85,70 @@ def test_system_page(admin_client, app):
     assert response.status_code == 200
     engine = b'postgresql' if app.config['IS_POSTGRES'] else b'sqlite'
     assert engine in response.data.lower()
+
+# --- Failed jobs (#42) -------------------------------------------------------
+
+def _make_failed_job(name='test.explode', org_id=None):
+    """A terminally failed job, produced by actually failing rather than by
+    writing the row, so the test exercises the worker's own bookkeeping."""
+    from app.platform.jobs import enqueue, job, run_pending_jobs
+
+    @job(name)
+    def explode(payload):
+        raise RuntimeError('kaboom')
+
+    enqueue(name, org_id=org_id, max_attempts=1)
+    run_pending_jobs()
+    return Job.query.filter_by(name=name).first()
+
+
+def test_failed_job_is_listed_with_its_error(admin_client, app):
+    _make_failed_job()
+    response = admin_client.get('/admin/jobs')
+    assert response.status_code == 200
+    assert b'test.explode' in response.data
+    assert b'RuntimeError: kaboom' in response.data
+
+
+def test_failed_job_names_its_organization(admin_client, acme):
+    _make_failed_job(org_id=acme.id)
+    assert b'Acme' in admin_client.get('/admin/jobs').data
+
+
+def test_jobs_page_hidden_from_an_org_owner(client, acme, user):
+    login_as(client, user)                  # owner of acme, not a platform admin
+    assert client.get('/admin/jobs').status_code == 404
+    assert client.post('/admin/jobs/1/retry').status_code == 404
+
+
+def test_jobs_page_requires_login(client, app):
+    assert client.get('/admin/jobs').status_code == 302
+
+
+def test_retry_requeues_and_reruns_the_handler(admin_client, app):
+    from app.platform.jobs import run_pending_jobs
+    row = _make_failed_job()
+    job_id = row.id
+
+    admin_client.post(f'/admin/jobs/{job_id}/retry')
+    requeued = db.session.get(Job, job_id)
+    assert requeued.status == 'pending'
+    assert requeued.attempts == 0
+    assert requeued.last_error is None
+
+    run_pending_jobs()                      # the handler still raises
+    assert db.session.get(Job, job_id).status == 'failed'
+    assert db.session.get(Job, job_id).attempts == 1
+
+
+def test_retry_refuses_a_job_that_did_not_fail(admin_client, app):
+    row = Job(name='x', status='pending')
+    db.session.add(row)
+    db.session.commit()
+    admin_client.post(f'/admin/jobs/{row.id}/retry')
+    assert db.session.get(Job, row.id).status == 'pending'
+    assert db.session.get(Job, row.id).attempts == 0
+
+
+def test_retry_of_a_missing_job_is_404(admin_client, app):
+    assert admin_client.post('/admin/jobs/999999/retry').status_code == 404

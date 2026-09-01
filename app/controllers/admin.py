@@ -415,6 +415,32 @@ def system():
         'database_url': engine.url.render_as_string(hide_password=True),
         'email_configured': is_email_configured(),
     }
-    job_stats = dict(db.session.execute(
-        sa.select(Job.status, sa.func.count()).group_by(Job.status)).all())
-    return render_template('admin/system.html', info=info, job_stats=job_stats)
+    return render_template('admin/system.html', info=info,
+                           job_stats=Job.counts_by_status())
+
+
+# --- Jobs --------------------------------------------------------------------
+
+@bp.route('/jobs')
+def jobs():
+    """Failed jobs, with the error that stopped each one.
+
+    The queue records last_error already; before this the only way to read it
+    was the log stream or the database.
+    """
+    return render_template('admin/jobs.html', failed=Job.failed(),
+                           job_stats=Job.counts_by_status())
+
+
+@bp.route('/jobs/<int:job_id>/retry', methods=['POST'])
+def retry_job(job_id):
+    job_row = db.get_or_404(Job, job_id)
+    try:
+        job_row.retry()
+        log.info('job_retried', job=job_row.name, id=job_row.id,
+                 org_id=job_row.org_id)
+        flash(t('admin.job_requeued'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('admin.jobs'))

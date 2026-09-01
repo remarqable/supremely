@@ -15,12 +15,14 @@
     <h3 class="mb-4 text-lg font-semibold">{{ _('admin.jobs') }}</h3>
     <dl class="grid grid-cols-3 gap-2 text-sm">
       {% for status, count in job_stats.items() %}
-      <dt class="text-slate-500">{{ status }}</dt>
+      <dt class="text-slate-500">{{ _('admin.job_status_' ~ status) }}</dt>
       <dd class="col-span-2">{{ count }}</dd>
       {% else %}
       <dt class="col-span-3 text-slate-500">{{ _('common.none') }}</dt>
       {% endfor %}
     </dl>
+    <a class="mt-3 inline-block text-sm text-brand-700 hover:underline"
+       href="{{ url_for('admin.jobs') }}">{{ _('admin.jobs_failed_title') }}</a>
   </div>
 </div>
 {% endblock %}

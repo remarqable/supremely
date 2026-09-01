@@ -1,0 +1,60 @@
+{% extends 'admin/_layout.html' %}
+{% from 'partials/_ui.html' import page_header, empty_state with context %}
+
+{% block admin_content %}
+{{ page_header(_('admin.jobs'), _('admin.jobs_hint')) }}
+
+<div class="card mb-5">
+  <h3 class="mb-3 section-title">{{ _('admin.job_queue') }}</h3>
+  <dl class="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+    {% for status, count in job_stats.items() %}
+    <div>
+      <dt class="text-slate-500">{{ _('admin.job_status_' ~ status) }}</dt>
+      <dd class="text-lg font-semibold tabular-nums">{{ count }}</dd>
+    </div>
+    {% else %}
+    <div class="text-slate-500">{{ _('common.none') }}</div>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="card">
+  <h3 class="mb-4 section-title">{{ _('admin.jobs_failed_title') }}</h3>
+  {% if failed %}
+  <table class="table-plain">
+    <thead>
+      <tr>
+        <th>{{ _('common.name') }}</th>
+        <th>{{ _('admin.organization') }}</th>
+        <th>{{ _('admin.job_attempts') }}</th>
+        <th>{{ _('admin.job_error') }}</th>
+        <th>{{ _('admin.job_failed_at') }}</th>
+        <th><span class="sr-only">{{ _('admin.job_retry') }}</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in failed %}
+      <tr>
+        <td class="font-medium">{{ job.name }}</td>
+        <td class="text-slate-500">
+          {%- if job.organization %}{{ job.organization.name }}
+          {%- else %}<span class="badge-slate">{{ _('admin.job_installation_wide') }}</span>{% endif %}
+        </td>
+        <td>{{ job.attempts }} / {{ job.max_attempts }}</td>
+        <td class="max-w-md break-words text-xs text-red-700">{{ job.last_error or _('common.none') }}</td>
+        <td class="text-slate-500">{{ job.finished_at|localdatetime }}</td>
+        <td class="text-end">
+          <form method="POST" action="{{ url_for('admin.retry_job', job_id=job.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-secondary">{{ _('admin.job_retry') }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  {{ empty_state(_('admin.jobs_none_failed')) }}
+  {% endif %}
+</div>
+{% endblock %}
