@@ -37,6 +37,7 @@
   <script defer src="{{ url_for('static', filename='js/alpine-focus.min.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
   {% block head %}{% endblock %}
+  {% include 'partials/_analytics.html' %}
 </head>
 <body class="min-h-screen bg-slate-50 font-sans text-slate-900"
       hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>

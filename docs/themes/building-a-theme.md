@@ -103,6 +103,7 @@ become CSS variables; and the layout includes header/footer through
       --trail-heading:   {{ theme_settings.get('bark', '#40241a') }};
     }
   </style>
+  {% include 'partials/_analytics.html' %}
 </head>
 <body class="trailhead min-h-screen bg-[#faf7f2] font-sans text-slate-800">
   {% include themed('header.html') %}
@@ -114,6 +115,12 @@ become CSS variables; and the layout includes header/footer through
 </body>
 </html>
 ```
+
+The `partials/_analytics.html` include is part of the layout contract: it
+renders the analytics tracker the organizer configured under
+Manage → Settings → Analytics (and renders nothing when analytics is off).
+Every theme's `layout.html` must include it just before `</head>`, or sites
+using your theme silently lose their visitor stats.
 
 `header.html` renders the navigation the organizer configured — you never
 hardcode a menu — and shows how a theme adapts to the *viewer* without

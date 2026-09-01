@@ -108,6 +108,14 @@ class Organization(BaseModel):
         URLs behave as before the gate existed (login redirect / 404)."""
         return bool(self.setting('gated_teasers', True))
 
+    def analytics_config(self) -> dict:
+        """The org's tracker config (Manage → Settings → Analytics):
+        {'provider': ..., <provider fields>}, or {} when analytics is off.
+        Written only through clean_analytics_settings, so consumers
+        (analytics_head, the CSP hook) can trust the values."""
+        value = self.setting('analytics') or {}
+        return value if isinstance(value, dict) and value.get('provider') else {}
+
     def update_settings(self, **updates) -> 'Organization':
         self.settings = {**(self.settings or {}), **updates}
         return self.save()

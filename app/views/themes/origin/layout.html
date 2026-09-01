@@ -21,6 +21,7 @@
   {% endif %}
   <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
   {% block head %}{% endblock %}
+  {% include 'partials/_analytics.html' %}
 </head>
 <body class="{% block body_class %}min-h-screen bg-white font-sans text-slate-900{% endblock %}">
 

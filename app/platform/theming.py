@@ -49,7 +49,9 @@ def init_theming(app) -> None:
     with app.app_context():
         scan_themes()
 
+    from app.platform.analytics import analytics_head
     from app.platform.theme_content import resolve as resolve_content
+    app.jinja_env.globals['analytics_head'] = analytics_head
     app.jinja_env.globals['theme_asset'] = theme_asset
     app.jinja_env.globals['themed'] = themed
     app.jinja_env.globals['available_themes'] = lambda: AVAILABLE_THEMES

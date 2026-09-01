@@ -297,14 +297,26 @@ def _init_context(app):
 
 
 def _init_security_headers(app):
+    from .platform.analytics import analytics_csp_sources
+
     @app.after_request
     def add_security_headers(response):
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        # The org's configured analytics tracker (app/platform/analytics.py)
+        # widens script-src/connect-src to exactly its hosts, on the org site
+        # only — the consoles and every unconfigured tenant keep the strict
+        # baseline.
+        script_hosts, connect_hosts = ([], []) if request.blueprint in (
+            'manage', 'admin') else analytics_csp_sources()
         response.headers['Content-Security-Policy'] = (
-            "default-src 'self'; script-src 'self' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+            "default-src 'self'; "
+            f"script-src 'self' 'unsafe-eval'"
+            f"{''.join(' ' + host for host in script_hosts)}; "
+            + (f"connect-src 'self' {' '.join(connect_hosts)}; "
+               if connect_hosts else '')
+            + "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
             "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
         )
         if not app.debug and not app.testing:
