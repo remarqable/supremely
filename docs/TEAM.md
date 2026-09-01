@@ -8,9 +8,9 @@ architecture, security, testing, review, product decisions, and what ships.
 
 ## Core team
 
-- Asim Baig
-- Sara Rasch
-- Aidan Urbina
+- Asim Baig (Founder)
+- Sara Rasch (Product Manager)
+- Aidan Urbina (Developer)
 
 ## Contributors
 
