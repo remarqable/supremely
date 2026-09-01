@@ -73,6 +73,20 @@ MVC with fat models, thin controllers, dumb templates. Server-rendered Jinja (`a
 
 Fixtures in `tests/conftest.py`: `app` (fresh schema per test, tmp `DATA_DIR`), `client`, `user`, `platform_admin`, orgs `acme`/`globex` (two orgs exist so tenant isolation is provable), `login_as(client, user)`. Config is passed into `create_app`, never assigned after. Tests are organized as `test_models/`, `test_controllers/`, `test_platform/`.
 
+## Before committing
+
+Every commit must be blueprint-compliant and green in CI, whoever wrote it. Check the changed code against the blueprint patterns it touches, then run all three of these locally and say in your reply which ones you ran:
+
+```bash
+uv run pytest -q                                    # tests (CI also runs them on PostgreSQL)
+uv run ruff check .                                 # lint
+make css && git diff --exit-code app/static/css/app.css   # built CSS is committed and current
+```
+
+If something cannot be run or fixed, stop and say so instead of committing anyway.
+
+A documentation-only change (`.md` files) needs none of this.
+
 ## Commit messages
 
 This is an open-source project — the git history is public documentation. Write commit messages for a reader with no project context: a plain imperative subject, one orienting sentence, then bullet lists grouped by area explaining what changed and why in everyday language. No compressed prose, internal shorthand, or references to private docs/sections. Name concrete files or paths as anchors, and end with test/verification results when relevant.

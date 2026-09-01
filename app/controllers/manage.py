@@ -52,6 +52,19 @@ def index():
 
 # --- Content (all types: page, article, event, plugin types) -------------------
 
+def _own_upload_id(field: str) -> int | None:
+    """The id of the upload named in `field`, or None.
+
+    Resolved through a query rather than trusted, so an id belonging to
+    another organization comes back None instead of being stored: the tenant
+    filter runs on a real query. Same reasoning as _own_content_id.
+    """
+    raw = request.form.get(field, '')
+    chosen = (Upload.query.filter_by(id=int(raw)).first()
+              if raw.isdigit() else None)
+    return chosen.id if chosen else None
+
+
 def _own_content_id(content_id):
     """A content id from a form, or None if it is not ours.
 
@@ -131,12 +144,7 @@ def _content_from_form(content):
             # strand an older one, and render_site falls back to page.html.
             raise ValidationError(t('manage.template_unknown', name=template))
         content.template = template
-    raw = request.form.get('featured_upload_id', '')
-    # Resolved rather than trusted, so a foreign id is never stored: see
-    # _own_content_id for why storing one is a problem.
-    featured = (Upload.query.filter_by(id=int(raw)).first()
-                if raw.isdigit() else None)
-    content.featured_upload_id = featured.id if featured else None
+    content.featured_upload_id = _own_upload_id('featured_upload_id')
     content.tags = [tag.strip() for tag in
                     request.form.get('tags', '').split(',') if tag.strip()]
     category_ids = request.form.getlist('category_ids', type=int)
@@ -913,13 +921,9 @@ def branding():
             org.description = request.form.get('description', '').strip() or None
             org.brand_primary = request.form.get('brand_primary', '').strip() or None
             org.save()
-            updates = {}
-            for field in ('logo_upload_id', 'favicon_upload_id'):
-                raw = request.form.get(field, '')
-                chosen = (Upload.query.filter_by(id=int(raw)).first()
-                          if raw.isdigit() else None)
-                updates[field] = chosen.id if chosen else None
-            org.update_settings(**updates)
+            org.update_settings(**{
+                field: _own_upload_id(field)
+                for field in ('logo_upload_id', 'favicon_upload_id')})
             flash(t('common.saved'), 'success')
         except ValidationError as e:
             db.session.rollback()
@@ -967,8 +971,7 @@ def theme_settings():
 @org_required
 @require('org.settings')
 def analytics_settings():
-    from app.platform.analytics import (ANALYTICS_PROVIDERS,
-                                        clean_analytics_settings)
+    from app.platform.analytics import ANALYTICS_PROVIDERS, clean_analytics_settings
     org = g.org
     if request.method == 'POST':
         try:

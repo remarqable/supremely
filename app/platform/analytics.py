@@ -16,6 +16,7 @@ provider (and never on the /manage or /admin consoles).
 """
 
 import re
+from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from flask import g, url_for
@@ -30,12 +31,12 @@ UUID_RE = re.compile(r'[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}')
 HOSTNAME_RE = re.compile(r'[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?')
 
 
-def _script_origin(config, key='script_url'):
+def _script_origin(config: dict, key: str = 'script_url') -> list[str]:
     parts = urlsplit(config[key])
     return [f'{parts.scheme}://{parts.netloc}']
 
 
-def _plausible_tags(config):
+def _plausible_tags(config: dict) -> list[Markup]:
     domain = config.get('site_domain')
     attr = Markup(' data-domain="{}"').format(domain) if domain else ''
     return [
@@ -46,7 +47,7 @@ def _plausible_tags(config):
     ]
 
 
-def _ga4_tags(config):
+def _ga4_tags(config: dict) -> list[Markup]:
     return [
         Markup('<script async '
                'src="https://www.googletagmanager.com/gtag/js?id={}">'
@@ -57,12 +58,12 @@ def _ga4_tags(config):
     ]
 
 
-def _fathom_tags(config):
+def _fathom_tags(config: dict) -> list[Markup]:
     return [Markup('<script defer src="https://cdn.usefathom.com/script.js" '
                    'data-site="{}"></script>').format(config['site_id'])]
 
 
-def _umami_tags(config):
+def _umami_tags(config: dict) -> list[Markup]:
     return [Markup('<script defer src="{}" data-website-id="{}"></script>')
             .format(config['script_url'], config['website_id'])]
 
@@ -121,7 +122,7 @@ ANALYTICS_PROVIDERS = {
 }
 
 
-def clean_analytics_settings(submitted) -> dict:
+def clean_analytics_settings(submitted: Mapping[str, str]) -> dict:
     """Validate the Analytics settings form. Returns the dict stored at
     org.settings['analytics'] ({} when the provider is Off); raises
     ValidationError on anything malformed. Values land in <script> tag
