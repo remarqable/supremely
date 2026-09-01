@@ -157,12 +157,12 @@ def test_teasers_off_member_still_reads(app, client, acme, globex, user):
 
 def test_manage_privacy_toggle(app, client, acme, globex, user):
     login_as(client, user)                       # acme's owner
-    response = client.post('/manage/settings', base_url=ACME,
-                           data={'section': 'privacy'})   # checkbox absent
+    response = client.post('/manage/settings/privacy', base_url=ACME,
+                           data={})                       # checkbox absent
     assert response.status_code == 302
     assert acme.teases_gated_content() is False
-    client.post('/manage/settings', base_url=ACME,
-                data={'section': 'privacy', 'gated_teasers': 'on'})
+    client.post('/manage/settings/privacy', base_url=ACME,
+                data={'gated_teasers': 'on'})
     assert acme.teases_gated_content() is True
 
 

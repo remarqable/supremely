@@ -887,59 +887,113 @@ def resolve_flag(flag_id):
     return redirect(url_for('manage.flags'))
 
 
-# --- Settings / branding / theme -------------------------------------------------
+# --- Settings pages (branding / theme / analytics / privacy) ---------------------
+# Each section is its own page: Branding, Theme, and Analytics stand alone in
+# the sidenav; the remaining sections live under the Settings entry, which
+# opens a second-column sub-nav (see manage/_layout.html). Every page handles
+# its own POST and redirects to itself, so a validation flash lands where the
+# form is.
 
-@bp.route('/settings', methods=['GET', 'POST'])
+@bp.route('/settings')
 @org_required
 @require('org.settings')
 def settings():
+    # The old one-page settings URL, kept as the Settings entry point.
+    return redirect(url_for('manage.privacy_settings'))
+
+
+@bp.route('/branding', methods=['GET', 'POST'])
+@org_required
+@require('org.settings')
+def branding():
     org = g.org
     if request.method == 'POST':
-        section = request.form.get('section', 'branding')
         try:
-            if section == 'branding':
-                org.name = request.form.get('name', org.name)
-                org.description = request.form.get('description', '').strip() or None
-                org.brand_primary = request.form.get('brand_primary', '').strip() or None
-                org.save()
-                updates = {}
-                for field in ('logo_upload_id', 'favicon_upload_id'):
-                    raw = request.form.get(field, '')
-                    chosen = (Upload.query.filter_by(id=int(raw)).first()
-                              if raw.isdigit() else None)
-                    updates[field] = chosen.id if chosen else None
-                org.update_settings(**updates)
-            elif section == 'privacy':
-                # Checkbox: absent from the form when unchecked.
-                org.update_settings(
-                    gated_teasers='gated_teasers' in request.form)
-            elif section == 'theme':
-                from app.platform.theming import clean_theme_config
-                theme = request.form.get('theme', 'origin')
-                if theme not in AVAILABLE_THEMES:
-                    raise ValidationError('Unknown theme')
-                # Validate settings BEFORE persisting the theme choice; the
-                # values are interpolated into a <style> block. See
-                # theming.clean_theme_config.
-                config = clean_theme_config(theme, {
-                    key: request.form.get(f'theme_{key}', '')
-                    for key in AVAILABLE_THEMES[theme].get('settings', {})})
-                org.theme = theme
-                org.save()
-                org.update_settings(theme_config=config)
+            org.name = request.form.get('name', org.name)
+            org.description = request.form.get('description', '').strip() or None
+            org.brand_primary = request.form.get('brand_primary', '').strip() or None
+            org.save()
+            updates = {}
+            for field in ('logo_upload_id', 'favicon_upload_id'):
+                raw = request.form.get(field, '')
+                chosen = (Upload.query.filter_by(id=int(raw)).first()
+                          if raw.isdigit() else None)
+                updates[field] = chosen.id if chosen else None
+            org.update_settings(**updates)
             flash(t('common.saved'), 'success')
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
-        return redirect(url_for('manage.settings'))
+        return redirect(url_for('manage.branding'))
 
     # Only public images: the logo and favicon are rendered to visitors,
     # so a members-only file here is a broken image, not a private one.
     uploads = Upload.query.filter(Upload.content_type.like('image/%'),
                                   Upload.visibility == 'public') \
         .order_by(Upload.created_at.desc()).all()
-    return render_template('manage/settings.html', org=org, uploads=uploads,
+    return render_template('manage/branding.html', org=org, uploads=uploads)
+
+
+@bp.route('/theme', methods=['GET', 'POST'])
+@org_required
+@require('org.settings')
+def theme_settings():
+    org = g.org
+    if request.method == 'POST':
+        from app.platform.theming import clean_theme_config
+        try:
+            theme = request.form.get('theme', 'origin')
+            if theme not in AVAILABLE_THEMES:
+                raise ValidationError('Unknown theme')
+            # Validate settings BEFORE persisting the theme choice; the
+            # values are interpolated into a <style> block. See
+            # theming.clean_theme_config.
+            config = clean_theme_config(theme, {
+                key: request.form.get(f'theme_{key}', '')
+                for key in AVAILABLE_THEMES[theme].get('settings', {})})
+            org.theme = theme
+            org.save()
+            org.update_settings(theme_config=config)
+            flash(t('common.saved'), 'success')
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+        return redirect(url_for('manage.theme_settings'))
+    return render_template('manage/theme.html', org=org,
                            themes=AVAILABLE_THEMES)
+
+
+@bp.route('/analytics', methods=['GET', 'POST'])
+@org_required
+@require('org.settings')
+def analytics_settings():
+    from app.platform.analytics import (ANALYTICS_PROVIDERS,
+                                        clean_analytics_settings)
+    org = g.org
+    if request.method == 'POST':
+        try:
+            org.update_settings(
+                analytics=clean_analytics_settings(request.form))
+            flash(t('common.saved'), 'success')
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+        return redirect(url_for('manage.analytics_settings'))
+    return render_template('manage/analytics.html', org=org,
+                           analytics_providers=ANALYTICS_PROVIDERS)
+
+
+@bp.route('/settings/privacy', methods=['GET', 'POST'])
+@org_required
+@require('org.settings')
+def privacy_settings():
+    org = g.org
+    if request.method == 'POST':
+        # Checkbox: absent from the form when unchecked.
+        org.update_settings(gated_teasers='gated_teasers' in request.form)
+        flash(t('common.saved'), 'success')
+        return redirect(url_for('manage.privacy_settings'))
+    return render_template('manage/privacy.html', org=org)
 
 
 # --- Landing page (theme-declared editable content) ---------------------------

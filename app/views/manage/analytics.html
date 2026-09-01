@@ -1,0 +1,39 @@
+{% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-2xl">
+{{ page_header(_('manage.analytics')) }}
+<div class="card">
+  {% set analytics = org.analytics_config() %}
+  <form method="POST" class="space-y-4" x-data="{ provider: '{{ analytics.get('provider', '') }}' }">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="analytics_provider" class="label">{{ _('manage.analytics_provider') }}</label>
+      <select id="analytics_provider" name="provider" class="select mt-1" x-model="provider">
+        <option value="">{{ _('manage.analytics_off') }}</option>
+        {% for slug, spec in analytics_providers.items() %}
+        <option value="{{ slug }}">{{ spec.label }}</option>
+        {% endfor %}
+      </select>
+      <p class="mt-1 text-xs text-slate-500">{{ _('manage.analytics_hint') }}</p>
+    </div>
+    {% for slug, spec in analytics_providers.items() %}
+    <div x-show="provider === '{{ slug }}'" x-cloak class="space-y-3 border-t border-slate-100 pt-3">
+      {% for field, fspec in spec.fields.items() %}
+      {% set name = 'analytics_' ~ slug ~ '_' ~ field %}
+      <div>
+        <label for="{{ name }}" class="label">{{ _('manage.analytics_' ~ slug ~ '_' ~ field) }}</label>
+        <input type="text" id="{{ name }}" name="{{ name }}" class="input mt-1"
+               placeholder="{{ fspec.placeholder or '' }}"
+               value="{{ analytics.get(field, '') if analytics.get('provider') == slug else '' }}">
+        <p class="mt-1 text-xs text-slate-500">{{ _('manage.analytics_' ~ slug ~ '_' ~ field ~ '_hint') }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+  </form>
+</div>
+</div>
+{% endblock %}

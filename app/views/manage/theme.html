@@ -1,0 +1,49 @@
+{% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-2xl">
+{{ page_header(_('manage.theme')) }}
+<div class="card">
+  <form method="POST" class="space-y-4" x-data="{ theme: '{{ org.theme }}' }">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="space-y-2">
+      {% for slug, info in themes.items() %}
+      <label class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 ring-1 ring-slate-200 transition-colors has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 hover:bg-slate-50">
+        <input type="radio" name="theme" value="{{ slug }}" x-model="theme">
+        <span class="flex-1">
+          <span class="font-medium">{{ info.name }}</span>
+          <span class="ms-2 text-xs text-slate-500">v{{ info.version }}{% if info.author %} · {{ info.author }}{% endif %}</span>
+        </span>
+        {% if slug == org.theme %}<span class="badge-brand">{{ _('common.active') }}</span>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+
+    {% for slug, info in themes.items() %}
+    {% if info.settings %}
+    <div x-show="theme === '{{ slug }}'" x-cloak class="space-y-3 border-t border-slate-100 pt-3">
+      <h4 class="text-sm font-semibold">{{ info.name }} — {{ _('manage.theme_settings') }}</h4>
+      {% set config = org.setting('theme_config', {}) if slug == org.theme else {} %}
+      {% for key, spec in info.settings.items() %}
+      <div>
+        <label for="theme_{{ key }}" class="label">{{ spec.label or key }}</label>
+        {% if spec.type == 'color' %}
+        <input type="color" id="theme_{{ key }}" name="theme_{{ key }}"
+               value="{{ config.get(key, spec.default or '#000000') }}" class="mt-1">
+        {% else %}
+        <input type="text" id="theme_{{ key }}" name="theme_{{ key }}" class="input mt-1"
+               value="{{ config.get(key, spec.default or '') }}">
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+  </form>
+  <p class="mt-3 text-xs text-slate-500">{{ _('manage.theme_hint') }}</p>
+</div>
+</div>
+{% endblock %}

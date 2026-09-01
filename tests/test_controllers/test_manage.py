@@ -169,8 +169,8 @@ def test_upload_isolated_across_tenants(app, client, acme, globex, user):
 
 def test_branding_settings(app, client, acme, globex, user):
     login_as(client, user)
-    client.post('/manage/settings', base_url=ACME, data={
-        'section': 'branding', 'name': 'Acme Community',
+    client.post('/manage/branding', base_url=ACME, data={
+        'name': 'Acme Community',
         'description': 'We make things.', 'brand_primary': '#ff5500',
         'logo_upload_id': '', 'favicon_upload_id': '',
     })
@@ -220,25 +220,158 @@ def test_settings_ships_no_inline_event_handlers(app, client, acme, globex, user
     """The CSP has no unsafe-inline, so an on*= attribute is dead markup. This
     is checkable server-side even though the enforcement is the browser's."""
     login_as(client, user)
-    html = client.get('/manage/settings', base_url=ACME).get_data(as_text=True)
-    assert re.search(r'\son[a-z]+\s*=', html) is None, 'inline handler in settings'
+    for path in ('/manage/branding', '/manage/theme', '/manage/analytics',
+                 '/manage/settings/privacy'):
+        html = client.get(path, base_url=ACME).get_data(as_text=True)
+        assert re.search(r'\son[a-z]+\s*=', html) is None, \
+            f'inline handler on {path}'
+    html = client.get('/manage/branding', base_url=ACME).get_data(as_text=True)
     assert 'x-model="hex"' in html          # the picker is bound through Alpine
 
 
 def test_invalid_brand_color_rejected(app, client, acme, globex, user):
     login_as(client, user)
-    response = client.post('/manage/settings', base_url=ACME, data={
-        'section': 'branding', 'name': 'Acme',
+    response = client.post('/manage/branding', base_url=ACME, data={
+        'name': 'Acme',
         'brand_primary': 'red; } body { display:none',
     }, follow_redirects=True)
     assert b'RRGGBB' in response.data
     assert db.session.get(Organization, acme.id).brand_primary is None
 
 
+PLAUSIBLE_URL = 'https://plausible.io/js/pa-abc12345.js'
+BASELINE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+                "object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+
+
+def save_analytics(client, **data):
+    return client.post('/manage/analytics', base_url=ACME, data=data)
+
+
+def test_analytics_saved_and_rendered_on_public_site(app, client, acme,
+                                                     globex, user):
+    login_as(client, user)
+    save_analytics(client, provider='plausible',
+                   analytics_plausible_script_url=PLAUSIBLE_URL)
+    org = db.session.get(Organization, acme.id)
+    assert org.analytics_config() == {'provider': 'plausible',
+                                      'script_url': PLAUSIBLE_URL}
+
+    home = client.get('/', base_url=ACME)       # the themed front page
+    assert PLAUSIBLE_URL.encode() in home.data
+    assert b'/static/js/analytics/plausible-init.js' in home.data
+    csp = home.headers['Content-Security-Policy']
+    assert "script-src 'self' 'unsafe-eval' https://plausible.io" in csp
+    assert "connect-src 'self' https://plausible.io" in csp
+
+
+def test_analytics_rendered_on_the_community_shell(app, client, acme,
+                                                   globex, user):
+    login_as(client, user)
+    save_analytics(client, provider='plausible',
+                   analytics_plausible_script_url=PLAUSIBLE_URL)
+    dashboard = client.get('/dashboard', base_url=ACME)
+    assert b'/static/js/analytics/plausible-init.js' in dashboard.data
+
+
+def test_analytics_ga4_tags_and_csp(app, client, acme, globex, user):
+    login_as(client, user)
+    save_analytics(client, provider='ga4',
+                   analytics_ga4_measurement_id='G-ABC1234567')
+    home = client.get('/', base_url=ACME)
+    assert b'googletagmanager.com/gtag/js?id=G-ABC1234567' in home.data
+    assert b'data-measurement-id="G-ABC1234567"' in home.data
+    assert b'/static/js/analytics/ga4-init.js' in home.data
+    csp = home.headers['Content-Security-Policy']
+    assert 'https://www.googletagmanager.com' in csp
+    assert "connect-src 'self' https://*.google-analytics.com" in csp
+
+
+def test_analytics_absent_by_default(client, acme, globex):
+    home = client.get('/', base_url=ACME)
+    assert b'/static/js/analytics/' not in home.data
+    assert home.headers['Content-Security-Policy'] == BASELINE_CSP
+
+
+def test_analytics_is_tenant_scoped(app, client, acme, globex, user):
+    login_as(client, user)
+    save_analytics(client, provider='plausible',
+                   analytics_plausible_script_url=PLAUSIBLE_URL)
+    other = client.get('/', base_url='http://globex.example.test')
+    assert b'plausible' not in other.data
+    assert other.headers['Content-Security-Policy'] == BASELINE_CSP
+
+
+def test_analytics_never_on_the_console(app, client, acme, globex, user):
+    login_as(client, user)
+    save_analytics(client, provider='plausible',
+                   analytics_plausible_script_url=PLAUSIBLE_URL)
+    console = client.get('/manage/analytics', base_url=ACME)
+    # The saved URL appears in the form field, but the tracker itself
+    # must not load and the CSP must stay at the strict baseline.
+    assert b'/static/js/analytics/plausible-init.js' not in console.data
+    assert console.headers['Content-Security-Policy'] == BASELINE_CSP
+
+
+def test_analytics_invalid_value_flashes_and_persists_nothing(app, client,
+                                                              acme, globex,
+                                                              user):
+    login_as(client, user)
+    response = save_analytics(client, provider='ga4',
+                              analytics_ga4_measurement_id='UA-123456-7')
+    assert response.status_code == 302
+    followed = client.get('/manage/analytics', base_url=ACME)
+    assert b'Measurement ID' in followed.data       # the flashed error
+    assert db.session.get(Organization, acme.id).analytics_config() == {}
+
+
+def test_analytics_off_clears_config(app, client, acme, globex, user):
+    login_as(client, user)
+    save_analytics(client, provider='plausible',
+                   analytics_plausible_script_url=PLAUSIBLE_URL)
+    save_analytics(client, provider='')
+    assert db.session.get(Organization, acme.id).analytics_config() == {}
+    home = client.get('/', base_url=ACME)
+    assert b'/static/js/analytics/' not in home.data
+    assert home.headers['Content-Security-Policy'] == BASELINE_CSP
+
+
+def test_settings_url_redirects_to_its_first_subpage(app, client, acme,
+                                                     globex, user):
+    login_as(client, user)
+    response = client.get('/manage/settings', base_url=ACME)
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/manage/settings/privacy')
+
+
+def test_subnav_column_renders_only_under_settings(app, client, acme, globex,
+                                                   user):
+    login_as(client, user)
+    branding = client.get('/manage/branding', base_url=ACME).data
+    # The left nav: Appearance pages plus the Settings parent (which links to
+    # its first sub-page). Settings sub-pages appear only in the sub-nav.
+    for link in (b'/manage/branding', b'/manage/theme', b'/manage/navigation',
+                 b'/manage/plugins', b'/manage/settings/privacy'):
+        assert link in branding
+    assert b'/manage/analytics' not in branding
+    assert b'md:w-44' not in branding       # no second column on a plain page
+
+    privacy = client.get('/manage/settings/privacy', base_url=ACME).data
+    assert b'md:w-44' in privacy            # the Settings sub-nav column
+    for link in (b'/manage/analytics', b'/manage/domains'):
+        assert link in privacy              # its siblings in the sub-nav
+
+    # A sub-page reached directly still shows the column and its siblings.
+    analytics = client.get('/manage/analytics', base_url=ACME).data
+    assert b'md:w-44' in analytics
+    assert b'/manage/domains' in analytics
+
+
 def test_theme_switch(app, client, acme, globex, user):
     login_as(client, user)
-    client.post('/manage/settings', base_url=ACME, data={
-        'section': 'theme', 'theme': 'midnight', 'theme_accent': '#22ccff',
+    client.post('/manage/theme', base_url=ACME, data={
+        'theme': 'midnight', 'theme_accent': '#22ccff',
     })
     org = db.session.get(Organization, acme.id)
     assert org.theme == 'midnight'
@@ -272,14 +405,14 @@ def test_landing_nav_gated_by_content_schema(app, client, acme, globex, user):
     # Origin and Supremely both declare content -> editor entry present.
     acme.theme = 'origin'
     acme.save()
-    assert b'/manage/landing' in client.get('/manage/settings', base_url=ACME).data
+    assert b'/manage/landing' in client.get('/manage/branding', base_url=ACME).data
     acme.theme = 'supremely'
     acme.save()
-    assert b'/manage/landing' in client.get('/manage/settings', base_url=ACME).data
+    assert b'/manage/landing' in client.get('/manage/branding', base_url=ACME).data
     # Midnight declares none -> no editor, and the route itself 404s.
     acme.theme = 'midnight'
     acme.save()
-    assert b'/manage/landing' not in client.get('/manage/settings', base_url=ACME).data
+    assert b'/manage/landing' not in client.get('/manage/branding', base_url=ACME).data
     assert client.get('/manage/landing', base_url=ACME).status_code == 404
 
 
@@ -425,7 +558,7 @@ def test_the_logo_picker_offers_only_public_images(app, client, acme,
     public_id = _upload(client, 'public')
     members_id = _upload(client, 'members')
 
-    body = client.get('/manage/settings', base_url=ACME).data.decode()
+    body = client.get('/manage/branding', base_url=ACME).data.decode()
     assert f'value="{public_id}"' in body
     assert f'value="{members_id}"' not in body
 
@@ -495,8 +628,8 @@ def test_a_logo_cannot_be_another_tenants_upload(app, client, acme, globex, user
     foreign_upload_id, _ = _globex_rows(app, globex)
     login_as(client, user)
 
-    client.post('/manage/settings', base_url=ACME,
-                data={'section': 'branding', 'name': 'Acme',
+    client.post('/manage/branding', base_url=ACME,
+                data={'name': 'Acme',
                       'logo_upload_id': str(foreign_upload_id)})
 
     db.session.expire_all()
@@ -512,16 +645,16 @@ def test_a_favicon_cannot_be_another_tenants_upload(app, client, acme, globex, u
 
     # Ours is stored, so the refusal below cannot pass by the field simply
     # never being looked at.
-    client.post('/manage/settings', base_url=ACME,
-                data={'section': 'branding', 'name': 'Acme',
+    client.post('/manage/branding', base_url=ACME,
+                data={'name': 'Acme',
                       'favicon_upload_id': str(ours)})
     db.session.expire_all()
     with app.test_request_context(base_url=ACME):
         g.org = acme
         assert acme.setting('favicon_upload_id') == ours
 
-    client.post('/manage/settings', base_url=ACME,
-                data={'section': 'branding', 'name': 'Acme',
+    client.post('/manage/branding', base_url=ACME,
+                data={'name': 'Acme',
                       'favicon_upload_id': str(foreign_upload_id)})
     db.session.expire_all()
     with app.test_request_context(base_url=ACME):

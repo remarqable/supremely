@@ -1,0 +1,55 @@
+{% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-2xl">
+{{ page_header(_('manage.branding')) }}
+<div class="card">
+  <form method="POST" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="name" class="label">{{ _('orgs.name_label') }}</label>
+      <input type="text" id="name" name="name" class="input mt-1" required
+             maxlength="100" value="{{ org.name }}">
+    </div>
+    <div>
+      <label for="description" class="label">{{ _('manage.description') }}</label>
+      <textarea id="description" name="description" class="textarea mt-1">{{ org.description or '' }}</textarea>
+    </div>
+    <div>
+      <label for="brand_primary" class="label">{{ _('manage.brand_color') }}</label>
+      {# No inline handler: the Content-Security-Policy has no unsafe-inline,
+         so an oninput sync is dead in every environment, dev included. #}
+      <div class="mt-1 flex items-center gap-2"
+           x-data="{ hex: '{{ org.brand_primary or '' }}' }">
+        <input type="color" id="brand_primary_picker"
+               aria-label="{{ _('manage.brand_color') }}"
+               :value="hex || '#6366f1'" @input="hex = $event.target.value">
+        <input type="text" id="brand_primary" name="brand_primary" class="input"
+               pattern="#[0-9a-fA-F]{6}" placeholder="#RRGGBB" x-model="hex">
+      </div>
+    </div>
+    <div>
+      <label for="logo_upload_id" class="label">{{ _('manage.logo') }}</label>
+      <select id="logo_upload_id" name="logo_upload_id" class="select mt-1">
+        <option value="">{{ _('common.none') }}</option>
+        {% for upload in uploads %}
+        <option value="{{ upload.id }}" {{ 'selected' if org.setting('logo_upload_id') == upload.id }}>{{ upload.filename }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="favicon_upload_id" class="label">{{ _('manage.favicon') }}</label>
+      <select id="favicon_upload_id" name="favicon_upload_id" class="select mt-1">
+        <option value="">{{ _('common.none') }}</option>
+        {% for upload in uploads %}
+        <option value="{{ upload.id }}" {{ 'selected' if org.setting('favicon_upload_id') == upload.id }}>{{ upload.filename }}</option>
+        {% endfor %}
+      </select>
+      <p class="mt-1 text-xs text-slate-500">{{ _('manage.media_hint') }}</p>
+    </div>
+    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+  </form>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
+
+{% block manage_content %}
+<div class="mx-auto max-w-2xl">
+{{ page_header(_('manage.privacy')) }}
+<div class="card">
+  <form method="POST" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="flex items-start gap-3">
+      <input type="checkbox" name="gated_teasers" class="mt-0.5"
+             {{ 'checked' if org.teases_gated_content() }}>
+      <span>
+        <span class="block text-sm font-medium text-slate-900">{{ _('manage.gated_teasers') }}</span>
+        <span class="mt-0.5 block text-xs leading-relaxed text-slate-500">{{ _('manage.gated_teasers_hint') }}</span>
+      </span>
+    </label>
+    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+  </form>
+</div>
+</div>
+{% endblock %}

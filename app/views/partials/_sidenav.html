@@ -60,6 +60,37 @@
 </nav>
 {% endmacro %}
 
+{% macro subnav_links(title, items, current) %}
+<nav aria-label="{{ title }}">
+  <ul class="space-y-0.5">
+    {% for item in items %}
+    <li>{{ nav_link(item, current) }}</li>
+    {% endfor %}
+  </ul>
+</nav>
+{% endmacro %}
+
+{# The second column: a parent nav entry's sub-pages (item 'subnav' key).
+   Rendered by the section layout between the sidenav and the content when
+   the current page belongs to that parent. #}
+{% macro subnav(title, items) %}
+{% set current = request.endpoint %}
+<aside class="md:w-44 md:shrink-0">
+  {# Mobile: a collapsible menu, stacked under the main one #}
+  <details class="card mb-2 p-3 md:hidden" open>
+    <summary class="cursor-pointer text-sm font-semibold">{{ title }}</summary>
+    <div class="mt-3">{{ subnav_links(title, items, current) }}</div>
+  </details>
+  {# Desktop: a sticky second column #}
+  <div class="sticky top-6 hidden md:block">
+    {# mt-9 lines the label up with the sidenav's first group label (the
+       sidenav column starts with its text-base title, this one doesn't). #}
+    <div class="mb-1.5 mt-9 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ title }}</div>
+    {{ subnav_links(title, items, current) }}
+  </div>
+</aside>
+{% endmacro %}
+
 {% macro sidenav(title, groups) %}
 {% set current = request.endpoint %}
 <aside class="md:w-52 md:shrink-0">

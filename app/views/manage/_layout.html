@@ -1,5 +1,5 @@
 {% extends 'layouts/base.html' %}
-{% from 'partials/_sidenav.html' import sidenav with context %}
+{% from 'partials/_sidenav.html' import sidenav, subnav with context %}
 
 {% block title %}{{ _('manage.title') }} — {{ g.org.name }}{% endblock %}
 
@@ -20,17 +20,33 @@
    'children': type_items},
   {'endpoint': 'manage.categories', 'label': _('manage.categories')},
   {'endpoint': 'manage.media', 'label': _('manage.media')},
-  {'endpoint': 'manage.navigation', 'label': _('manage.navigation')},
 ] %}
 
-{# Site group: the Landing editor appears only for themes that declare an
-   editable content schema (theme.json "content"), so it's never a dead link. #}
-{% set site_items = [{'endpoint': 'manage.settings', 'label': _('manage.settings')}] %}
+{# Appearance group (how the site looks): the Landing editor appears only for
+   themes that declare an editable content schema (theme.json "content"), so
+   it's never a dead link. #}
+{% set appearance_items = [
+  {'endpoint': 'manage.theme_settings', 'label': _('manage.theme')},
+  {'endpoint': 'manage.branding', 'label': _('manage.branding')},
+] %}
 {% if available_themes().get(current_theme(), {}).get('content', {}).get('fields') %}
-  {% do site_items.append({'endpoint': 'manage.landing_settings', 'label': _('manage.landing')}) %}
+  {% do appearance_items.append({'endpoint': 'manage.landing_settings', 'label': _('manage.landing')}) %}
 {% endif %}
-{% do site_items.append({'endpoint': 'manage.plugins', 'label': _('manage.plugins')}) %}
-{% do site_items.append({'endpoint': 'manage.domains', 'label': _('manage.domains')}) %}
+{% do appearance_items.append({'endpoint': 'manage.navigation', 'label': _('manage.navigation')}) %}
+
+{# Site group (how the site runs): Settings is a parent entry — its 'subnav'
+   pages render as a second column (see the subnav render below). #}
+{% set settings_items = [
+  {'endpoint': 'manage.privacy_settings', 'label': _('manage.privacy')},
+  {'endpoint': 'manage.analytics_settings', 'label': _('manage.analytics')},
+  {'endpoint': 'manage.domains', 'label': _('manage.domains')},
+] %}
+{% set site_items = [
+  {'endpoint': 'manage.plugins', 'label': _('manage.plugins')},
+  {'endpoint': settings_items[0].endpoint,
+   'label': _('manage.settings'), 'subnav': settings_items,
+   'also': settings_items|map(attribute='endpoint')|list},
+] %}
 
 {% set manage_groups = [
   (_('manage.group_content'), content_items),
@@ -40,12 +56,27 @@
      'also': ['manage.flags']},
     {'endpoint': 'manage.newsletter', 'label': _('manage.newsletter')},
   ]),
+  (_('manage.group_appearance'), appearance_items),
   (_('manage.group_site'), site_items),
 ] %}
+
+{# A page that belongs to a 'subnav' parent gets a second nav column. #}
+{% set active_subnav = namespace(item=none) %}
+{% for group_label, items in manage_groups %}
+  {% for item in items if item.get('subnav') %}
+    {% if request.endpoint == item.endpoint
+          or request.endpoint in item.subnav|map(attribute='endpoint')|list %}
+      {% set active_subnav.item = item %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
 
 {% block content %}
 <div class="flex flex-col gap-6 md:flex-row md:gap-10">
   {{ sidenav(_('manage.title'), manage_groups) }}
+  {% if active_subnav.item %}
+  {{ subnav(active_subnav.item.label, active_subnav.item.subnav) }}
+  {% endif %}
   <div class="min-w-0 flex-1">
     {% block manage_content %}{% endblock %}
   </div>
