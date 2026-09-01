@@ -20,13 +20,15 @@
       </div>
       <div>
         <label for="brand_primary" class="label">{{ _('manage.brand_color') }}</label>
-        <div class="mt-1 flex items-center gap-2">
+        {# No inline handler: the Content-Security-Policy has no unsafe-inline,
+           so an oninput sync is dead in every environment, dev included. #}
+        <div class="mt-1 flex items-center gap-2"
+             x-data="{ hex: '{{ org.brand_primary or '' }}' }">
           <input type="color" id="brand_primary_picker"
-                 value="{{ org.brand_primary or '#6366f1' }}"
-                 oninput="document.getElementById('brand_primary').value = this.value">
+                 aria-label="{{ _('manage.brand_color') }}"
+                 :value="hex || '#6366f1'" @input="hex = $event.target.value">
           <input type="text" id="brand_primary" name="brand_primary" class="input"
-                 pattern="#[0-9a-fA-F]{6}" placeholder="#RRGGBB"
-                 value="{{ org.brand_primary or '' }}">
+                 pattern="#[0-9a-fA-F]{6}" placeholder="#RRGGBB" x-model="hex">
         </div>
       </div>
       <div>

@@ -112,7 +112,7 @@ def _content_from_form(content):
     # `template` reaches render_site()'s candidate list, so a value the rule
     # refuses is ignored at render. Here we also stop it blocking future saves.
     stored_template = content.template
-    if not page_template_allowed(stored_template):
+    if stored_template and not page_template_allowed(stored_template):
         # Types without a Template field in their editor have no other way to
         # clear a value stored before the rule existed.
         content.template = None

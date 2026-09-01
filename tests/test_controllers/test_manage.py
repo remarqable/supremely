@@ -1,4 +1,5 @@
 import io
+import re
 
 from flask import g
 
@@ -178,6 +179,50 @@ def test_branding_settings(app, client, acme, globex, user):
 
     home = client.get('/', base_url=ACME)
     assert b'#ff5500' in home.data          # brand variable in the page
+
+
+def test_saving_content_without_a_template_does_not_warn(app, client, acme,
+                                                          globex, user):
+    """The guard is for a stored template the rule now refuses. Content with no
+    template at all was tripping it, so every save warned about "None"."""
+    login_as(client, user)
+    response = client.post('/manage/content/page/new', base_url=ACME, data={
+        'title': 'Plain page', 'slug': 'plain-page', 'body': 'Hello',
+        'status': 'published', 'visibility': 'public', 'template': '',
+    }, follow_redirects=True)
+    assert b'no longer allowed' not in response.data
+    assert b'&#34;None&#34;' not in response.data
+
+
+def test_saving_content_still_clears_a_disallowed_template(app, client, acme,
+                                                          globex, user):
+    """The case the guard exists for: a value stored before the rule existed."""
+    login_as(client, user)
+    client.post('/manage/content/page/new', base_url=ACME, data={
+        'title': 'Legacy', 'slug': 'legacy', 'body': 'x',
+        'status': 'published', 'visibility': 'public',
+    })
+    page = Content.query.filter_by(slug='legacy').first()
+    page.template = 'single'            # an application template: refused
+    db.session.commit()
+    content_id = page.id
+
+    response = client.post(f'/manage/content/{content_id}/edit', base_url=ACME,
+                           data={'title': 'Legacy', 'slug': 'legacy',
+                                 'body': 'x', 'status': 'published',
+                                 'visibility': 'public'},
+                           follow_redirects=True)
+    assert b'no longer allowed' in response.data
+    assert db.session.get(Content, content_id).template is None
+
+
+def test_settings_ships_no_inline_event_handlers(app, client, acme, globex, user):
+    """The CSP has no unsafe-inline, so an on*= attribute is dead markup. This
+    is checkable server-side even though the enforcement is the browser's."""
+    login_as(client, user)
+    html = client.get('/manage/settings', base_url=ACME).get_data(as_text=True)
+    assert re.search(r'\son[a-z]+\s*=', html) is None, 'inline handler in settings'
+    assert 'x-model="hex"' in html          # the picker is bound through Alpine
 
 
 def test_invalid_brand_color_rejected(app, client, acme, globex, user):
