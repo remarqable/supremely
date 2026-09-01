@@ -8,7 +8,6 @@ from flask import (
     redirect,
     render_template,
     request,
-    url_for,
 )
 from flask_login import current_user, login_required
 
@@ -17,7 +16,6 @@ from app.platform.authz import is_member_or_platform_admin, org_required
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
-from app.platform.redirects import safe_next
 from app.platform.tenant import org_url
 
 bp = Blueprint('orgs', __name__)
@@ -63,24 +61,6 @@ def create():
             flash(e.message, 'error')
 
     return render_template('orgs/new.html')
-
-
-@bp.route('/manage-mode', methods=['POST'])
-@org_required
-@login_required
-def toggle_manage_mode():
-    """Flip manage mode: a PRESENTATION state that surfaces the management
-    controls the user is already authorized for. It grants nothing — every
-    control stays individually permission-gated, and the backend enforces
-    each action regardless of this flag."""
-    from flask import session
-
-    from app.platform.authz import can
-    if not (can('content.write') or can('content.moderate')):
-        abort(403)
-    session['manage_mode'] = not session.get('manage_mode')
-    return redirect(safe_next(request.form.get('next'),
-                              url_for('orgs.dashboard')))
 
 
 FEED_LIMIT = 20

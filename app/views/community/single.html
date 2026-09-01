@@ -21,7 +21,7 @@
 {% call area_header(content_type.plural, content_type.base, tag='div') %}
   {% if can('content.write') %}
   <a href="{{ url_for('manage.new_content', type_slug=content_type.slug) }}"
-     class="btn-primary">{{ _('manage.new_of', name=content_type.singular) }}</a>
+     class="btn-admin" title="{{ _('community.admin_only_hint') }}">{{ _('manage.new_of', name=content_type.singular) }} <span class="sr-only">({{ _('community.admin_only') }})</span></a>
   {% endif %}
 {% endcall %}
 

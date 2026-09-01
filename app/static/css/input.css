@@ -71,6 +71,13 @@
   .btn-ghost     { @apply btn text-slate-600 hover:bg-slate-100
                           hover:text-slate-900; }
   .btn-danger    { @apply btn bg-red-600 text-white hover:bg-red-700; }
+  /* Admin only. Members and visitors share these routes, so a control only an
+     admin can use is tinted rather than hidden: an admin can tell at a glance
+     what a member does not see. Use it ONLY where the action is genuinely
+     unavailable to a member. Editing or deleting your own content is not
+     admin-only and must stay a plain button. */
+  .btn-admin     { @apply btn bg-amber-50 text-amber-800 ring-1 ring-amber-300
+                          hover:bg-amber-100 hover:text-amber-900; }
 
   .label { @apply block text-sm font-medium text-slate-700; }
   .select   { @apply input pe-10; }
@@ -99,6 +106,7 @@
   .empty-state { @apply flex flex-col items-center gap-1 py-10 text-center; }
   .empty-state-icon { @apply mb-2 flex h-9 w-9 items-center justify-center
                              rounded-md bg-slate-100 text-slate-400; }
+
 
   .badge-green { @apply badge bg-green-50 text-green-700 ring-green-200; }
   .badge-red   { @apply badge bg-red-50 text-red-700 ring-red-200; }

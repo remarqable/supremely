@@ -38,7 +38,7 @@
   <p class="mt-1 text-sm leading-relaxed text-slate-500">{{ _('community.announcements_empty_body') }}</p>
   {% if can('content.write') %}
   <a href="{{ url_for('manage.new_content', type_slug='announcement') }}"
-     class="btn-secondary mt-3 w-full">{{ _('manage.new_of', name='Announcement') }}</a>
+     class="btn-admin mt-3 w-full" title="{{ _('community.admin_only_hint') }}">{{ _('manage.new_of', name='Announcement') }} <span class="sr-only">({{ _('community.admin_only') }})</span></a>
   {% endif %}
   {% endif %}
 </div>

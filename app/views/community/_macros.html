@@ -156,8 +156,10 @@
 {% if can('content.write') %}
 <div x-data="{ open: false }" class="relative">
   <button type="button" @click="open = !open" @keydown.escape="open = false"
-          :aria-expanded="open" aria-haspopup="menu" class="btn-secondary">
+          :aria-expanded="open" aria-haspopup="menu" class="btn-admin"
+          title="{{ _('community.admin_only_hint') }}">
     {{ _('community.publish_button') }}
+    <span class="sr-only">({{ _('community.admin_only') }})</span>
     <svg class="h-3 w-3 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
   </button>
   <div x-show="open" @click.outside="open = false" x-cloak x-transition role="menu"

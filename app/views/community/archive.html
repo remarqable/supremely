@@ -16,7 +16,7 @@
      lives in the console, but publishing starts from the community surface. #}
   {% if can('content.write') %}
   <a href="{{ url_for('manage.new_content', type_slug=content_type.slug) }}"
-     class="btn-primary">{{ _('manage.new_of', name=content_type.singular) }}</a>
+     class="btn-admin" title="{{ _('community.admin_only_hint') }}">{{ _('manage.new_of', name=content_type.singular) }} <span class="sr-only">({{ _('community.admin_only') }})</span></a>
   {% endif %}
 {% endcall %}
 
@@ -66,7 +66,7 @@
   {% else %}
   <div class="rounded-xl bg-white ring-1 ring-slate-200">
     {% if can('content.write') %}
-    {{ empty_state(_('archive.none'), url_for('manage.new_content', type_slug=content_type.slug), _('manage.new_of', name=content_type.singular)) }}
+    {{ empty_state(_('archive.none'), url_for('manage.new_content', type_slug=content_type.slug), _('manage.new_of', name=content_type.singular), admin=True) }}
     {% else %}
     {{ empty_state(_('archive.none')) }}
     {% endif %}

@@ -12,7 +12,7 @@
 </div>
 {% endmacro %}
 
-{% macro empty_state(message, cta_url=None, cta_label=None) %}
+{% macro empty_state(message, cta_url=None, cta_label=None, admin=False) %}
 <div class="empty-state">
   <div class="empty-state-icon">
     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor"
@@ -23,7 +23,7 @@
   </div>
   <p class="text-sm text-slate-500">{{ message }}</p>
   {% if cta_url %}
-  <a href="{{ cta_url }}" class="mt-2 btn-secondary">{{ cta_label }}</a>
+  <a href="{{ cta_url }}" class="mt-2 {{ 'btn-admin' if admin else 'btn-secondary' }}">{{ cta_label }}{% if admin %} <span class="sr-only">({{ _('community.admin_only') }})</span>{% endif %}</a>
   {% endif %}
 </div>
 {% endmacro %}

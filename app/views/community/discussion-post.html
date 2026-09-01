@@ -29,7 +29,7 @@
 {% endmacro %}
 
 {% macro render_reply(reply, nested=False) %}
-<div id="reply-{{ reply.id }}"
+<div id="reply-{{ reply.id }}" x-data="{ replying: false, editing: false }"
      class="rounded-xl bg-white p-4 ring-1 ring-slate-200 {{ 'ms-10' if nested }} {{ 'opacity-60 ring-red-200' if reply.is_hidden }}">
   {% if reply.is_hidden %}<span class="badge-red mb-2">{{ _('discussions.hidden') }}</span>{% endif %}
   <div class="flex items-center gap-2.5">
@@ -43,32 +43,25 @@
   {{ reaction_bar('reply', reply.id) }}
   <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
     {% if can('discuss') and not post.is_locked and not nested %}
-    <details x-data><summary class="cursor-pointer text-slate-500 hover:text-slate-900">{{ _('discussions.reply') }}</summary>
-      {{ reply_form(parent_id=reply.id) }}
-      <button type="button" class="btn-ghost" @click="$root.removeAttribute('open')">{{ _('common.cancel') }}</button>
-    </details>
+    <button type="button" class="text-slate-500 hover:text-slate-900"
+            @click="replying = !replying; editing = false" :aria-expanded="replying">
+      {{ _('discussions.reply') }}</button>
     {% endif %}
     {% if reply.can_edit() %}
-    <details x-data><summary class="cursor-pointer text-slate-500 hover:text-slate-900">{{ _('discussions.edit') }}</summary>
-      <form method="POST" action="/discussions/replies/{{ reply.id }}/edit" class="mt-2 space-y-2">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <textarea name="body" class="textarea min-h-20">{{ reply.body }}</textarea>
-        <div class="flex gap-2">
-          <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
-          <button type="button" class="btn-ghost" @click="$root.removeAttribute('open')">{{ _('common.cancel') }}</button>
-        </div>
-      </form>
-    </details>
+    <button type="button" class="text-slate-500 hover:text-slate-900"
+            @click="editing = !editing; replying = false" :aria-expanded="editing">
+      {{ _('discussions.edit') }}</button>
     <form method="POST" action="/discussions/replies/{{ reply.id }}/delete" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button type="submit" class="text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
     </form>
     {% endif %}
-    {% if can('content.moderate') and managing() %}
+    {% if can('content.moderate') %}
     <form method="POST" action="/discussions/replies/{{ reply.id }}/hide" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="text-amber-600 hover:text-amber-700">
-        {{ _('discussions.unhide') if reply.is_hidden else _('discussions.hide') }}</button>
+      <button type="submit" class="btn-admin !px-1.5 !py-0.5"
+              title="{{ _('community.admin_only_hint') }}">
+        {{ _('discussions.unhide') if reply.is_hidden else _('discussions.hide') }} <span class="sr-only">({{ _('community.admin_only') }})</span></button>
     </form>
     {% endif %}
     {% if can('discuss') %}
@@ -80,6 +73,24 @@
     </form>
     {% endif %}
   </div>
+
+  {# Full width below the row, for the same reason as the post's edit form. #}
+  {% if can('discuss') and not post.is_locked and not nested %}
+  <div x-show="replying" x-cloak x-transition class="mt-2">
+    {{ reply_form(parent_id=reply.id) }}
+  </div>
+  {% endif %}
+  {% if reply.can_edit() %}
+  <form x-show="editing" x-cloak x-transition method="POST"
+        action="/discussions/replies/{{ reply.id }}/edit" class="mt-2 space-y-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <textarea name="body" class="textarea min-h-20">{{ reply.body }}</textarea>
+    <div class="flex gap-2">
+      <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+      <button type="button" class="btn-ghost" @click="editing = false">{{ _('common.cancel') }}</button>
+    </div>
+  </form>
+  {% endif %}
 </div>
 {% endmacro %}
 
@@ -93,7 +104,7 @@
 {% endcall %}
 
 <div class="min-w-0">
-<article class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
+<article x-data="{ editing: false }" class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
   <div class="flex items-start gap-3">
     {{ avatar(post.author.name if post.author else '?',
               post.author.avatar_url if post.author else None,
@@ -158,51 +169,14 @@
     </div>
   </div>
 
-  {% if post.can_edit() and not managing() %}
-  <details x-data class="mt-3">
-    <summary class="cursor-pointer text-xs text-slate-500 hover:text-slate-900">{{ _('discussions.edit') }}</summary>
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/edit" class="mt-2 space-y-2">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="text" name="title" class="input" value="{{ post.title }}">
-      <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
-      <div class="flex gap-2">
-        <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
-        <button type="button" class="btn-ghost" @click="$root.removeAttribute('open')">{{ _('common.cancel') }}</button>
-      </div>
-    </form>
-  </details>
-  {% endif %}
-
-  {% if managing() and (post.can_edit() or can('content.moderate')) %}
+  {% if post.can_edit() or can('content.moderate') %}
+  {# Author actions first, unmarked: a member gets edit and delete on their own
+     post. The moderator cluster is marked because a member never sees it. #}
   <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-    <span class="badge-brand me-1">{{ _('community.managing') }}</span>
     {% if post.can_edit() %}
-    <details x-data class="min-w-0 flex-1">
-      <summary class="btn-secondary inline-flex cursor-pointer">{{ _('discussions.edit') }}</summary>
-      <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/edit" class="mt-3 space-y-2">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="text" name="title" class="input" value="{{ post.title }}">
-        <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
-        <div class="flex gap-2">
-          <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
-          <button type="button" class="btn-ghost" @click="$root.removeAttribute('open')">{{ _('common.cancel') }}</button>
-        </div>
-      </form>
-    </details>
-    {% endif %}
-    {% if can('content.moderate') %}
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/pin">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn-secondary">{{ _('discussions.unpin') if post.is_pinned else _('discussions.pin') }}</button>
-    </form>
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/lock">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn-secondary">{{ _('discussions.unlock') if post.is_locked else _('discussions.lock') }}</button>
-    </form>
-    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/hide">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <button type="submit" class="btn-secondary text-amber-700">{{ _('discussions.unhide') if post.is_hidden else _('discussions.hide') }}</button>
-    </form>
+    <button type="button" class="btn-secondary" @click="editing = !editing"
+            :aria-expanded="editing" aria-controls="edit-post-{{ post.id }}">
+      {{ _('discussions.edit') }}</button>
     {% endif %}
     {% if post.can_edit() %}
     <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/delete">
@@ -210,7 +184,38 @@
       <button type="submit" class="btn-secondary text-red-600">{{ _('common.delete') }}</button>
     </form>
     {% endif %}
+    {# btn-admin: amber means a member cannot do this. #}
+    {% if can('content.moderate') %}
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/pin">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-admin" title="{{ _('community.admin_only_hint') }}">{{ _('discussions.unpin') if post.is_pinned else _('discussions.pin') }} <span class="sr-only">({{ _('community.admin_only') }})</span></button>
+    </form>
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/lock">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-admin" title="{{ _('community.admin_only_hint') }}">{{ _('discussions.unlock') if post.is_locked else _('discussions.lock') }} <span class="sr-only">({{ _('community.admin_only') }})</span></button>
+    </form>
+    <form method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/hide">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-admin" title="{{ _('community.admin_only_hint') }}">{{ _('discussions.unhide') if post.is_hidden else _('discussions.hide') }} <span class="sr-only">({{ _('community.admin_only') }})</span></button>
+    </form>
+    {% endif %}
   </div>
+
+  {# Full width below the row: inside it, the form squeezed itself against the
+     buttons that share the row. #}
+  {% if post.can_edit() %}
+  <form id="edit-post-{{ post.id }}" x-show="editing" x-cloak x-transition
+        method="POST" action="/discussions/{{ group.slug }}/{{ post.id }}/edit"
+        class="mt-3 space-y-2 border-t border-slate-100 pt-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="text" name="title" class="input" value="{{ post.title }}">
+    <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
+    <div class="flex gap-2">
+      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
+      <button type="button" class="btn-ghost" @click="editing = false">{{ _('common.cancel') }}</button>
+    </div>
+  </form>
+  {% endif %}
   {% endif %}
 </article>
 

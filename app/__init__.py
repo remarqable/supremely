@@ -236,14 +236,6 @@ def _init_context(app):
             from .models.discussion import DiscussionGroup
             return DiscussionGroup.area_readable_by_current_visitor()
 
-        def managing():
-            """Manage mode: presentation only — surfaces controls the user
-            already has permission for. Never consulted for authorization."""
-            from flask import session
-            return bool(session.get('manage_mode')
-                        and getattr(g, 'membership', None) is not None
-                        and (can('content.write') or can('content.moderate')))
-
         return {
             'installation_name': installation_name,
             'can': can,
@@ -254,7 +246,6 @@ def _init_context(app):
             'app_version': APP_VERSION,
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,
-            'managing': managing,
             'start_here_page': start_here_page,
             'latest_announcement': latest_announcement,
             'upcoming_event': upcoming_event,

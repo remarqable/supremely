@@ -1,7 +1,9 @@
-"""One surface, two modes: community-native pages and the manage-mode toggle.
+"""One surface, plus a console: community-native pages and inline controls.
 
-Manage mode is presentation state — it surfaces controls the user already
-has; it must never grant anything.
+An inline control renders whenever can() allows it. One a member could never
+use is marked with .btn-admin rather than hidden, so an admin can see what a
+member does not. The marking is presentation only: the backend enforces every
+action regardless of what the UI drew.
 """
 
 from flask import g
@@ -19,6 +21,20 @@ def make_member(client, acme, email='member@example.com'):
     Membership.add(member.id, acme.id, role='member')
     login_as(client, member)
     return member
+
+
+def admin_control(html, label):
+    """The markup of the button whose visible text starts with `label`.
+
+    Asserting the page merely contains "btn-admin" somewhere would still pass
+    when one control quietly lost its marking, so each is checked on its own.
+    """
+    import re
+    for m in re.finditer(r'<button[^>]*>(.*?)</button>', html, re.S):
+        text = re.sub(r'<[^>]+>', '', m.group(1)).strip()
+        if text.startswith(label):
+            return m.group(0)
+    raise AssertionError(f'no button labelled {label!r}')
 
 
 def seed_discussion(client):
@@ -96,16 +112,9 @@ def test_space_composer_posts_into_that_space(app, client, acme, user):
 
 # --- Manage mode ------------------------------------------------------------
 
-def test_plain_members_cannot_toggle_manage_mode(app, client, acme):
-    make_member(client, acme)
-    response = client.post('/manage-mode', base_url=ACME)
-    assert response.status_code == 403
-    # The pill is not rendered for members either.
-    page = client.get('/dashboard', base_url=ACME)
-    assert b'/manage-mode' not in page.data
-
-
-def test_manage_mode_surfaces_moderation_controls(app, client, acme, user):
+def test_moderation_controls_need_no_toggle(app, client, acme, user):
+    """They used to appear only after flipping manage mode. A moderator now
+    sees them on first load, and they carry the admin marking."""
     login_as(client, user)          # owner
     seed_discussion(client)
     with app.test_request_context(base_url=ACME):
@@ -113,23 +122,18 @@ def test_manage_mode_surfaces_moderation_controls(app, client, acme, user):
         from app.models.discussion import Post
         url = Post.query.filter_by(title='Roadmap question').one().url
 
-    normal = client.get(url, base_url=ACME)
-    assert b'>Pin</button>' not in normal.data
-
-    assert client.post('/manage-mode', base_url=ACME,
-                       data={'next': url}).status_code == 302
-    managing = client.get(url, base_url=ACME)
-    assert b'>Pin</button>' in managing.data
-    assert b'>Lock</button>' in managing.data
-    assert b'>Hide</button>' in managing.data
-
-    # Toggle back off: controls collapse again.
-    client.post('/manage-mode', base_url=ACME)
-    assert b'>Pin</button>' not in client.get(url, base_url=ACME).data
+    html = client.get(url, base_url=ACME).get_data(as_text=True)
+    # Every one of them, individually: a page-wide check would still pass if
+    # one control quietly lost its marking.
+    for label in ('Pin', 'Lock', 'Hide'):
+        control = admin_control(html, label)
+        assert 'btn-admin' in control, label
+        assert 'sr-only' in control, label      # colour is not the only signal
 
 
-def test_manage_mode_session_grants_nothing_to_members(app, client, acme, user):
-    """A smuggled manage_mode flag must not surface (or allow) moderation."""
+def test_a_plain_member_sees_no_moderation_controls(app, client, acme, user):
+    """The guarantee the old forged-session test protected: presentation is not
+    permission. A member sees none of it, and the backend refuses anyway."""
     login_as(client, user)
     seed_discussion(client)
     with app.test_request_context(base_url=ACME):
@@ -140,14 +144,53 @@ def test_manage_mode_session_grants_nothing_to_members(app, client, acme, user):
 
     member_client = app.test_client()
     make_member(member_client, acme)
-    with member_client.session_transaction() as session:
-        session['manage_mode'] = True           # forged presentation state
-    page = member_client.get(url, base_url=ACME)
-    assert b'>Pin</button>' not in page.data
-    # And the backend refuses the action itself regardless of any UI state.
+    page = member_client.get(url, base_url=ACME).data
+    assert b'>Pin</button>' not in page
+    assert b'>Lock</button>' not in page
+    assert b'btn-admin' not in page
+
     response = member_client.post(f'/discussions/general/{post_id}/pin',
                                   base_url=ACME)
     assert response.status_code == 403
+
+
+def test_your_own_content_controls_are_not_marked_admin_only(app, client, acme):
+    """Editing or deleting your own post is not an admin action, so it must not
+    carry the marking. A member on their own post sees plain controls."""
+    member_client = app.test_client()
+    make_member(member_client, acme)
+    member_client.post('/discussions/general/new', base_url=ACME,
+                       data={'title': 'My own thread', 'body': 'Mine.'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        from app.models.discussion import Post
+        url = Post.query.filter_by(title='My own thread').one().url
+
+    page = member_client.get(url, base_url=ACME).data
+    assert b'>Delete</button>' in page           # theirs to delete
+    assert b'btn-admin' not in page              # but nothing admin-only
+
+
+def test_the_shell_links_to_the_console_for_an_admin(app, client, acme, user):
+    """The console had no entry point from the community shell: the header
+    button toggled a mode instead of going there."""
+    login_as(client, user)
+    page = client.get('/dashboard', base_url=ACME).data
+    assert b'href="/manage/"' in page
+    assert b'/manage-mode' not in page           # the toggle is gone
+
+
+def test_the_console_link_is_hidden_from_a_plain_member(app, client, acme):
+    make_member(client, acme)
+    page = client.get('/dashboard', base_url=ACME).data
+    assert b'href="/manage/"' not in page
+
+
+def test_the_removed_toggle_route_is_gone(app, client, acme, user):
+    """405, not 404: with the POST route deleted, the public site's /<seg>
+    content route claims the path for GET, so a POST is method-not-allowed."""
+    login_as(client, user)
+    assert client.post('/manage-mode', base_url=ACME).status_code == 405
 
 
 # --- Theme token whitelist ---------------------------------------------------
@@ -218,35 +261,3 @@ def test_newsletter_archive_lists_sent_issues(app, client, acme, user):
     assert title in page.data
     assert b'Sent ' in page.data
 
-
-def test_the_manage_mode_toggle_will_not_send_you_off_site(app, client, acme, user):
-    """The toggle posts a `next` from a hidden field, and its form moved into
-    the navbar, so it renders on every page of the community shell."""
-    login_as(client, user)
-
-    response = client.post('/manage-mode', base_url=ACME,
-                           data={'next': 'https://evil.example.com/x'})
-    assert response.headers['Location'] == '/dashboard'
-
-    back = client.post('/manage-mode', base_url=ACME,
-                       data={'next': '/discussions/'})
-    assert back.headers['Location'] == '/discussions/'
-
-
-def test_the_navbar_hands_over_an_encoded_address(app, client, acme, user):
-    """request.path is percent-decoded, so putting it in the field directly
-    produced a literal space for any page whose address carries one, and the
-    redirect check then refused it."""
-    from app.extensions import db as _db
-    with app.test_request_context(base_url=ACME):
-        g.org = acme
-        article = Content.query.filter_by(org_id=acme.id, type='article').first()
-        article.tags = ['machine learning']
-        article.status = 'published'
-        _db.session.add(article)
-        _db.session.commit()
-
-    login_as(client, user)
-    body = client.get('/blog/tag/machine%20learning', base_url=ACME).data.decode()
-    assert 'value="/blog/tag/machine%20learning"' in body
-    assert 'value="/blog/tag/machine learning"' not in body

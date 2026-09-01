@@ -26,20 +26,13 @@
     {% endif %}
 
     <div class="ms-auto flex items-center gap-1">
-      {% if nav_shell and g.org and (can('content.write') or can('content.moderate')) %}
-      <form method="POST" action="{{ url_for('orgs.toggle_manage_mode') }}" class="me-1">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="next" value="{{ current_target() }}">
-        <button type="submit"
-                class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition-colors {{ 'bg-brand-50 text-brand-700 ring-brand-600/30' if managing() else 'text-slate-600 ring-slate-200 hover:bg-slate-50 hover:text-slate-900' }}">
-          {% if managing() %}
-          <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.5 3.5L13 4.5"/></svg>
-          {{ _('community.managing') }}
-          {% else %}
-          {{ _('community.manage') }}
-          {% endif %}
-        </button>
-      </form>
+      {# The console. On the shell this is the only way in, and the inline
+         controls on the surface itself are marked rather than toggled. #}
+      {% if nav_shell and g.org and can('content.write') %}
+      <a href="{{ url_for('manage.index') }}"
+         class="me-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition-colors {{ 'bg-brand-50 text-brand-700 ring-brand-600/30' if request.blueprint == 'manage' else 'text-slate-600 ring-slate-200 hover:bg-slate-50 hover:text-slate-900' }}">
+        {{ _('community.manage') }}
+      </a>
       {% endif %}
       {% if g.org and is_org_member() %}
       {% set unread = unread_notifications() %}
