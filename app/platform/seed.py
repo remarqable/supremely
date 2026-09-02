@@ -85,6 +85,63 @@ day one. Replace it with your real policy under **Manage → Content**.
 - We do not sell your data.
 """
 
+GET_BODY = """\
+## Self-host it today
+
+Supremely is open source under the AGPL-3.0 license. The code lives on
+[GitHub](https://github.com/remarqable/supremely) — read it, run it, star it.
+
+```bash
+git clone https://github.com/remarqable/supremely
+cd supremely
+docker compose up
+```
+
+See the [documentation](/docs) for the full install and deployment guide.
+
+## Hosted Supremely — coming soon
+
+We are building an official hosted service for people who would rather not
+run a server. It is not available yet.
+
+[Subscribe](/subscribe) to hear when it launches.
+"""
+
+TEAM_BODY = """\
+Supremely is built in the open by a small team. AI writes much of the
+implementation code; humans own architecture, security, review, and what
+ships. [About](/about) covers why the project exists.
+
+## Asim Baig
+
+![Asim Baig](/static/img/team/asim.png){: width="160" height="160" loading="lazy" }
+
+**Founder.** Sets the direction and owns what ships. Started Supremely to
+refuse the choice between owning your website, your audience, and your
+community.
+
+## Sara Rasch
+
+![Sara Rasch](/static/img/team/sara.png){: width="160" height="160" loading="lazy" }
+
+**Product Manager.** Keeps the product honest — scope, priorities, and the
+experience members actually get.
+
+## Aidan Urbina
+
+![Aidan Urbina](/static/img/team/aidan.png){: width="160" height="160" loading="lazy" }
+
+**Developer.** Builds across the stack, from the community surface to the
+plumbing underneath it.
+
+## Claudius Coddington
+
+![Claudius Coddington](/static/img/team/claudius.png){: width="160" height="160" loading="lazy" }
+
+**AI Developer.** Claude, wearing a hat. Writes much of the implementation
+code, always under human review. Has never been photographed clearly.
+"""
+
 FIRST_POST = """\
 Supremely now runs its own website — pages, navigation, theming, articles,
 discussions, and the newsletter you can subscribe to below.
@@ -144,12 +201,13 @@ def seed_getsupremely_org():
                                 'Independent., Human., You.'),
             'subhead': 'A simple home for your members, content, newsletters '
                        'and discussions.',
-            # Not selling SaaS yet: the primary CTA leads with our own
-            # community as the live demo.
+            # The site is the live demo, so the primary CTA leads with our
+            # own community; the secondary lands on /get (self-host now,
+            # hosted service coming soon).
             'primary_label': 'Explore the community',
             'primary_url': '/discussions',
-            'secondary_label': 'View on GitHub',
-            'secondary_url': 'https://github.com/remarqable/supremely',
+            'secondary_label': 'Get Supremely',
+            'secondary_url': '/get',
             'features': [
                 {'title': 'Publish', 'desc': 'Share updates and articles'},
                 {'title': 'Newsletter', 'desc': 'Send beautiful emails'},
@@ -184,6 +242,8 @@ def seed_getsupremely_org():
 
         about = page('about', 'About', ABOUT_BODY)
         docs = page('docs', 'Documentation', DOCS_BODY)
+        get_page = page('get', 'Get Supremely', GET_BODY)
+        team = page('team', 'Team', TEAM_BODY)
 
         def nav(menu, label, content_obj=None, url=None):
             existing = NavigationItem.query.filter_by(menu=menu,
@@ -199,6 +259,8 @@ def seed_getsupremely_org():
         nav('primary', 'Docs', docs)
         nav('primary', 'Blog', url='/blog')
         nav('primary', 'Community', url='/discussions')
+        nav('footer', 'Team', team)
+        nav('footer', 'Get Supremely', get_page)
         nav('footer', 'Subscribe', url='/subscribe')
         nav('footer', 'Source', url='https://github.com/remarqable/supremely')
 

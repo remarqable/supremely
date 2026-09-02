@@ -11,6 +11,7 @@ architecture, security, testing, review, product decisions, and what ships.
 - Asim Baig (Founder)
 - Sara Rasch (Product Manager)
 - Aidan Urbina (Developer)
+- Claudius Coddington (AI Developer — Claude, under human review)
 
 ## Contributors
 

@@ -55,6 +55,32 @@ def test_reseeding_never_clobbers_owner_edits(app, runner):
         assert content['headline_accent'] == 'my own words.'
 
 
+def test_seed_creates_the_get_page_and_ctas(app, runner):
+    """The landing CTAs lead with the community and land on /get; the /get
+    page itself is seeded and published."""
+    from flask import g
+
+    from app.models import Content, NavigationItem, Organization
+    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    with app.test_request_context():
+        org = Organization.get_by_slug('getsupremely')
+        g.org = org
+        get_page = Content.query.filter_by(type='page', slug='get').first()
+        assert get_page is not None
+        assert get_page.status == 'published'
+        content = org.setting('theme_content')['supremely']
+        assert content['primary_label'] == 'Explore the community'
+        assert content['primary_url'] == '/discussions'
+        assert content['secondary_label'] == 'Get Supremely'
+        assert content['secondary_url'] == '/get'
+        assert NavigationItem.query.filter_by(
+            menu='footer', label='Get Supremely').count() == 1
+        team = Content.query.filter_by(type='page', slug='team').first()
+        assert team is not None and team.status == 'published'
+        assert NavigationItem.query.filter_by(
+            menu='footer', label='Team').count() == 1
+
+
 def test_seed_creates_the_starter_forum(app, runner):
     from flask import g
 
