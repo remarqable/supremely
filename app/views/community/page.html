@@ -1,5 +1,10 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import back_link with context %}
+
+{# A page whose "Appears" is set to Community. Without this template the shell
+   fell through to the theme's page.html and rendered site chrome inside the
+   app-owned shell; the community surface is never theme-resolvable. There is
+   no back link here on purpose: a page has no archive above it, and the shell
+   sidebar already carries Home. #}
 
 {% block title %}{{ page.seo_title or page.title }} — {{ g.org.name }}{% endblock %}
 
@@ -11,13 +16,8 @@
 {% endblock %}
 
 {% block content %}
-{# A page has no archive to return to, so the return path is the home page. #}
-<p class="mb-6">
-  {{ back_link('/', _('nav.home')) }}
-</p>
-
-<article>
-  <h1 class="mb-6 text-3xl font-bold">{{ page.title }}</h1>
+<article class="min-w-0 rounded-xl bg-white p-6 ring-1 ring-slate-200 sm:p-8">
+  <h1 class="mb-6 text-2xl font-bold tracking-tight text-slate-900">{{ page.title }}</h1>
   <div class="prose-supremely">
     {{ page.html | safe }}
   </div>

@@ -1,4 +1,5 @@
 {% extends site_layout %}
+{% from 'partials/_ui.html' import back_link with context %}
 
 {% block title %}{{ content.seo_title or content.title }} — {{ g.org.name }}{% endblock %}
 
@@ -16,6 +17,13 @@
   {{ _('archive.preview_banner') }}
 </div>
 {% endif %}
+
+{# The archive this item came from. Types without an archive (pages) render
+   page.html, so content_type.base is always set here. #}
+<p class="mb-6">
+  {{ back_link(content_type.base, content_type.plural) }}
+</p>
+
 <article>
   <header class="mb-8">
     <h1 class="text-3xl font-bold">{{ content.title }}</h1>

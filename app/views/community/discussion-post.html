@@ -98,7 +98,8 @@
 {# tag='div': the post title below is this page's real h1. Search submits to
    the group page, which already handles ?q=. #}
 {% call area_header(_('discussions.title'), '/discussions',
-                    [(group.name, '/discussions/' ~ group.slug)], tag='div') %}
+                    [(group.name, '/discussions/' ~ group.slug)], tag='div',
+                    back='/discussions/' ~ group.slug) %}
   {{ search_box('', _('common.search'), action='/discussions/' ~ group.slug) }}
   {{ new_post_modal([group]) }}
 {% endcall %}

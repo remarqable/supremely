@@ -44,6 +44,24 @@
   {{ lock_icon() }}{{ _('gate.members_label') }}</span>
 {% endmacro %}
 
+{% macro back_arrow(cls='h-3.5 w-3.5') %}
+{#- The one back-arrow glyph: mirrored in RTL so "back" always points at the
+    start of the line, whichever way the page reads. -#}
+<svg class="{{ cls }} shrink-0 rtl:-scale-x-100" viewBox="0 0 20 20" fill="none"
+     stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+     stroke-linejoin="round" aria-hidden="true">
+  <path d="M16 10H4.5M9 4.5L4 10l5 5.5"/>
+</svg>
+{%- endmacro %}
+
+{% macro back_link(href, label) %}
+{#- Return path on a detail view: the browser's back button is not an
+    affordance the page can rely on, and a reader who arrived from a link or
+    a search result never had one. -#}
+<a href="{{ href }}" class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-brand-600">
+  {{ back_arrow() }}{{ label }}</a>
+{% endmacro %}
+
 {% macro status_badge(status) %}
 {%- if status == 'published' -%}<span class="badge-green">{{ _('manage.published') }}</span>
 {%- elif status == 'archived' -%}<span class="badge-red">{{ _('manage.archived') }}</span>

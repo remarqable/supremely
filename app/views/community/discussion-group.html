@@ -9,7 +9,7 @@
   {% set group_sub = (group.description ~ ' · ' if group.description else '')
                      ~ _('discussions.post_count', n=group.post_count()) %}
   {% call area_header(_('discussions.title'), '/discussions',
-                      [(group.name, none)], sub=group_sub) %}
+                      [(group.name, none)], sub=group_sub, back='/discussions') %}
     {{ search_box(q, _('common.search')) }}
     {{ new_post_modal([group]) }}
   {% endcall %}

@@ -1,7 +1,7 @@
 {# Building blocks for the community surface (app-owned; never
    theme-resolvable). Feed cards and the composer keep every community page
    in one visual language. #}
-{% from 'partials/_ui.html' import avatar with context %}
+{% from 'partials/_ui.html' import avatar, back_arrow with context %}
 {% from 'partials/_community_nav.html' import type_icon %}
 
 {% macro new_post_modal(groups) %}
@@ -88,16 +88,27 @@
 </article>
 {% endmacro %}
 
-{% macro area_header(title, url=None, trail=[], sub=None, tag='h1') %}
+{% macro area_header(title, url=None, trail=[], sub=None, tag='h1', back=None) %}
 {# Persistent area header: the index and every drill-down of a content area
    open with the same title row, so the area name and its actions (search,
    New Post, …) never move. Drill-downs pass `url` to link the area name back
    to its index and `trail` [(label, url_or_none), …] for the path inside the
    area; the last segment carries the strong color. Pass a non-heading `tag`
-   on pages whose real h1 is the content itself (e.g. a post title). #}
+   on pages whose real h1 is the content itself (e.g. a post title). `back` is
+   the one level up from here (the group for a post, the index for a group),
+   which is not always the area root, so the caller names it rather than the
+   macro guessing from the trail. #}
 <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
-  <div class="min-w-0">
-    <{{ tag }} class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-2xl font-bold tracking-tight">
+  <div class="flex min-w-0 items-baseline gap-x-1.5">
+    {# Outside the heading on purpose: a link inside it would fold "Back" into
+       the heading's accessible name, so the heading reads as "Back
+       Discussions / Welcome" in a screen reader's heading list. #}
+    {% if back %}
+    <a href="{{ back }}" aria-label="{{ _('common.back') }}"
+       class="mt-1 shrink-0 text-slate-500 transition-colors hover:text-slate-700">{{ back_arrow('h-5 w-5') }}</a>
+    {% endif %}
+    <div class="min-w-0">
+      <{{ tag }} class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-2xl font-bold tracking-tight">
       {% if url %}
       <a href="{{ url }}" class="{{ 'text-slate-400 transition-colors hover:text-slate-700' if trail else 'text-slate-900 hover:text-brand-700' }}">{{ title }}</a>
       {% else %}
@@ -111,8 +122,9 @@
       <span class="{{ 'text-slate-900' if loop.last else 'text-slate-400' }}">{{ label }}</span>
       {% endif %}
       {% endfor %}
-    </{{ tag }}>
-    {% if sub %}<p class="mt-0.5 text-sm text-slate-500">{{ sub }}</p>{% endif %}
+      </{{ tag }}>
+      {% if sub %}<p class="mt-0.5 text-sm text-slate-500">{{ sub }}</p>{% endif %}
+    </div>
   </div>
   {% if caller %}<div class="flex items-center gap-2">{{ caller() }}</div>{% endif %}
 </div>

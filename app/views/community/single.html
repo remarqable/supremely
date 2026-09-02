@@ -18,7 +18,8 @@
 
 {% block content %}
 {# tag='div': the item title below is this page's real h1. #}
-{% call area_header(content_type.plural, content_type.base, tag='div') %}
+{% call area_header(content_type.plural, content_type.base, tag='div',
+                    back=content_type.base) %}
   {% if can('content.write') %}
   <a href="{{ url_for('manage.new_content', type_slug=content_type.slug) }}"
      class="btn-admin" title="{{ _('community.admin_only_hint') }}">{{ _('manage.new_of', name=content_type.singular) }} <span class="sr-only">({{ _('community.admin_only') }})</span></a>

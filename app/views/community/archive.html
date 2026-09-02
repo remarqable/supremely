@@ -11,7 +11,8 @@
 {% call area_header(content_type.plural,
                     content_type.base if drilled else none,
                     [(archive_title, none)] if drilled else [],
-                    sub=none if drilled else content_type.description) %}
+                    sub=none if drilled else content_type.description,
+                    back=content_type.base if drilled else none) %}
   {# Creation is permission-driven and visible in both modes: the "big form"
      lives in the console, but publishing starts from the community surface. #}
   {% if can('content.write') %}
