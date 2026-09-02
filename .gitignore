@@ -230,3 +230,6 @@ config/local.env
 # Belt-and-suspenders: never commit any env file
 *.env
 !config/local.env.example
+
+# Per-machine Makefile overrides (PROD_SSH for pull-data, etc.)
+Makefile.local

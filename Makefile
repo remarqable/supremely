@@ -2,8 +2,12 @@ TAILWIND_VERSION := v4.1.14
 TAILWIND_BIN := bin/tailwindcss
 DATA_DIR ?= data
 
+# Local overrides (git-ignored): per-machine values such as PROD_SSH for
+# pull-data. Absent on a fresh clone; that is fine.
+-include Makefile.local
+
 .DEFAULT_GOAL := help
-.PHONY: help install css css-watch db run worker test lint migrate reset kill demo
+.PHONY: help install css css-watch db run worker test lint migrate reset kill demo pull-data
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  \033[36m%-11s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -66,3 +70,30 @@ reset: ## Wipe data/ (DB, wizard config, uploads); setup wizard runs again
 	rm -rf $(DATA_DIR)
 	uv run flask dev sync-db
 	@echo "Installation reset. Run 'make run' and open /setup."
+
+# Mirror the production data locally for testing. Pull-only: nothing on the
+# server is modified except a temporary snapshot file, removed afterwards.
+# The database is snapshotted with SQLite's backup API (never a raw copy of
+# a live file), uploads and installed themes are mirrored, and the server's
+# config.env / secret_key are deliberately left alone — local settings and
+# secrets stay local. The current local DB is backed up first, and sync-db
+# then adds any columns the local models have that the server DB predates.
+# Set PROD_SSH (and optionally PROD_DIR, PROD_CONTAINER) in Makefile.local.
+PROD_DIR ?= /opt/supremely
+PROD_CONTAINER ?= supremely
+pull-data: ## Pull the server's DB + uploads for local testing (needs PROD_SSH)
+	@test -n "$(PROD_SSH)" || { echo "Set PROD_SSH in Makefile.local (e.g. PROD_SSH = root@example.com)"; exit 1; }
+	@if lsof -t $(DATA_DIR)/app.db >/dev/null 2>&1; then \
+	  echo "The local app still has $(DATA_DIR)/app.db open — stop it first (make kill, and stop the worker)"; exit 1; fi
+	ssh $(PROD_SSH) "docker exec $(PROD_CONTAINER) python -c \"import sqlite3; s = sqlite3.connect('/data/app.db'); d = sqlite3.connect('/data/.pull-snapshot.db'); s.backup(d); d.close(); s.close()\""
+	@mkdir -p $(DATA_DIR)/backups
+	@if [ -f $(DATA_DIR)/app.db ]; then \
+	  sqlite3 $(DATA_DIR)/app.db ".backup '$(DATA_DIR)/backups/local-before-pull-$$(date +%Y%m%d-%H%M%S).db'"; \
+	  echo "Local DB backed up to $(DATA_DIR)/backups/"; fi
+	rm -f $(DATA_DIR)/app.db-wal $(DATA_DIR)/app.db-shm
+	scp $(PROD_SSH):$(PROD_DIR)/data/.pull-snapshot.db $(DATA_DIR)/app.db
+	ssh $(PROD_SSH) "rm -f $(PROD_DIR)/data/.pull-snapshot.db"
+	rsync -a --delete $(PROD_SSH):$(PROD_DIR)/data/uploads/ $(DATA_DIR)/uploads/ 2>/dev/null || true
+	rsync -a $(PROD_SSH):$(PROD_DIR)/data/themes/ $(DATA_DIR)/themes/ 2>/dev/null || true
+	uv run flask dev sync-db
+	@echo "Server data mirrored locally. Start the dev server to see it."
