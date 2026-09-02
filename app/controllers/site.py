@@ -72,7 +72,11 @@ def _render_page(content):
     # A row written before this rule existed can still hold anything.
     tmpl = (content.template
             if page_template_allowed(content.template) else None) or ct.template
+    # The page declares its own presentation ('site' = themed public look,
+    # 'community' = the shell); the object's data drives the one policy
+    # point in render_site — never a membership test here.
     return render_site([f'page-{content.slug}.html', f'{tmpl}.html', 'page.html'],
+                       force_theme=(content.presentation == 'site'),
                        org=g.org, content=content, page=content)
 
 

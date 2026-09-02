@@ -125,21 +125,82 @@ def reset_wizard():
 def sync_db():
     """Dev only: build the schema directly from the models (db.create_all) and
     stamp Alembic at head, so heavy iteration needs no migrations. Adds missing
-    tables/indexes; it does NOT alter or drop existing ones — run `make reset`
-    for an incompatible model change. Migrations remain the source of truth for
-    prod/CI/smoke (`flask db upgrade`); regenerate the baseline at a milestone.
+    tables, indexes, and columns; it does NOT alter or drop existing ones — run
+    `make reset` for an incompatible model change. Migrations remain the source
+    of truth for prod/CI/smoke (`flask db upgrade`); regenerate the baseline at
+    a milestone.
+
+    The stamp is purged before being rewritten: after a baseline regeneration
+    the dev DB still names a revision that no longer exists, and a plain
+    `stamp head` refuses to move from a revision it cannot resolve.
     """
     from flask_migrate import stamp
 
     import app.models  # noqa: F401  (populate db.metadata for create_all)
 
     db.create_all()
+    for name in _add_missing_columns():
+        click.echo(f'Added column {name}')
     try:
-        stamp()                 # so a later `flask db upgrade` is a clean no-op
+        stamp(purge=True)       # so a later `flask db upgrade` is a clean no-op
     except Exception as exc:    # noqa: BLE001 -- a missing migrations dir shouldn't block dev
         click.echo(f'(schema built; alembic stamp skipped: {exc})')
         return
     click.echo('Schema synced from models (create_all) and stamped at head.')
+
+
+def _add_missing_columns() -> list[str]:
+    """Additive column sync behind `dev sync-db`: create_all never touches an
+    existing table, so a new model column used to force `make reset` (and lose
+    the dev data). A column on the model but not in the database is added with
+    ALTER TABLE ADD COLUMN — type, NOT NULL, and a literal DEFAULT so existing
+    rows get the model's scalar default. Anything this can't express (a
+    non-scalar default on a NOT NULL column, type changes, drops, renames)
+    is reported and still needs `make reset`. Dev convenience only: the DDL
+    skips FK constraints, and prod stays on migrations.
+    """
+    import sqlalchemy as sa
+
+    inspector = sa.inspect(db.engine)
+    preparer = db.engine.dialect.identifier_preparer
+    added = []
+    for table in db.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue                      # create_all just made it, complete
+        existing = {col['name'] for col in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in existing:
+                continue
+            ddl = _add_column_ddl(preparer, table.name, column)
+            if ddl is None:
+                click.echo(f'!! cannot add {table.name}.{column.name} '
+                           'automatically (no scalar default for a NOT NULL '
+                           'column) — run `make reset`')
+                continue
+            db.session.execute(sa.text(ddl))
+            added.append(f'{table.name}.{column.name}')
+    db.session.commit()
+    return added
+
+
+def _add_column_ddl(preparer, table_name: str, column) -> str | None:
+    type_sql = column.type.compile(db.engine.dialect)
+    ddl = (f'ALTER TABLE {preparer.quote(table_name)} '
+           f'ADD COLUMN {preparer.quote(column.name)} {type_sql}')
+
+    default = None
+    if column.default is not None and column.default.is_scalar:
+        default = column.default.arg
+    if default is not None:
+        processor = column.type.literal_processor(db.engine.dialect)
+        if processor is None:
+            return None if not column.nullable else ddl
+        ddl += f' DEFAULT {processor(default)}'
+    elif not column.nullable:
+        return None                       # NOT NULL needs a value for old rows
+    if not column.nullable:
+        ddl += ' NOT NULL'
+    return ddl
 
 
 @seed_bp.cli.command('demo')

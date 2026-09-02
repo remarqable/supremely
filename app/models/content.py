@@ -95,6 +95,10 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     visibility = db.Column(db.String(10), nullable=False, default='public')
     published_at = db.Column(TZDateTime, nullable=True)
     template = db.Column(db.String(50), nullable=True)   # page-type override
+    # Where a standalone page presents: 'site' renders through the theme
+    # (marketing header/footer), 'community' inside the app-owned shell.
+    # Presentation, never authorization — visibility gates either way.
+    presentation = db.Column(db.String(10), nullable=False, default='site')
     seo_title = db.Column(db.String(200), nullable=True)
     seo_description = db.Column(db.String(300), nullable=True)
 
@@ -111,6 +115,7 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
     STATUSES = ('draft', 'published', 'archived')
     VISIBILITIES = VISIBILITY_LEVELS   # single source: app.platform.authz
+    PRESENTATIONS = ('site', 'community')
 
     def validate(self):
         from app.platform.content_types import CONTENT_TYPES
@@ -143,6 +148,9 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
             raise ValidationError('Invalid status')
         if self.visibility not in self.VISIBILITIES:
             raise ValidationError('Invalid visibility')
+        self.presentation = self.presentation or 'site'
+        if self.presentation not in self.PRESENTATIONS:
+            raise ValidationError('Invalid presentation')
         if self.tags is not None and not isinstance(self.tags, list):
             raise ValidationError('Tags must be a list')
 

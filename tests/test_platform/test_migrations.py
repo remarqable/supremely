@@ -90,3 +90,22 @@ def test_there_is_a_single_migration_head():
     heads = ScriptDirectory.from_config(config).get_heads()
 
     assert len(heads) == 1, f'expected one migration head, found: {heads}'
+
+
+def test_sync_db_adds_a_column_the_table_is_missing(app, runner):
+    """`flask dev sync-db` must keep a live dev database usable after a new
+    model column: create_all skips existing tables, so the command adds the
+    column itself, with the model's default applied to existing rows."""
+    import sqlalchemy as sa
+
+    from app.extensions import db
+
+    db.session.execute(sa.text('ALTER TABLE content DROP COLUMN presentation'))
+    db.session.commit()
+
+    result = runner.invoke(args=['dev', 'sync-db'])
+    assert result.exit_code == 0, result.output
+    assert 'Added column content.presentation' in result.output
+
+    columns = {c['name'] for c in sa.inspect(db.engine).get_columns('content')}
+    assert 'presentation' in columns

@@ -1,8 +1,8 @@
 """Initial schema
 
-Revision ID: b3c718ef3736
+Revision ID: 3eaa1fc1cd33
 Revises: 
-Create Date: 2026-08-26 14:26:10.777135
+Create Date: 2026-09-01 15:18:53.833370
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'b3c718ef3736'
+revision = '3eaa1fc1cd33'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -316,6 +316,7 @@ def upgrade():
     sa.Column('visibility', sa.String(length=10), nullable=False),
     sa.Column('published_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('template', sa.String(length=50), nullable=True),
+    sa.Column('presentation', sa.String(length=10), nullable=False),
     sa.Column('seo_title', sa.String(length=200), nullable=True),
     sa.Column('seo_description', sa.String(length=300), nullable=True),
     sa.Column('org_id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),

@@ -144,6 +144,9 @@ def _content_from_form(content):
             # strand an older one, and render_site falls back to page.html.
             raise ValidationError(t('manage.template_unknown', name=template))
         content.template = template
+        # Presentation is a page-only choice; model validation rejects
+        # anything but the two known values.
+        content.presentation = request.form.get('presentation', 'site')
     content.featured_upload_id = _own_upload_id('featured_upload_id')
     content.tags = [tag.strip() for tag in
                     request.form.get('tags', '').split(',') if tag.strip()]
