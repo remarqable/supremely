@@ -308,16 +308,38 @@ TEAM_MEMBERS = (
 )
 
 FIRST_POST = """\
-Supremely now runs its own website — pages, navigation, theming, articles,
-discussions, and the newsletter you can subscribe to below.
+supremely.org now runs on Supremely — every page, menu, theme, article,
+discussion, and the newsletter you can subscribe to below is served by the
+same software we're building. If you can read this, the deploy worked.
 
 This is the milestone the spec called out:
 
-> Supremely should be capable of running getsupremely.org itself before the
+> Supremely should be capable of running supremely.org itself before the
 > community feature set is complete.
 
 Everything on this site uses the same models, themes, and permissions any
-organization gets. No private forks, no special cases.
+organization gets. No private forks, no special cases, no secret marketing
+site quietly running on something more sensible. If our home page goes
+down, that's not an outage — that's a bug report writing itself.
+
+## We want things to break
+
+That's the whole point. Running our website on our own half-finished
+platform means we hit the sharp edges before you do. Every broken link,
+every mangled layout, every error page you meet here is one you won't meet
+on your own install, because we'll have already stepped on it, sworn at
+it, filed it, and fixed it.
+
+So kick the tires. Sign up, post something, click the things that look
+like they shouldn't work yet. If something breaks, tell us in
+[the community](/discussions) or
+[open an issue](https://github.com/remarqable/supremely/issues) — you'll
+be doing exactly what this site exists for. If nothing breaks, frankly,
+we'll be a little suspicious.
+
+Eating our own dog food, and occasionally finding a bone in it.
+
+— The Supremely Team (three humans and one AI in a hat)
 """
 
 
