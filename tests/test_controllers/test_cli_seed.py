@@ -68,6 +68,12 @@ def test_seed_creates_the_get_page_and_ctas(app, runner):
         get_page = Content.query.filter_by(type='page', slug='get').first()
         assert get_page is not None
         assert get_page.status == 'published'
+        presskit = Content.query.filter_by(type='page', slug='presskit').first()
+        assert presskit is not None and presskit.status == 'published'
+        # The body carries the words; the asset grid lives in the theme's
+        # page-presskit.html template.
+        assert 'dev@supremely.org' in presskit.body
+        assert 'remarQable LLC' in presskit.body
         content = org.setting('theme_content')['supremely']
         assert content['primary_label'] == 'Explore the community'
         assert content['primary_url'] == '/discussions'
@@ -75,12 +81,18 @@ def test_seed_creates_the_get_page_and_ctas(app, runner):
         assert content['secondary_url'] == '/get'
         assert NavigationItem.query.filter_by(
             menu='footer', label='Get Supremely').count() == 1
-        # Footer link columns: two groups whose children the theme renders.
-        for label, expected_children in (('Explore', 3), ('Project', 4)):
+        # Footer link columns: four groups whose children the theme renders.
+        for label, expected_children in (('Explore', 4), ('Project', 5),
+                                         ('Developers', 5), ('Compare', 5)):
             group = NavigationItem.query.filter_by(
                 menu='footer', label=label, parent_id=None).one()
             assert group.is_group
             assert len(group.children) == expected_children
+        # Comparison pages and the manifesto are seeded and published.
+        for slug in ('vs-ghost', 'vs-wordpress', 'vs-substack', 'vs-circle',
+                     'vs-discourse', 'manifesto'):
+            row = Content.query.filter_by(type='page', slug=slug).first()
+            assert row is not None and row.status == 'published', slug
 
 
 def test_seed_creates_the_team_roster(app, runner):

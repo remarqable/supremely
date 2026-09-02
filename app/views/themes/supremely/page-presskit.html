@@ -1,0 +1,114 @@
+{% extends site_layout %}
+{# Designed press-kit page, slug-bound via the template hierarchy
+   (page-presskit.html). Division of labor: this template owns the chrome —
+   asset cards, brand swatches, the type specimen — while the page BODY
+   (Manage → Content → Pages → Press Kit) carries the editable words:
+   approved copy, key facts, and the media contact. #}
+
+{% block title %}{{ page.seo_title or page.title }} — {{ g.org.name }}{% endblock %}
+
+{% block meta %}
+{% if page.seo_description %}<meta name="description" content="{{ page.seo_description }}">{% endif %}
+{% endblock %}
+
+{% set assets = [
+  ('logo-full-light.png', 'Full logo', 'For light backgrounds', 'light'),
+  ('logo-full-dark.png', 'Full logo — dark', 'For dark backgrounds', 'dark'),
+  ('icon-light.png', 'Icon — light tile', 'App icon on white', 'light'),
+  ('icon-dark.png', 'Icon — dark tile', 'App icon on ink', 'dark'),
+  ('icon-gradient.png', 'Icon — gradient', 'Transparent background', 'light'),
+  ('icon-mono-dark.png', 'Icon — mono', 'One color, light backgrounds', 'light'),
+] %}
+{% set swatches = [
+  ('Ink', '#14161A', 'Text, buttons, the dark plaque'),
+  ('Violet', '#7C3AED', 'Primary actions and accents'),
+  ('Gradient start', '#A78BFA', 'Headline gradient, first stop'),
+  ('Gradient mid', '#8B5CF6', 'Headline gradient, middle stop'),
+  ('Gradient end', '#7C5CF9', 'Headline gradient, last stop'),
+  ('Slate', '#64748B', 'Secondary text'),
+] %}
+
+{% block main %}
+<main class="mx-auto max-w-6xl px-6 py-14">
+  {% include 'partials/_flash.html' %}
+
+  <header class="max-w-2xl">
+    <h1 class="text-4xl font-black tracking-tight sm:text-5xl">{{ page.title }}</h1>
+    <p class="mt-4 text-lg leading-relaxed text-slate-500">
+      Everything you need to write about {{ g.org.name or 'Supremely' }} —
+      approved copy, logos, and brand basics.
+    </p>
+  </header>
+
+  {# ---- Editable words: approved copy, key facts, contact -------------- #}
+  <section class="prose-supremely mt-12 max-w-2xl">
+    {{ page.html | safe }}
+  </section>
+
+  {# ---- Logos & icons --------------------------------------------------- #}
+  <section class="mt-16" aria-labelledby="presskit-logos">
+    <h2 id="presskit-logos" class="text-2xl font-bold tracking-tight">Logos &amp; icons</h2>
+    <p class="mt-2 text-sm text-slate-500">PNG, ready to place. Right-click any preview to copy it.</p>
+    <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {% for filename, label, note, ground in assets %}
+      <div class="flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
+        <div class="flex h-36 items-center justify-center p-6 {{ 'bg-[#14161a]' if ground == 'dark' else 'bg-slate-50' }}">
+          <img src="/static/img/presskit/{{ filename }}" alt="{{ label }}"
+               loading="lazy" class="max-h-24 max-w-full object-contain">
+        </div>
+        <div class="flex items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <div class="text-sm font-semibold">{{ label }}</div>
+            <div class="text-xs text-slate-500">{{ note }}</div>
+          </div>
+          <a href="/static/img/presskit/{{ filename }}" download
+             class="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold transition-colors hover:border-slate-400 hover:bg-slate-50">PNG</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="mt-4 text-sm text-slate-500">
+      Icon tiles at fixed sizes —
+      light:
+      <a class="underline hover:text-[#14161a]" href="/static/img/presskit/icon-light-128.png" download>128</a> ·
+      <a class="underline hover:text-[#14161a]" href="/static/img/presskit/icon-light-64.png" download>64</a> ·
+      <a class="underline hover:text-[#14161a]" href="/static/img/presskit/icon-light-32.png" download>32</a>
+      &nbsp;&nbsp;dark:
+      <a class="underline hover:text-[#14161a]" href="/static/img/presskit/icon-dark-128.png" download>128</a> ·
+      <a class="underline hover:text-[#14161a]" href="/static/img/presskit/icon-dark-64.png" download>64</a> ·
+      <a class="underline hover:text-[#14161a]" href="/static/img/presskit/icon-dark-32.png" download>32</a>
+    </p>
+  </section>
+
+  {# ---- Brand colors ----------------------------------------------------- #}
+  <section class="mt-16" aria-labelledby="presskit-colors">
+    <h2 id="presskit-colors" class="text-2xl font-bold tracking-tight">Brand colors</h2>
+    <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {% for name, hex, use in swatches %}
+      <div class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white">
+        <div class="h-20" style="background-color: {{ hex }}"></div>
+        <div class="flex items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <div class="text-sm font-semibold">{{ name }}</div>
+            <div class="text-xs text-slate-500">{{ use }}</div>
+          </div>
+          <button type="button" data-copy="{{ hex }}"
+                  class="shrink-0 rounded-lg border border-slate-300 px-3 py-1.5 font-mono text-xs transition-colors hover:border-slate-400 hover:bg-slate-50">{{ hex }}</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ---- Typography -------------------------------------------------------- #}
+  <section class="mt-16" aria-labelledby="presskit-type">
+    <h2 id="presskit-type" class="text-2xl font-bold tracking-tight">Typography</h2>
+    <div class="mt-6 rounded-2xl border border-slate-200/80 bg-white p-6">
+      <div class="text-3xl font-black tracking-tight">Inter</div>
+      <p class="mt-1 text-sm text-slate-500">Primary typeface, with the system sans-serif stack as fallback. Code samples use the system monospace stack.</p>
+      <p class="mt-4 text-lg">The quick brown fox jumps over the lazy dog — 0123456789</p>
+    </div>
+  </section>
+</main>
+<script defer src="{{ theme_asset('presskit.js') }}"></script>
+{% endblock %}

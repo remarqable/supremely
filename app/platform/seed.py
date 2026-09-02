@@ -107,6 +107,189 @@ run a server. It is not available yet.
 [Subscribe](/subscribe) to hear when it launches.
 """
 
+# The words of the press kit. The designed chrome (asset cards, brand
+# swatches, type specimen) lives in the theme's page-presskit.html; this
+# body is what an organizer edits under Manage → Content.
+PRESSKIT_BODY = """\
+## Approved copy
+
+**One-liner.** Supremely is the open-source platform for publishing,
+memberships, newsletters, and community.
+
+**Short paragraph.** Supremely is an open-source, multi-tenant platform for
+publishing, memberships, newsletters, and community. Publishing platforms
+make you choose between owning your website, your audience, or your
+community — Supremely refuses the choice. One codebase serves self-hosted
+installs, third-party providers, and the official hosted service.
+
+**Full description.** Supremely is an open-source platform (AGPL-3.0) for
+communities that publish. An Organization — the tenant — gets a website,
+member accounts, discussions, newsletters, and typed content, served by one
+codebase that runs the same whether self-hosted on a single server or
+operated as a hosted service. Email is optional infrastructure throughout:
+installing, publishing, and onboarding never require it. The project is
+developed AI-first and built in public; humans own architecture, security,
+review, and what ships.
+
+## Key facts
+
+- **Product:** Supremely
+- **Company:** remarQable LLC
+- **License:** AGPL-3.0 (open source)
+- **Model:** free to self-host; official hosted service coming soon
+- **Website:** [supremely.org](https://supremely.org)
+- **Source:** [github.com/remarqable/supremely](https://github.com/remarqable/supremely)
+
+## Media contact
+
+[dev@supremely.org](mailto:dev@supremely.org)
+
+Please write the name as **Supremely** — capital S, one word — and use the
+logos below as provided: no recoloring, stretching, or effects.
+"""
+
+_COMPARISON_FOOTER = """\
+
+---
+
+*This is an early comparison written by the Supremely team, about products we
+respect. Spot something wrong or outdated?
+[Tell us in the community](/discussions).*
+"""
+
+# Honest, qualitative comparisons — model and architecture differences only,
+# no pricing or feature-matrix claims that go stale.
+COMPARISONS = (
+    ('vs-ghost', 'Supremely vs Ghost', """\
+Ghost is the closest neighbor to Supremely: open-source publishing with
+newsletters and paid memberships, and the product we would recommend most
+readily if Supremely didn't exist.
+
+## What Ghost is great at
+
+A mature, polished editor and publishing experience, first-class newsletters
+and paid memberships, a large theme ecosystem, and years of production
+hardening.
+
+## Where Supremely differs
+
+- **Multi-tenant by design.** A Ghost install serves one site; one Supremely
+  install serves many organizations, each with its own site, members, and
+  domain.
+- **Community built in.** Discussions, member directories, and groups are
+  part of the platform, not an integration.
+- **Email is optional.** A Supremely install is fully usable — publishing,
+  members, discussions — before any email provider is configured.
+- Both are open source; Supremely is AGPL-3.0 and free to self-host.
+
+## Which should you pick?
+
+If you want the most mature open-source publishing product available today,
+pick Ghost. If you want publishing, newsletters, *and* a real community in
+one self-hostable, multi-tenant platform, pick Supremely.
+"""),
+    ('vs-wordpress', 'Supremely vs WordPress', """\
+WordPress runs a huge share of the web, and for a general-purpose website
+with an unmatched plugin and theme ecosystem it is still the default answer.
+
+## What WordPress is great at
+
+Ubiquity. Endless themes, plugins, page builders, agencies, and hosts — if
+you can imagine a website, someone has built it on WordPress.
+
+## Where Supremely differs
+
+- **One coherent model instead of bolt-ons.** Memberships, newsletters, and
+  community on WordPress come from separate plugins with separate data
+  models that have to be stitched together. In Supremely they are one
+  system out of the box.
+- **Multi-tenant by design.** One install, many organizations — WordPress
+  multisite exists, but tenancy is Supremely's foundation, not an add-on.
+- **A smaller, deliberate surface.** Fewer moving parts to secure, update,
+  and keep compatible with each other.
+
+## Which should you pick?
+
+If you need the vast ecosystem or a site builder, WordPress has no equal.
+If the point of your site is members, content, and conversation working as
+one product, pick Supremely.
+"""),
+    ('vs-substack', 'Supremely vs Substack', """\
+Substack made paid newsletters effortless: sign up, write, publish, charge —
+with a discovery network on top.
+
+## What Substack is great at
+
+The fastest possible start for a paid newsletter, zero infrastructure, and
+a reader network that can genuinely help you grow.
+
+## Where Supremely differs
+
+- **You own the platform.** Supremely is open source and self-hostable —
+  your domain, your database, your member relationships, exportable and
+  portable because they live on your server.
+- **More than a newsletter.** Your audience gets a home: published content,
+  discussions, and membership, with the newsletter as one part.
+- **No platform intermediary.** Nobody sits between you and your audience,
+  and no platform-wide policy change can reprice or reshape your business.
+
+## Which should you pick?
+
+If you want to start a paid newsletter this afternoon with discovery built
+in, Substack is honestly hard to beat. If you're building a lasting home
+for an audience you own, pick Supremely.
+"""),
+    ('vs-circle', 'Supremely vs Circle', """\
+Circle defined the modern "community as a product" category: a polished,
+hosted space for paid communities, courses, and events.
+
+## What Circle is great at
+
+A refined member experience with very little setup, strong course and event
+features, and a team constantly polishing the hosted product.
+
+## Where Supremely differs
+
+- **Open source, self-hostable.** Circle exists only as a hosted service;
+  Supremely runs wherever you want it, under AGPL-3.0, free to self-host.
+- **Publishing and newsletters are first-class.** Supremely communities grow
+  around published content and email, not only inside-the-walls posts.
+- **Multi-tenant for operators.** Agencies and providers can run many
+  organizations from one install.
+
+## Which should you pick?
+
+If you want a turnkey, polished paid community and are happy renting it,
+Circle is excellent. If you want to own the platform your community lives
+on, pick Supremely.
+"""),
+    ('vs-discourse', 'Supremely vs Discourse', """\
+Discourse is the open-source standard for forums — battle-tested at massive
+scale, with the deepest moderation toolset in the business.
+
+## What Discourse is great at
+
+Serious, large-scale discussion: trust levels, moderation, search, and
+performance proven by some of the biggest communities on the internet.
+
+## Where Supremely differs
+
+- **A forum is one piece, not the product.** Supremely pairs durable
+  discussions with publishing, newsletters, memberships, and a public
+  website in one system.
+- **Multi-tenant by design.** Many organizations per install, each its own
+  community boundary.
+- **One simple app to run.** A single codebase with SQLite by default —
+  a deliberately small operational surface.
+
+## Which should you pick?
+
+If you need a pure forum at serious scale, pick Discourse — it has earned
+its reputation. If your community forms around content you publish and an
+audience you email, pick Supremely.
+"""),
+)
+
 # (name, role, avatar file under app/static/img/team/, bio markdown)
 TEAM_MEMBERS = (
     ('Asim Baig', 'Founder', 'asim.png',
@@ -266,6 +449,26 @@ def seed_getsupremely_org():
             member.save()
             member.publish()
 
+        presskit = page('presskit', 'Press Kit', PRESSKIT_BODY)
+
+        # Comparison pages: honest placeholders, one per major alternative.
+        comparison_pages = {
+            slug: page(slug, title, body + _COMPARISON_FOOTER)
+            for slug, title, body in COMPARISONS
+        }
+
+        # The manifesto is the public MANIFESTO.md, published as a page. The
+        # file ships with the code; the page title renders separately, so the
+        # leading heading is dropped.
+        manifesto = None
+        manifesto_path = Path(current_app.root_path).parent / 'MANIFESTO.md'
+        if manifesto_path.exists():
+            manifesto_body = manifesto_path.read_text(encoding='utf-8')
+            if manifesto_body.startswith('# '):
+                manifesto_body = manifesto_body.split('\n', 1)[1].lstrip('\n')
+            manifesto = page('manifesto', 'The Supremely Manifesto',
+                             manifesto_body)
+
         def nav(menu, label, content_obj=None, url=None, parent=None):
             parent_id = parent.id if parent else None
             existing = NavigationItem.query.filter_by(
@@ -287,16 +490,34 @@ def seed_getsupremely_org():
         # Footer link columns: a group is a top-level footer item with no
         # destination; its children render as the column's links. The theme
         # draws exactly what the Navigation editor shows — no fallback.
+        repo = 'https://github.com/remarqable/supremely'
         explore = nav('footer', 'Explore')
         nav('footer', 'Blog', url='/blog', parent=explore)
         nav('footer', 'Community', url='/discussions', parent=explore)
         nav('footer', 'Newsletter', url='/subscribe', parent=explore)
+        nav('footer', 'Docs', docs, parent=explore)
         project = nav('footer', 'Project')
         nav('footer', 'About', about, parent=project)
         nav('footer', 'Team', url='/team', parent=project)
+        if manifesto is not None:
+            nav('footer', 'Manifesto', manifesto, parent=project)
         nav('footer', 'Get Supremely', get_page, parent=project)
-        nav('footer', 'GitHub', url='https://github.com/remarqable/supremely',
-            parent=project)
+        nav('footer', 'Press Kit', presskit, parent=project)
+        developers = nav('footer', 'Developers')
+        nav('footer', 'GitHub', url=repo, parent=developers)
+        nav('footer', 'Contributing',
+            url=f'{repo}/blob/main/CONTRIBUTING.md', parent=developers)
+        nav('footer', 'Building a theme',
+            url=f'{repo}/blob/main/docs/themes/building-a-theme.md',
+            parent=developers)
+        nav('footer', 'Security',
+            url=f'{repo}/blob/main/SECURITY.md', parent=developers)
+        nav('footer', 'Roadmap',
+            url=f'{repo}/blob/main/docs/ROADMAP.md', parent=developers)
+        compare = nav('footer', 'Compare')
+        for slug, title, _body in COMPARISONS:
+            nav('footer', title.replace('Supremely vs ', 'vs '),
+                comparison_pages[slug], parent=compare)
 
         # Standard legal links: flat footer items render in the theme's
         # bottom bar next to the copyright line.

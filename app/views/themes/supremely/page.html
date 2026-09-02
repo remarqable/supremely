@@ -1,0 +1,25 @@
+{% extends site_layout %}
+{# Standalone pages on the marketing theme: the container matches the header
+   and footer rail (max-w-6xl) so the content's left edge lines up with the
+   logo, while the text itself keeps a readable measure, anchored start. #}
+
+{% block title %}{{ page.seo_title or page.title }} — {{ g.org.name }}{% endblock %}
+
+{% block meta %}
+{% if page.seo_description %}<meta name="description" content="{{ page.seo_description }}">{% endif %}
+<meta property="og:title" content="{{ page.seo_title or page.title }}">
+{% if page.seo_description %}<meta property="og:description" content="{{ page.seo_description }}">{% endif %}
+<meta property="og:type" content="article">
+{% endblock %}
+
+{% block main %}
+<main class="mx-auto max-w-6xl px-6 py-14">
+  {% include 'partials/_flash.html' %}
+  <article class="max-w-3xl">
+    <h1 class="mb-6 text-4xl font-black tracking-tight">{{ page.title }}</h1>
+    <div class="prose-supremely">
+      {{ page.html | safe }}
+    </div>
+  </article>
+</main>
+{% endblock %}
