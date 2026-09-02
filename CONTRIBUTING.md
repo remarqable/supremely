@@ -45,7 +45,7 @@ The [README quick start](README.md#quick-start) covers the same ground plus the 
 Two things about the toolchain that trip people up:
 
 - **Everything goes through `uv run`.** There is no `requirements.txt`, no venv to activate, and no `pip install`. Every `make` target already wraps it.
-- **`make run` builds the dev schema from the models** (`flask dev sync-db`), it does not run migrations. Alembic migrations are the production and CI path (`make migrate`). If you change a model, `make reset` gives you a clean database.
+- **`make run` builds the dev schema from the models** (`flask dev sync-db`), it does not run migrations. Alembic migrations are the production and CI path (`make migrate`). Adding a table or a column just works — `sync-db` creates missing tables and adds missing columns (with the model's default for existing rows). Only an *incompatible* model change (a rename, a type change, a drop) needs `make reset` for a clean database.
 
 `make demo` wipes and seeds a Demo Community you can click around (`admin@demo.test` / `password`). `make worker` runs the background job worker, which you need only if you are working on jobs, newsletters or notifications.
 

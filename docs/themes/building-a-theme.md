@@ -170,8 +170,11 @@ until then, link to the archives (`/blog`, `/events`, `/discussions`).
 
 We shipped no `archive.html` or `single.html`, yet `/blog` and `/events`
 already work in Trailhead's chrome: the template hierarchy fell back to
-Origin's bodies inside our layout. When you want full control, add your
-own — for example, an events archive with date styling:
+Origin's bodies inside our layout. The same holds for library content
+types — enable the Team type and `/team` renders Origin's card grid
+(`archive-team_member.html`) in your theme without a line of work. When
+you want full control, add your own — for example, an events archive with
+date styling:
 
 ```html
 {# archive-event.html — only events use this; /blog keeps the fallback #}

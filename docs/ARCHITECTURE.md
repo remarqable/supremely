@@ -72,14 +72,20 @@ Every render through `render_site()` (`app/platform/theming.py`) declares a
 
 | Context | Surface | Controlled by |
 |---|---|---|
-| `publication` | The public-facing site: landing page, pages, content archives and singles | The organization's **theme** |
+| `publication` | The public-facing site: landing page, pages, content archives and singles | The **theme** for site-presented objects (the landing, pages by default, types that declare it); the shell for the rest |
 | `application` | The community in use: discussions, members, the member home | **Supremely** (standardized app shell) |
 | `console` | `/manage` and `/admin` | Supremely, never themed |
 
-One policy point maps context and viewer to a renderer. Visitors always get
-the theme; members get the standardized community shell on application
-surfaces. The mapping is data, not scattered conditionals — changing what
-members see is a policy edit, not a refactor.
+One policy point maps context to a renderer, and objects may declare their
+own presentation into it. The community shell serves **everyone** — members
+and visitors browse the same surface, with gated content teased in place —
+while the theme renders the landing page, previews, and every object that
+declares **site presentation**: standalone pages do by default (each page
+has an "Appears" choice — on the public site, or inside the community), and
+a content type can declare it (the Team roster presents as a themed
+brochure page; the blog stays in the shell). The mapping is data, not
+scattered conditionals — changing what renders where is a declaration or a
+policy edit, not a refactor.
 
 The community shell is app-owned and never theme-resolvable; themes may
 tint it only through a small approved token whitelist (brand colors). This
@@ -98,9 +104,13 @@ falling back to the built-in Origin theme, so a five-file theme restyles an
 entire site. Full contract: [docs/themes/README.md](themes/README.md).
 
 Built-in themes: **Origin** (the default and universal fallback),
-**Supremely** (the project's own marketing theme), **Trailhead** (the
-worked example from the tutorial). Themes declare editable content fields
-(the landing hero) that organizers fill in under Manage → Home page.
+**Supremely** (the project's own marketing theme), **Midnight** (a
+layout-only dark variant of Origin), **Trailhead** (the worked example from
+the tutorial). Themes declare editable content fields (the landing hero)
+that organizers fill in under Manage → Home page. Origin also ships the
+fallback templates for library content types (for example the Team card
+grid), so every theme renders every type out of the box and overrides only
+what it wants to redesign.
 
 ## The community application
 
@@ -108,9 +118,10 @@ Members land in an app shell: a grouped sidebar derived from the org's
 content types (Community / Meet / Learn), a home feed of discussion
 activity beside the org's latest published content, a New Post modal for
 discussions, and a permission-gated Publish menu for authored content.
-Object-level management (edit, pin, lock, hide) happens inline behind a
-**manage-mode** toggle — a presentation state, never an authorization
-state; every action is independently permission-checked server-side.
+Object-level management (edit, pin, lock, hide) happens inline: a control
+renders whenever the viewer's permissions allow it, and controls a plain
+member could never use are visually **marked** rather than hidden behind a
+mode. Every action is independently permission-checked server-side.
 `/manage` remains the console for configuration, queues, and bulk work.
 
 ## Plugins

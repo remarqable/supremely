@@ -56,6 +56,24 @@ active theme, then in Origin:
 Parts resolve the same way: layouts include `{% include themed('header.html') %}`
 so a theme may override just a header or footer.
 
+Because a *specific* template anywhere in the chain beats a *generic* one,
+Origin's built-in `archive-{type}.html` templates for library content types
+(for example `archive-team_member.html`, the Team card grid) render under
+**your** layout even when your theme has its own generic `archive.html`.
+Every theme gets a working page for every content type; ship the same
+filename only when you want a bespoke design for that type.
+
+## Site pages and community pages
+
+Not every URL reaches your templates. The member community (discussions for
+members, the member home, the directory) renders in Supremely's app-owned
+shell for everyone, visitors included. Your theme renders the **site**
+surfaces: the landing page, previews, standalone pages (organizers choose
+per page — "on the public site" is the default — under the page's
+**Appears** setting), and content types that declare site presentation
+(Team is one). You never choose this in the theme; you just provide the
+templates.
+
 ## What your templates receive
 
 Common context (always available):
