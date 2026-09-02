@@ -79,6 +79,12 @@ def test_seed_creates_the_get_page_and_ctas(app, runner):
         assert team is not None and team.status == 'published'
         assert NavigationItem.query.filter_by(
             menu='footer', label='Team').count() == 1
+        # Footer link columns: two groups whose children the theme renders.
+        for label, expected_children in (('Explore', 3), ('Project', 4)):
+            group = NavigationItem.query.filter_by(
+                menu='footer', label=label, parent_id=None).one()
+            assert group.is_group
+            assert len(group.children) == expected_children
 
 
 def test_seed_creates_the_starter_forum(app, runner):

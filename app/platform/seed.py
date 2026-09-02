@@ -245,24 +245,37 @@ def seed_getsupremely_org():
         get_page = page('get', 'Get Supremely', GET_BODY)
         team = page('team', 'Team', TEAM_BODY)
 
-        def nav(menu, label, content_obj=None, url=None):
-            existing = NavigationItem.query.filter_by(menu=menu,
-                                                      label=label).first()
+        def nav(menu, label, content_obj=None, url=None, parent=None):
+            parent_id = parent.id if parent else None
+            existing = NavigationItem.query.filter_by(
+                menu=menu, label=label, parent_id=parent_id).first()
             if existing is None:
-                NavigationItem(menu=menu, label=label,
-                               content_id=content_obj.id if content_obj else None,
-                               url=url, org_id=org.id,
-                               position=NavigationItem.next_position(menu)
-                               ).save()
+                existing = NavigationItem(
+                    menu=menu, label=label,
+                    content_id=content_obj.id if content_obj else None,
+                    url=url, org_id=org.id, parent_id=parent_id,
+                    position=NavigationItem.next_position(menu, parent_id))
+                existing.save()
+            return existing
 
         nav('primary', 'About', about)
         nav('primary', 'Docs', docs)
         nav('primary', 'Blog', url='/blog')
         nav('primary', 'Community', url='/discussions')
-        nav('footer', 'Team', team)
-        nav('footer', 'Get Supremely', get_page)
-        nav('footer', 'Subscribe', url='/subscribe')
-        nav('footer', 'Source', url='https://github.com/remarqable/supremely')
+
+        # Footer link columns: a group is a top-level footer item with no
+        # destination; its children render as the column's links. The theme
+        # draws exactly what the Navigation editor shows — no fallback.
+        explore = nav('footer', 'Explore')
+        nav('footer', 'Blog', url='/blog', parent=explore)
+        nav('footer', 'Community', url='/discussions', parent=explore)
+        nav('footer', 'Newsletter', url='/subscribe', parent=explore)
+        project = nav('footer', 'Project')
+        nav('footer', 'About', about, parent=project)
+        nav('footer', 'Team', team, parent=project)
+        nav('footer', 'Get Supremely', get_page, parent=project)
+        nav('footer', 'GitHub', url='https://github.com/remarqable/supremely',
+            parent=project)
 
         # Standard legal links: flat footer items render in the theme's
         # bottom bar next to the copyright line.
