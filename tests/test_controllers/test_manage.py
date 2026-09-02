@@ -660,3 +660,38 @@ def test_a_favicon_cannot_be_another_tenants_upload(app, client, acme, globex, u
     with app.test_request_context(base_url=ACME):
         g.org = acme
         assert (acme.setting('favicon_upload_id') or None) is None
+
+
+def test_uploading_a_featured_image_inline_creates_a_media_upload(
+        app, client, acme, user):
+    """The content form's file input creates a real media-library Upload and
+    attaches it in the same save; the edit form then offers it as a
+    thumbnail choice."""
+    import io
+
+    from PIL import Image
+
+    from app.models import Upload
+    login_as(client, user)
+    article = Content.query.filter_by(org_id=acme.id, type='article').first()
+    buffer = io.BytesIO()
+    Image.new('RGB', (8, 8), 'purple').save(buffer, format='PNG')
+    buffer.seek(0)
+
+    client.post(f'/manage/content/{article.id}/edit', base_url=ACME,
+                data={'title': 'A', 'slug': article.slug, 'body': 'b',
+                      'visibility': 'public',
+                      'featured_upload_file': (buffer, 'photo.png')},
+                content_type='multipart/form-data')
+
+    db.session.expire_all()
+    saved = db.session.get(Content, article.id)
+    assert saved.featured_upload_id is not None
+    upload = db.session.get(Upload, saved.featured_upload_id)
+    assert upload.org_id == acme.id
+    assert upload.content_type == 'image/png'
+
+    form = client.get(f'/manage/content/{article.id}/edit', base_url=ACME)
+    assert b'featured_upload_file' in form.data
+    assert f'value="{upload.id}" class="peer sr-only"\n                   checked'.encode() in form.data or \
+        f'value="{upload.id}"'.encode() in form.data

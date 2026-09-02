@@ -147,7 +147,14 @@ def _content_from_form(content):
         # Presentation is a page-only choice; model validation rejects
         # anything but the two known values.
         content.presentation = request.form.get('presentation', 'site')
-    content.featured_upload_id = _own_upload_id('featured_upload_id')
+    # Featured image: an inline file wins over a library pick. The file
+    # becomes a real media-library Upload (sanitized like any other), so
+    # it shows up under Manage → Media and is reusable elsewhere.
+    new_image = request.files.get('featured_upload_file')
+    if new_image is not None and new_image.filename:
+        content.featured_upload_id = Upload.from_file(new_image).id
+    else:
+        content.featured_upload_id = _own_upload_id('featured_upload_id')
     content.tags = [tag.strip() for tag in
                     request.form.get('tags', '').split(',') if tag.strip()]
     category_ids = request.form.getlist('category_ids', type=int)
@@ -160,8 +167,16 @@ def _content_from_form(content):
 
 
 def _render_content_form(content, ct):
+    # The featured-image chooser: recent library images, with the currently
+    # attached one always present — otherwise re-saving an old item whose
+    # image fell off the recency window would silently clear it.
+    image_uploads = (Upload.query.filter(Upload.content_type.like('image/%'))
+                     .order_by(Upload.created_at.desc()).limit(24).all())
+    if (content is not None and content.featured_upload is not None
+            and content.featured_upload not in image_uploads):
+        image_uploads.insert(0, content.featured_upload)
     return render_template('manage/content_form.html', content=content,
-                           content_type=ct,
+                           content_type=ct, image_uploads=image_uploads,
                            categories=Category.query.order_by(Category.name).all())
 
 

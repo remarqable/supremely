@@ -8,7 +8,7 @@
   {% if content and content.id %}{{ status_badge(content.status) }}{% endif %}
 </div>
 
-<form method="POST" class="grid gap-5 lg:grid-cols-3">
+<form method="POST" enctype="multipart/form-data" class="grid gap-5 lg:grid-cols-3">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <div class="card space-y-4 lg:col-span-2">
@@ -103,9 +103,30 @@
         <p class="mt-1 text-xs text-slate-500">{{ _('manage.tags_hint') }}</p>
       </div>
       <div>
-        <label for="featured_upload_id" class="label">{{ _('manage.featured_image') }}</label>
-        <input type="number" id="featured_upload_id" name="featured_upload_id" class="input mt-1"
-               value="{{ content.featured_upload_id or '' if content else '' }}">
+        <span class="label">{{ _('manage.featured_image') }}</span>
+        {% if image_uploads %}
+        {# Thumbnail radios: sr-only inputs, the image is the control. #}
+        <div class="mt-2 grid max-h-56 grid-cols-4 gap-2 overflow-y-auto pe-1"
+             role="radiogroup" aria-label="{{ _('manage.featured_image') }}">
+          <label class="cursor-pointer">
+            <input type="radio" name="featured_upload_id" value="" class="peer sr-only"
+                   {{ 'checked' if not (content and content.featured_upload_id) }}>
+            <span class="flex h-16 items-center justify-center rounded-md bg-slate-100 text-xs text-slate-500 ring-1 ring-slate-900/5 peer-checked:ring-2 peer-checked:ring-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500">{{ _('manage.featured_none') }}</span>
+          </label>
+          {% for upload in image_uploads %}
+          <label class="cursor-pointer" title="{{ upload.filename }}">
+            <input type="radio" name="featured_upload_id" value="{{ upload.id }}" class="peer sr-only"
+                   {{ 'checked' if content and content.featured_upload_id == upload.id }}>
+            <img src="{{ upload.url('thumb' if upload.has_variants else 'original') }}"
+                 alt="{{ upload.filename }}"
+                 class="h-16 w-full rounded-md object-cover ring-1 ring-slate-900/5 peer-checked:ring-2 peer-checked:ring-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500">
+          </label>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <label for="featured_upload_file" class="label mt-3 block">{{ _('manage.featured_upload_new') }}</label>
+        <input type="file" id="featured_upload_file" name="featured_upload_file"
+               class="input mt-1" accept="image/png,image/jpeg,image/webp,image/gif">
         <p class="mt-1 text-xs text-slate-500">{{ _('manage.featured_image_hint') }}</p>
       </div>
       {% endif %}
