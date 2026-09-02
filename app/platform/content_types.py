@@ -86,6 +86,12 @@ class ContentType:
     base: str = ''                  # public URL base for feed types, e.g. /blog
     show_in_nav: bool = False       # seed a nav entry for this type
     group: str = 'community'        # community-sidebar section (NAV_GROUPS)
+    # Where this type's public archive and singles present: 'community'
+    # renders inside the app-owned shell, 'site' through the theme (the
+    # marketing look) — same vocabulary as Content.presentation for pages.
+    # Declared here and passed through the render_site seam; never a
+    # membership test at a callsite.
+    presentation: str = 'community'
 
     @property
     def is_page(self) -> bool:
@@ -101,6 +107,8 @@ class ContentType:
                 f'Feed content type {self.slug} needs a URL base like /blog')
         if self.group not in NAV_GROUPS:
             raise ValueError(f'Unknown nav group: {self.group!r}')
+        if self.presentation not in ('community', 'site'):
+            raise ValueError(f'Unknown presentation: {self.presentation!r}')
         seen = set()
         for spec in self.fields:
             if not isinstance(spec, FieldSpec):

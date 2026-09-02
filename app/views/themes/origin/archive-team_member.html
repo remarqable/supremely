@@ -1,0 +1,44 @@
+{% extends site_layout %}
+{% from 'partials/_ui.html' import lock_badge with context %}
+
+{% block title %}{{ archive_title or content_type.plural }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<h1 class="mb-10 text-3xl font-bold">{{ archive_title or content_type.plural }}</h1>
+
+{# Roster order is publication order (oldest first) — the archive query
+   returns newest-first, which reads backwards for a team. #}
+<div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
+  {% for member in items | sort(attribute='published_at') %}
+  {% set locked = not can_view(member) %}
+  <article>
+    {% if member.featured_upload and not locked %}
+    <img src="{{ member.featured_upload.url('thumb' if member.featured_upload.has_variants else 'original') }}"
+         alt="{{ member.title }}" class="h-40 w-40 rounded-2xl object-cover">
+    {% endif %}
+    <h2 class="mt-4 flex flex-wrap items-center gap-2 text-lg font-semibold">
+      {{ member.title }}{% if locked %}{{ lock_badge() }}{% endif %}
+    </h2>
+    {% if member.fields.role %}
+    <p class="text-sm font-medium text-brand-600">{{ member.fields.role }}</p>
+    {% endif %}
+    {% if not locked %}
+    <div class="prose-supremely mt-2 text-sm text-slate-600">{{ member.html | safe }}</div>
+    {% endif %}
+  </article>
+  {% else %}
+  <p class="text-slate-500">{{ _('archive.none') }}</p>
+  {% endfor %}
+</div>
+
+{% if pagination and pagination.pages > 1 %}
+<nav class="mt-10 flex justify-center gap-2 text-sm" aria-label="{{ _('archive.pagination') }}">
+  {% if pagination.has_prev %}
+  <a href="?page={{ pagination.prev_num }}" class="btn-secondary">&larr; {{ _('archive.newer') }}</a>
+  {% endif %}
+  {% if pagination.has_next %}
+  <a href="?page={{ pagination.next_num }}" class="btn-secondary">{{ _('archive.older') }} &rarr;</a>
+  {% endif %}
+</nav>
+{% endif %}
+{% endblock %}

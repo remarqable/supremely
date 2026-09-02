@@ -89,6 +89,7 @@ def _render_archive(ct, title=None):
         page=page_number, per_page=PER_PAGE, error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
+                       force_theme=(ct.presentation == 'site'),
                        content_type=ct, items=pagination.items,
                        pagination=pagination,
                        archive_title=title or ct.plural)
@@ -102,6 +103,7 @@ def _render_single(ct, content):
         return render_gate(content.title, kind=ct.singular)
     return render_site(
         [f'single-{content.slug}.html', f'{ct.template}.html', 'single.html'],
+        force_theme=(ct.presentation == 'site'),
         content_type=ct, content=content)
 
 
@@ -135,6 +137,7 @@ def archive_category(seg, cslug):
                             error_out=False))
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
+                       force_theme=(ct.presentation == 'site'),
                        content_type=ct, items=pagination.items,
                        pagination=pagination, archive_title=category.name)
 
@@ -152,6 +155,7 @@ def archive_tag(seg, tag):
         page=page_number, per_page=PER_PAGE, error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
+                       force_theme=(ct.presentation == 'site'),
                        content_type=ct, items=pagination.items,
                        pagination=pagination, archive_title=f'#{tag}')
 

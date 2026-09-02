@@ -74,3 +74,31 @@ def test_presentation_value_is_validated(app, acme):
                        presentation='popup', fields={}, tags=[])
         with pytest.raises(ValidationError):
             page.save()
+
+
+def test_a_site_presented_type_archive_renders_themed(app, client, acme):
+    """team_member declares presentation='site': its archive and singles get
+    the theme, not the shell — same seam as pages, declared on the type."""
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        member = Content(type='team_member', title='Jo Doe', slug='jo-doe',
+                         body='Bio of Jo.', org_id=acme.id,
+                         fields={'role': 'Founder'}, tags=[])
+        member.save()
+        member.publish()
+    anon = app.test_client()
+    archive = anon.get('/team', base_url=ACME)
+    assert archive.status_code == 200
+    assert b'Jo Doe' in archive.data
+    assert b'Founder' in archive.data
+    assert COMMUNITY_MARKER not in archive.data
+    single = anon.get('/team/jo-doe', base_url=ACME)
+    assert single.status_code == 200
+    assert COMMUNITY_MARKER not in single.data
+
+
+def test_a_community_type_archive_stays_in_the_shell(app, client, acme):
+    anon = app.test_client()
+    archive = anon.get('/blog', base_url=ACME)
+    assert archive.status_code == 200
+    assert COMMUNITY_MARKER in archive.data

@@ -58,6 +58,19 @@ def register_library_types() -> None:
         base='/announcements',
     ))
     register_content_type(ContentType(
+        slug='team_member', singular='Team member', plural='Team',
+        description='The people behind the organization: name, role, photo, '
+                    'and a short bio.',
+        base='/team', group='meet',
+        # A roster is site furniture, not community activity: the archive
+        # presents through the theme like a brochure page.
+        presentation='site',
+        fields=(
+            FieldSpec(key='role', type='string', label='Role',
+                      help='Founder, Designer, Community Manager, ...'),
+        ),
+    ))
+    register_content_type(ContentType(
         slug='resource', singular='Resource', plural='Resources',
         description='Reports, guides, and documents members can download.',
         base='/resources', group='learn',

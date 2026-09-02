@@ -107,40 +107,22 @@ run a server. It is not available yet.
 [Subscribe](/subscribe) to hear when it launches.
 """
 
-TEAM_BODY = """\
-Supremely is built in the open by a small team. AI writes much of the
-implementation code; humans own architecture, security, review, and what
-ships. [About](/about) covers why the project exists.
-
-## Asim Baig
-
-![Asim Baig](/static/img/team/asim.png){: width="160" height="160" loading="lazy" }
-
-**Founder.** Sets the direction and owns what ships. Started Supremely to
-refuse the choice between owning your website, your audience, and your
-community.
-
-## Sara Rasch
-
-![Sara Rasch](/static/img/team/sara.png){: width="160" height="160" loading="lazy" }
-
-**Product Manager.** Keeps the product honest — scope, priorities, and the
-experience members actually get.
-
-## Aidan Urbina
-
-![Aidan Urbina](/static/img/team/aidan.png){: width="160" height="160" loading="lazy" }
-
-**Developer.** Builds across the stack, from the community surface to the
-plumbing underneath it.
-
-## Claudius Coddington
-
-![Claudius Coddington](/static/img/team/claudius.png){: width="160" height="160" loading="lazy" }
-
-**AI Developer.** Claude, wearing a hat. Writes much of the implementation
-code, always under human review. Has never been photographed clearly.
-"""
+# (name, role, avatar file under app/static/img/team/, bio markdown)
+TEAM_MEMBERS = (
+    ('Asim Baig', 'Founder', 'asim.png',
+     'Sets the direction and owns what ships. Started Supremely to refuse '
+     'the choice between owning your website, your audience, and your '
+     'community.'),
+    ('Sara Rasch', 'Product Manager', 'sara.png',
+     'Keeps the product honest — scope, priorities, and the experience '
+     'members actually get.'),
+    ('Aidan Urbina', 'Developer', 'aidan.png',
+     'Builds across the stack, from the community surface to the plumbing '
+     'underneath it.'),
+    ('Claudius Coddington', 'AI Developer', 'claudius.png',
+     'Claude, wearing a hat. Writes much of the implementation code, always '
+     'under human review. Has never been photographed clearly.'),
+)
 
 FIRST_POST = """\
 Supremely now runs its own website — pages, navigation, theming, articles,
@@ -243,7 +225,46 @@ def seed_getsupremely_org():
         about = page('about', 'About', ABOUT_BODY)
         docs = page('docs', 'Documentation', DOCS_BODY)
         get_page = page('get', 'Get Supremely', GET_BODY)
-        team = page('team', 'Team', TEAM_BODY)
+        # Team roster: team_member content rows with photos imported into
+        # the org's media library — structured and editable under
+        # Manage → Content → Team. The type's archive owns /team, and a
+        # page slug cannot shadow a type base, so any old team *page*
+        # (from earlier seeds) retires; nav rows pointing at it are
+        # repointed at the archive URL first.
+        old_team_page = Content.query.filter_by(type='page',
+                                                slug='team').first()
+        if old_team_page is not None:
+            for row in NavigationItem.query.filter_by(
+                    content_id=old_team_page.id).all():
+                row.url = '/team'
+                row.content_id = None
+                row.save()
+            old_team_page.delete()
+
+        from pathlib import Path
+
+        from werkzeug.datastructures import FileStorage
+
+        from app.models import Upload
+        avatar_dir = Path(current_app.static_folder) / 'img' / 'team'
+        for name, role, avatar, bio in TEAM_MEMBERS:
+            member_slug = name.lower().replace(' ', '-')
+            if Content.query.filter_by(type='team_member',
+                                       slug=member_slug).first() is not None:
+                continue
+            photo = None
+            avatar_path = avatar_dir / avatar
+            if avatar_path.exists():
+                with avatar_path.open('rb') as fh:
+                    photo = Upload.from_file(
+                        FileStorage(stream=fh, filename=avatar))
+            member = Content(type='team_member', title=name,
+                             slug=member_slug, body=bio, org_id=org.id,
+                             created_by_id=owner_id,
+                             fields={'role': role}, tags=[],
+                             featured_upload_id=photo.id if photo else None)
+            member.save()
+            member.publish()
 
         def nav(menu, label, content_obj=None, url=None, parent=None):
             parent_id = parent.id if parent else None
@@ -272,7 +293,7 @@ def seed_getsupremely_org():
         nav('footer', 'Newsletter', url='/subscribe', parent=explore)
         project = nav('footer', 'Project')
         nav('footer', 'About', about, parent=project)
-        nav('footer', 'Team', team, parent=project)
+        nav('footer', 'Team', url='/team', parent=project)
         nav('footer', 'Get Supremely', get_page, parent=project)
         nav('footer', 'GitHub', url='https://github.com/remarqable/supremely',
             parent=project)

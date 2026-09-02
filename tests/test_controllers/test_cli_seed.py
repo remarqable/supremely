@@ -75,16 +75,41 @@ def test_seed_creates_the_get_page_and_ctas(app, runner):
         assert content['secondary_url'] == '/get'
         assert NavigationItem.query.filter_by(
             menu='footer', label='Get Supremely').count() == 1
-        team = Content.query.filter_by(type='page', slug='team').first()
-        assert team is not None and team.status == 'published'
-        assert NavigationItem.query.filter_by(
-            menu='footer', label='Team').count() == 1
         # Footer link columns: two groups whose children the theme renders.
         for label, expected_children in (('Explore', 3), ('Project', 4)):
             group = NavigationItem.query.filter_by(
                 menu='footer', label=label, parent_id=None).one()
             assert group.is_group
             assert len(group.children) == expected_children
+
+
+def test_seed_creates_the_team_roster(app, runner):
+    """Team members are structured content (team_member type) with photos in
+    the media library; any old team *page* retires because the type's
+    archive owns /team. Re-running never duplicates members or uploads."""
+    from flask import g
+
+    from app.models import Content, NavigationItem, Organization, Upload
+    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    with app.test_request_context():
+        g.org = Organization.get_by_slug('getsupremely')
+        members = Content.query.filter_by(type='team_member').all()
+        assert {m.title for m in members} == {
+            'Asim Baig', 'Sara Rasch', 'Aidan Urbina', 'Claudius Coddington'}
+        assert all(m.status == 'published' for m in members)
+        assert all(m.fields.get('role') for m in members)
+        assert all(m.featured_upload_id for m in members)
+        assert Content.query.filter_by(type='page', slug='team').first() is None
+        team_link = NavigationItem.query.filter_by(
+            menu='footer', label='Team').one()
+        assert team_link.url == '/team' and team_link.content_id is None
+        upload_count = Upload.query.count()
+
+    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    with app.test_request_context():
+        g.org = Organization.get_by_slug('getsupremely')
+        assert Content.query.filter_by(type='team_member').count() == 4
+        assert Upload.query.count() == upload_count
 
 
 def test_seed_creates_the_starter_forum(app, runner):
