@@ -8,22 +8,14 @@ from app.models import (
     Content,
     Delivery,
     DeliveryRecipient,
-    InstallationSetting,
     Job,
     Subscriber,
 )
 from app.platform import mailer
 from app.platform.jobs import run_pending_jobs
-from tests.conftest import login_as
+from tests.conftest import configure_email, login_as
 
 ACME = 'http://acme.example.test'
-
-
-def configure_email(app):
-    InstallationSetting.set('email.smtp_host', 'smtp.test')
-    InstallationSetting.set('email.from_address', 'news@acme.test')
-    app.config['MAIL_SUPPRESS_SEND'] = True
-    mailer._outbox.clear()
 
 
 def add_subscribers(app, org, emails, status='subscribed'):

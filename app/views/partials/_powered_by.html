@@ -1,0 +1,17 @@
+{# Attribution on an organization's public site. App-owned and shared by
+   every theme footer, so a new theme inherits it rather than writing its
+   own -- and so the link and its tracking parameters are defined once
+   (app/platform/attribution.py). Only the product name is the link, which
+   is what makes it read as attribution rather than an advertisement.
+
+   The whole sentence comes from one catalog key with the link as its
+   {product}, so a translation can put the name wherever its grammar wants
+   it instead of inheriting English word order. `safe` is applied because
+   t() formats through str.format, which drops the markup-safe marking of
+   the captured link; both halves are ours -- a catalog string that ships
+   with the application, and an href built by powered_by_url -- and neither
+   carries tenant or visitor input. A theme overriding footer.html keeps
+   this include; see docs/themes/README.md. #}
+{%- set product %}<a href="{{ powered_by_url('site') }}"
+   class="font-medium hover:underline">Supremely</a>{% endset -%}
+<span class="whitespace-nowrap">{{ _('site.powered_by', product=product) | safe }}</span>

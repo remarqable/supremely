@@ -23,6 +23,7 @@
   "site.get_supremely": "Get Supremely",
   "site.open_community": "Open the community",
   "site.tagline": "A home for your community",
+  "site.powered_by": "Powered by {product}",
   "community.home": "Home",
   "community.nav": "Community navigation",
   "community.public_site": "Public site",

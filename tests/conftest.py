@@ -80,6 +80,17 @@ def admin_client(client, platform_admin):
     return login_as(client, platform_admin)
 
 
+def configure_email(app, from_address='news@acme.test'):
+    """SMTP settings so the mailer composes instead of refusing, with
+    sending suppressed. Messages land in mailer._outbox."""
+    from app.models import InstallationSetting
+    from app.platform import mailer
+    InstallationSetting.set('email.smtp_host', 'smtp.test')
+    InstallationSetting.set('email.from_address', from_address)
+    app.config['MAIL_SUPPRESS_SEND'] = True
+    mailer._outbox.clear()
+
+
 def make_png(width=600, height=400, color=(120, 90, 200)) -> bytes:
     import io
 

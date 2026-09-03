@@ -29,8 +29,17 @@ def is_email_configured() -> bool:
     return bool(settings.get('email.smtp_host') and settings.get('email.from_address'))
 
 
-def send_email(to: str, subject: str, body: str, html: str | None = None) -> None:
-    """Send one email. Raises EmailNotConfiguredError when no SMTP exists."""
+def send_email(to: str, subject: str, body: str, html: str | None = None,
+               attribution: bool = True) -> None:
+    """Send one email. Raises EmailNotConfiguredError when no SMTP exists.
+
+    `attribution` appends the powered-by footer, which is why it defaults to
+    on: a kind of email nobody has written yet inherits it here rather than
+    being remembered individually. Pass False for a message that is not
+    published output -- the operator's own SMTP diagnostic, say, where an
+    exact body is the point.
+    """
+    from app.platform.attribution import email_html, email_text
     settings = email_settings()
     if not (settings.get('email.smtp_host') and settings.get('email.from_address')):
         raise EmailNotConfiguredError()
@@ -39,9 +48,12 @@ def send_email(to: str, subject: str, body: str, html: str | None = None) -> Non
     msg['From'] = settings['email.from_address']
     msg['To'] = to
     msg['Subject'] = subject
-    msg.set_content(body)
+    # Appended here rather than in each composer, so a kind of email nobody
+    # has written yet still carries it.
+    msg.set_content(body + email_text() if attribution else body)
     if html:
-        msg.add_alternative(html, subtype='html')
+        msg.add_alternative(html + email_html() if attribution else html,
+                            subtype='html')
 
     if current_app.config.get('MAIL_SUPPRESS_SEND'):
         log.info('email_suppressed', to=to, subject=subject)
@@ -62,10 +74,11 @@ def send_email(to: str, subject: str, body: str, html: str | None = None) -> Non
     log.info('email_sent', to=to, subject=subject)
 
 
-def try_send_email(to: str, subject: str, body: str, html: str | None = None) -> bool:
+def try_send_email(to: str, subject: str, body: str, html: str | None = None,
+                   attribution: bool = True) -> bool:
     """Best-effort send: False (never an error) when email is not configured."""
     try:
-        send_email(to, subject, body, html=html)
+        send_email(to, subject, body, html=html, attribution=attribution)
         return True
     except EmailNotConfiguredError:
         return False

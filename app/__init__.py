@@ -154,6 +154,7 @@ def _init_setup_gate(app):
 
 def _init_context(app):
     from .models import InstallationSetting
+    from .platform.attribution import powered_by_url
     from .platform.authz import (
         can,
         can_view,
@@ -307,6 +308,7 @@ def _init_context(app):
             'content_types': active_types,
             'latest_content': latest_content,
             'content_count': content_count,
+            'powered_by_url': powered_by_url,
         }
 
     @app.template_filter('localdate')

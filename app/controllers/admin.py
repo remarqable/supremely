@@ -354,8 +354,11 @@ def test_email():
         flash(t('admin.test_email_needs_address'), 'error')
         return redirect(url_for('admin.settings'))
     try:
+        # No attribution: this is a diagnostic the operator sent to
+        # themselves, not published output, and the exact body is the point.
         send_email(to, 'Supremely test email',
-                   'Email delivery from your Supremely installation works.')
+                   'Email delivery from your Supremely installation works.',
+                   attribution=False)
         flash(t('admin.test_email_sent', to=to), 'success')
     except Exception as e:      # noqa: BLE001 -- report any SMTP failure to the admin
         flash(t('admin.test_email_failed', error=str(e)), 'error')

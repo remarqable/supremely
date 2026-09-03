@@ -266,6 +266,22 @@ identity. A built-in theme with a bad manifest fails the build; an installed
 theme with one is skipped with a log line, so a third-party theme can never
 take an installation down. Either way it never surfaces mid-request.
 
+## Attribution
+
+Every theme's footer carries a "Powered by Supremely" line, and it comes
+from an app-owned partial rather than from your markup:
+
+```jinja
+{% include 'partials/_powered_by.html' %}
+```
+
+All four built-in themes include it in their footer (Midnight builds its
+footer into `layout.html`, so it includes it there). If you override
+`footer.html`, keep the include — that is what keeps the link and its
+tracking parameters defined in one place instead of copied into every theme.
+Style the surrounding element however you like; the partial only renders the
+text and the link.
+
 ## The parts you don't control
 
 - **The community application** (member home, discussions for members,
