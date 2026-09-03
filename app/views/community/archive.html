@@ -45,10 +45,11 @@
         <div class="flex items-center gap-2">
           <span class="text-sm font-semibold text-slate-900">{{ item.author.name if item.author else g.org.name }}</span>
           <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
-          <span class="ms-auto flex shrink-0 items-center gap-1.5">
-            {% if locked %}{{ lock_badge() }}{% endif %}
-            <span class="badge-slate uppercase tracking-wide">{{ content_type.singular }}</span>
-          </span>
+          {# No type badge here: every card on this page is the same type,
+             and the page heading already says which. The mixed feed on the
+             community home keeps its badge, where it is the only thing
+             telling one kind of card from another. #}
+          {% if locked %}<span class="ms-auto shrink-0">{{ lock_badge() }}</span>{% endif %}
         </div>
         <h2 class="mt-1.5 text-lg font-semibold tracking-tight">
           <a href="{{ item.permalink }}" class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>

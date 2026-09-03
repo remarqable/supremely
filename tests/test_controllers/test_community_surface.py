@@ -261,3 +261,25 @@ def test_newsletter_archive_lists_sent_issues(app, client, acme, user):
     assert title in page.data
     assert b'Sent ' in page.data
 
+
+def test_an_archive_card_carries_no_type_badge(client, acme, user):
+    """Every card on a type's archive is that type, and the heading says so.
+    The badge only earns its place on the mixed home feed, where it is the
+    one thing telling the kinds of card apart.
+
+    Asserted on the badge's text node rather than its classes: reordering
+    Tailwind utilities is not a behaviour change and should not fail a test,
+    while ">Article</span>" is the label the badge existed to show. The
+    "New Article" button on the same page is an anchor, so it cannot satisfy
+    it by accident.
+    """
+    login_as(client, user)
+    archive = client.get('/blog', base_url=ACME)
+    assert archive.status_code == 200
+    assert b'Hello, World!' in archive.data             # a card really rendered
+    assert b'>Article</span>' not in archive.data
+
+    feed = client.get('/dashboard', base_url=ACME)
+    assert feed.status_code == 200
+    assert b'Hello, World!' in feed.data
+    assert b'>Article</span>' in feed.data              # the mixed feed keeps it
