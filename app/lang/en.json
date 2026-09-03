@@ -108,6 +108,8 @@
   "landing.image_none": "No public images yet. Upload one under Media, then come back.",
   "landing.image_unavailable": "The picture you chose is no longer available \u2014 it was deleted, or set to members only. Public pages can only show public images, so pick another below or make that one public under Media.",
   "manage.page_title": "Title",
+  "manage.slug_hint": "The address this appears at. Leave it blank and it is written from the title, with a number added if that address is taken.",
+  "manage.slug_taken": "That address was just taken by another item. Try saving again.",
   "manage.body_markdown": "Content (Markdown)",
   "manage.visibility": "Visibility",
   "manage.visibility_public": "Public",

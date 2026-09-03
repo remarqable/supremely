@@ -17,16 +17,42 @@
 <form method="POST" enctype="multipart/form-data" class="grid gap-5 lg:grid-cols-3">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-  <div class="card space-y-4 lg:col-span-2">
+  {# The slug field stays empty while a new item is being written and
+     shows the address it will get as a placeholder. Empty is what makes it
+     automatic: the server derives the slug from the title and steps around
+     anything already taken (Content.validate), which it cannot do for a
+     value the form filled in on the author's behalf. Type here and that
+     choice is kept exactly as typed. An existing item shows its real slug,
+     because that is its published address and must not move. #}
+  <div class="card space-y-4 lg:col-span-2"
+       x-data="{ preview: '', max: {{ derived_slug_max }},
+                 from(title) {
+                   // Must agree with slugify() in app/models/base.py, which
+                   // folds to ASCII and drops what will not fold: a
+                   // placeholder promising an address the save will not
+                   // create is worse than no placeholder.
+                   let s = title.normalize('NFKD')
+                     .replace(/[^\x00-\x7F]/g, '')
+                     .toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                     .replace(/^-+|-+$/g, '');
+                   if (s.length > this.max) {
+                     const cut = s.slice(0, this.max), at = cut.lastIndexOf('-');
+                     s = at > this.max / 2 ? cut.slice(0, at) : cut;
+                   }
+                   this.preview = s.replace(/^-+|-+$/g, '');
+                 } }">
     <div>
       <label for="title" class="label">{{ _('manage.page_title') }}</label>
       <input type="text" id="title" name="title" class="input mt-1" required
-             maxlength="200" value="{{ content.title if content else '' }}">
+             maxlength="200" value="{{ content.title if content else '' }}"
+             @input="from($event.target.value)">
     </div>
     <div>
       <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
-      <input type="text" id="slug" name="slug" class="input mt-1" required
-             value="{{ content.slug if content else '' }}">
+      <input type="text" id="slug" name="slug" class="input mt-1"
+             value="{{ content.slug if content else '' }}"
+             :placeholder="preview" aria-describedby="slug-hint">
+      <p id="slug-hint" class="mt-1 text-xs text-slate-500">{{ _('manage.slug_hint') }}</p>
     </div>
 
     {% for spec in content_type.fields %}

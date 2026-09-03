@@ -13,6 +13,7 @@ from flask import (
     url_for,
 )
 from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.middleware.ratelimit import rate_limit
@@ -213,6 +214,15 @@ def new_content(type_slug):
             db.session.rollback()
             flash(e.message, 'error')
             return _render_content_form(content, ct)
+        except IntegrityError:
+            # The friendly duplicate check in Content.validate races: two
+            # authors publishing the same title at once, or one impatient
+            # double-click, both derive the same slug and only one insert
+            # wins. The constraint is the real guarantee, so say what the
+            # constraint said rather than serving a 500.
+            db.session.rollback()
+            flash(t('manage.slug_taken'), 'error')
+            return _render_content_form(content, ct)
     return _render_content_form(None, ct)
 
 
@@ -240,6 +250,9 @@ def edit_content(content_id):
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
+        except IntegrityError:
+            db.session.rollback()
+            flash(t('manage.slug_taken'), 'error')
     return _render_content_form(content, ct)
 
 

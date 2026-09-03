@@ -9,6 +9,7 @@ app/models/discussion.py.)
 
 import json
 import re
+import secrets
 
 from app.extensions import db
 from app.platform.authz import VISIBILITY_LEVELS
@@ -16,6 +17,7 @@ from app.platform.errors import ValidationError
 from app.platform.theming import PAGE_TEMPLATE_RE
 
 from .base import (
+    DERIVED_SLUG_MAX,
     LIKE_ESCAPE,
     AuditMixin,
     BaseModel,
@@ -24,6 +26,7 @@ from .base import (
     escape_like,
     reject_control_characters,
     scoped_to_own_org,
+    slugify,
     utcnow,
 )
 from .types import BigIntFK, JSONColumn, TZDateTime
@@ -75,6 +78,10 @@ RESERVED_PAGE_SLUGS = {
     'themes', 'launcher', 'health', 'discussions', 'members', 'newsletter',
     'feed', 'sitemap', 'profile', 'invite', 'avatars', 'subscribe',
     'unsubscribe',
+    # Real routes that were missing from this list. A slug is derived from a
+    # title now, so an ordinary word like "Notifications" reaches them by
+    # accident where before somebody had to type it deliberately.
+    'notifications', 'newsletters', 'glossary', 'tls-check', '_v',
 }
 
 
@@ -124,10 +131,26 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     def validate(self):
         from app.platform.content_types import CONTENT_TYPES
         self.title = (self.title or '').strip()
-        self.slug = (self.slug or '').strip().lower()
         self.type = self.type or 'article'
         self.status = self.status or 'draft'
         self.visibility = self.visibility or 'public'
+        # A blank slug is derived from the title rather than refused. Here
+        # rather than in the form handler, so a seed, an import or anything
+        # written later gets it too. An existing slug is never rewritten: it
+        # is the item's public address, and a published one must not move
+        # because somebody edited a typo in the title.
+        #
+        # After the type is settled, not before: uniqueness is per type, so
+        # deriving first would look for a free address among rows whose type
+        # is still None, find nothing taken, and hand back a slug that the
+        # uniqueness check then refuses.
+        self.slug = (self.slug or '').strip().lower()
+        if not self.slug:
+            self.slug = self._free_slug(slugify(self.title))
+            if not self.slug:
+                raise ValidationError(
+                    'Add a slug: the title has no letters or numbers to '
+                    'make one from')
 
         if not self.title:
             raise ValidationError('Title is required')
@@ -193,6 +216,58 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         if existing and existing.id != self.id:
             raise ValidationError(
                 f'A {self.content_type.singular.lower()} with that slug already exists')
+
+    def _free_slug(self, base: str) -> str:
+        """An address near `base` that is actually available.
+
+        Only ever used for a slug the author did not type. A derived slug
+        that collided would stop a save with an error about a field they
+        never filled in, so a second post called "Hello" becomes hello-2
+        rather than a refusal. A slug somebody typed is left exactly as
+        typed and still collides loudly, because they asked for that one.
+        """
+        from flask import g, has_request_context
+
+        from app.platform.content_types import CONTENT_TYPES
+        if not base:
+            return ''
+        # Without a tenant to scope to, scoped_to_own_org would search every
+        # organization's content. Skip the walk rather than let one
+        # organization's slugs shape another's: the uniqueness constraint
+        # still refuses a genuine clash.
+        scoped = bool(self.org_id) or (has_request_context()
+                                       and getattr(g, 'org', None) is not None)
+        if not scoped:
+            return base
+        reserved = set()
+        if self.content_type.is_page:
+            reserved = RESERVED_PAGE_SLUGS | {
+                ct.base.strip('/') for ct in CONTENT_TYPES.values()
+                if ct.has_archive}
+
+        def taken(candidate: str) -> bool:
+            if candidate in reserved:
+                return True
+            clash = scoped_to_own_org(
+                Content.query.filter_by(type=self.type, slug=candidate),
+                self).first()
+            return clash is not None and clash.id != self.id
+
+        candidate, n = base, 1
+        while taken(candidate):
+            n += 1
+            suffix = f'-{n}'
+            candidate = f'{base[:DERIVED_SLUG_MAX - len(suffix)]}{suffix}'
+            if n > 100:
+                # Pathological, but a save must complete rather than spin.
+                # Checked like any other candidate: an unchecked one would
+                # surface as the collision error this method exists to
+                # prevent, on a slug nobody typed.
+                while taken(candidate):
+                    candidate = (f'{base[:DERIVED_SLUG_MAX - 7]}-'
+                                 f'{secrets.token_hex(3)}')
+                break
+        return candidate
 
     @property
     def content_type(self):

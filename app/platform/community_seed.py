@@ -14,6 +14,7 @@ an already-shipped provisioner is the expensive version.
 
 import copy
 
+from app.models.base import slugify
 from app.platform.logger import get_logger
 
 log = get_logger()
@@ -165,7 +166,7 @@ def _apply_overlay(seed: dict, overlay: dict) -> dict:
                 group.update(
                     name=replacement['name'],
                     slug=replacement.get(
-                        'slug', _slugify(replacement['name'])),
+                        'slug', slugify(replacement['name'], fallback='group', max_length=100)),
                     position=replacement.get('position', group['position']),
                 )
                 if overlay.get('posts'):
@@ -185,9 +186,3 @@ def _apply_overlay(seed: dict, overlay: dict) -> dict:
                     post['title'] = override.get('title', post['title'])
                     post['body'] = override.get('body', post['body'])
     return seed
-
-
-def _slugify(name: str) -> str:
-    import re
-    slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
-    return slug or 'group'

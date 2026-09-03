@@ -165,3 +165,122 @@ def test_page_template_accepts_a_theme_template_name(app, acme, template, stored
         page = _page(acme, template)
         page.validate()
         assert page.template == stored
+
+
+def test_a_blank_slug_is_written_from_the_title(app, acme):
+    """Nobody should have to type an address for their own post."""
+    c = make(app, acme, title='Hello, Sailor!', slug='')
+    assert c.slug == 'hello-sailor'
+
+
+def test_an_accent_is_folded_rather_than_dropped(app, acme):
+    """"Café notes" is cafe-notes, not caf-notes."""
+    c = make(app, acme, title='Café notes', slug='')
+    assert c.slug == 'cafe-notes'
+
+
+def test_a_slug_that_was_typed_is_left_alone(app, acme):
+    c = make(app, acme, title='Hello, Sailor!', slug='my-own-address')
+    assert c.slug == 'my-own-address'
+
+
+def test_editing_a_title_does_not_move_an_existing_address(app, acme):
+    """A published item's slug is its public URL. Renaming the item must not
+    silently break every link to it."""
+    c = make(app, acme, title='First title', slug='')
+    assert c.slug == 'first-title'
+    with app.test_request_context():
+        g.org = acme
+        c.title = 'A completely different title'
+        c.save()
+    assert c.slug == 'first-title'
+
+
+def test_a_title_with_nothing_usable_still_asks_for_a_slug(app, acme):
+    """A title in a non-Latin script derives nothing, so the author is
+    asked rather than given an address they cannot read. The message says
+    that, rather than complaining about the format of a field they left
+    empty."""
+    with pytest.raises(ValidationError) as caught, app.test_request_context():
+        g.org = acme
+        Content(type='article', title='日本語', slug='', org_id=acme.id,
+                fields={}, tags=[]).save()
+    assert 'no letters or numbers' in caught.value.message
+
+
+def test_deriving_waits_for_the_type_to_be_settled(app, acme):
+    """Uniqueness is per type, so a row that leaves the type to its column
+    default must still dedupe against rows of that type. Deriving first
+    searched among rows whose type was still None, found nothing taken, and
+    handed back a slug the uniqueness check then refused."""
+    with app.test_request_context():
+        g.org = acme
+        first = Content(title='Hello, World!', slug='', org_id=acme.id,
+                        fields={}, tags=[])
+        first.save()
+    assert first.type == 'article'
+    assert first.slug == 'hello-world-2'      # the seeded article owns the first
+
+
+def test_a_derived_slug_finds_a_free_address_instead_of_failing(app, acme):
+    """A second post with the same title must not stop on an error about a
+    field the author never filled in."""
+    first = make(app, acme, title='Weekly update', slug='')
+    second = make(app, acme, title='Weekly update', slug='', body='Another.')
+    third = make(app, acme, title='Weekly update', slug='', body='A third.')
+    assert (first.slug, second.slug, third.slug) == (
+        'weekly-update', 'weekly-update-2', 'weekly-update-3')
+
+
+def test_a_derived_slug_steps_around_the_seeded_content(app, acme):
+    """The starter article already owns hello-world."""
+    c = make(app, acme, title='Hello, World!', slug='')
+    assert c.slug == 'hello-world-2'
+
+
+def test_a_typed_slug_that_collides_still_says_so(app, acme):
+    """Asking for a specific address and being given a different one
+    silently is worse than being told it is taken."""
+    make(app, acme, title='One', slug='taken-address')
+    with pytest.raises(ValidationError), app.test_request_context():
+        g.org = acme
+        Content(type='article', title='Two', slug='taken-address',
+                org_id=acme.id, fields={}, tags=[]).save()
+
+
+def test_a_derived_page_slug_avoids_the_reserved_ones(app, acme):
+    """A page titled "Blog" would sit at /blog, where the article archive
+    lives. The author never typed that, so it steps aside rather than
+    refusing."""
+    page = make(app, acme, type='page', title='Blog', slug='')
+    assert page.slug == 'blog-2'
+
+    manage = make(app, acme, type='page', title='Manage', slug='')
+    assert manage.slug == 'manage-2'
+
+
+def test_the_same_slug_can_exist_on_two_types(app, acme):
+    """Uniqueness is per type, so deriving must not step around a clash
+    that is not a clash."""
+    article = make(app, acme, type='article', title='Contact us', slug='')
+    page = make(app, acme, type='page', title='Contact us', slug='')
+    assert article.slug == 'contact-us'
+    assert page.slug == 'contact-us'
+
+
+def test_a_long_title_gives_a_readable_address(app, acme):
+    """A whole sentence of title would make a URL nobody can paste into a
+    message. Derived slugs stop at a word, not mid-word."""
+    c = make(app, acme, slug='', title=(
+        'tet slug this is really long why would you ever make a url this long'))
+    assert c.slug == 'tet-slug-this-is-really-long-why-would-you-ever-make-a-url'
+    assert len(c.slug) <= 60
+    assert not c.slug.endswith('-')
+
+
+def test_a_typed_slug_keeps_the_column_limit(app, acme):
+    """Only derived slugs are shortened. Somebody who types a long one has
+    chosen it, and the column allows up to 200."""
+    typed = 'a' * 150
+    c = make(app, acme, title='Long address', slug=typed)
+    assert c.slug == typed

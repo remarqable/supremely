@@ -71,6 +71,41 @@ class BaseModel(db.Model):
 CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b-\x1f\x7f]')
 
 
+# How long a slug written from a title may be. Shorter than the column,
+# which allows 200, because a derived slug is nobody's decision: a whole
+# sentence of title makes an address that cannot be read out, pasted into a
+# message or printed. A slug somebody types is their own business and keeps
+# the column's limit.
+DERIVED_SLUG_MAX = 60
+
+
+def slugify(text: str, fallback: str = '',
+            max_length: int = DERIVED_SLUG_MAX) -> str:
+    """A URL-safe slug from human text.
+
+    Accents are folded rather than dropped, so "Café notes" becomes
+    "cafe-notes" instead of "caf-notes". Anything else that is not a letter
+    or a digit becomes a hyphen, and runs collapse. Text with nothing usable
+    in it (a title written entirely in a non-Latin script, say) returns the
+    fallback, which is empty by default: better to ask an author for a slug
+    than to invent one they cannot read.
+
+    Long text is cut back to the last whole word rather than mid-word, so a
+    long title ends at "...-make-a-url" instead of "...-make-a-ur".
+    """
+    import unicodedata
+    folded = unicodedata.normalize('NFKD', text or '')
+    ascii_only = folded.encode('ascii', 'ignore').decode('ascii')
+    slug = re.sub(r'[^a-z0-9]+', '-', ascii_only.lower()).strip('-')
+    if len(slug) > max_length:
+        cut = slug[:max_length]
+        # Back to the last hyphen, unless that would leave almost nothing
+        # (one very long word), in which case the hard cut stands.
+        boundary = cut.rfind('-')
+        slug = cut[:boundary] if boundary > max_length // 2 else cut
+    return slug.strip('-') or fallback
+
+
 def reject_control_characters(value: str, label: str) -> None:
     """Refuse text that cannot travel in a header.
 

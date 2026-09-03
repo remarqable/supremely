@@ -158,6 +158,7 @@ def _init_setup_gate(app):
 
 def _init_context(app):
     from .models import InstallationSetting
+    from .models.base import DERIVED_SLUG_MAX
     from .platform.attribution import powered_by_url
     from .platform.authz import (
         can,
@@ -304,6 +305,7 @@ def _init_context(app):
             'latest_content': latest_content,
             'content_count': content_count,
             'powered_by_url': powered_by_url,
+            'derived_slug_max': DERIVED_SLUG_MAX,
             # Values, not the functions: `{% if is_mobile %}` on a
             # callable is always true, and the first mobile template written
             # would have hit that silently.

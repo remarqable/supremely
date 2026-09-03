@@ -900,3 +900,65 @@ def test_every_template_a_preview_can_render_carries_the_notice(app, client,
         assert preview.status_code == 200, label
         assert marker in preview.data, label      # the file we think rendered
         assert b'not published yet' in preview.data, label
+
+
+def test_publishing_without_typing_a_slug_works(app, client, acme, user):
+    """The path an author actually takes: type a title, press publish.
+
+    The form posts an empty slug on purpose, so the server derives it and
+    steps around anything taken. Two posts with the same title in a row is
+    the case that used to stop on an error about a field nobody filled in.
+    """
+    login_as(client, user)
+    for _ in range(2):
+        response = client.post('/manage/content/article/new', base_url=ACME,
+                               data={'title': 'Weekly update', 'slug': '',
+                                     'body': 'Body.', 'visibility': 'public',
+                                     'action': 'publish'},
+                               follow_redirects=True)
+        assert response.status_code == 200
+        assert b'already exists' not in response.data
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        slugs = sorted(c.slug for c in
+                       Content.query.filter_by(title='Weekly update').all())
+    assert slugs == ['weekly-update', 'weekly-update-2']
+
+    assert client.get('/blog/weekly-update', base_url=ACME).status_code == 200
+    assert client.get('/blog/weekly-update-2', base_url=ACME).status_code == 200
+
+
+def test_the_slug_field_is_optional(app, client, acme, user):
+    """A browser must not block the submit that makes derivation possible.
+
+    Asserted on the input rather than on the preview, which is a
+    convenience: the address is decided by the server either way, and that
+    is covered by the test above.
+    """
+    login_as(client, user)
+    form = client.get('/manage/content/article/new', base_url=ACME).data
+    slug_input = form[form.index(b'id="slug"'):form.index(b'id="slug"') + 240]
+    assert b'required' not in slug_input
+
+
+def test_one_organizations_addresses_do_not_shape_anothers(app, client, acme,
+                                                           globex, user):
+    """The derived slug walks a query, so it has to be tenant-scoped: Acme
+    publishing over a title Globex already used must still get the clean
+    address, not the -2."""
+    with app.test_request_context(base_url='http://globex.example.test'):
+        g.org = globex
+        taken = Content(type='article', title='Shared title',
+                        slug='shared-title', org_id=globex.id,
+                        visibility='public', fields={}, tags=[])
+        taken.save()
+
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Shared title', 'slug': '', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert Content.query.filter_by(title='Shared title').one().slug == (
+            'shared-title')
