@@ -1,7 +1,13 @@
 {% extends 'manage/_layout.html' %}
-{% from 'partials/_ui.html' import image_chooser, status_badge with context %}
+{% from 'partials/_ui.html' import back_link, image_chooser, status_badge with context %}
 
 {% block manage_content %}
+{# The only way out used to be Cancel, at the foot of the sidebar under the
+   publish controls, which is the last place someone looks for one. #}
+<p class="mb-2">
+  {{ back_link(url_for('manage.content_list', type_slug=content_type.slug),
+               content_type.plural) }}
+</p>
 <div class="mb-5 flex items-center gap-2.5">
   <h1 class="page-title">{{ content.title if content and content.title else _('manage.new_of', name=content_type.singular) }}</h1>
   <span class="badge-brand">{{ content_type.singular }}</span>
@@ -125,13 +131,10 @@
       <p class="text-sm text-slate-600">{{ _('manage.published_at', date=content.published_at|localdate) }}</p>
       <button type="submit" name="action" value="save" class="btn-primary w-full">{{ _('common.save') }}</button>
       <button type="submit" name="action" value="unpublish" class="btn-secondary w-full">{{ _('manage.unpublish') }}</button>
-      <a href="{{ content.permalink }}" class="btn-secondary w-full">{{ _('manage.view_page') }}</a>
       {% else %}
       <button type="submit" name="action" value="save" class="btn-secondary w-full">{{ _('manage.save_draft') }}</button>
       <button type="submit" name="action" value="publish" class="btn-primary w-full">{{ _('manage.publish') }}</button>
       {% endif %}
-      <a href="{{ url_for('manage.content_list', type_slug=content_type.slug) }}"
-         class="btn-ghost w-full">{{ _('common.cancel') }}</a>
       {% if content and content.id %}
       <a href="{{ url_for('manage.preview_content', content_id=content.id) }}" class="btn-secondary w-full">{{ _('manage.preview') }}</a>
       {% if not content_type.is_page %}

@@ -19,7 +19,14 @@
       {% for item in items %}
       <tr>
         <td><a class="font-medium text-slate-900 hover:text-brand-700" href="{{ url_for('manage.edit_content', content_id=item.id) }}">{{ item.title }}</a></td>
-        <td class="font-mono text-xs text-slate-500">{{ item.permalink }}</td>
+        {# The one console link to the live page. The editor used to carry
+           it as "View page"; it belongs next to the address it names, and
+           only where there is a published page at the other end. #}
+        <td class="font-mono text-xs text-slate-500">
+          {% if item.status == 'published' %}
+          <a href="{{ item.permalink }}" class="hover:text-brand-700 hover:underline">{{ item.permalink }}</a>
+          {% else %}{{ item.permalink }}{% endif %}
+        </td>
         <td>{{ status_badge(item.status) }}</td>
         <td class="text-slate-500">{{ _('manage.visibility_' + item.visibility) }}</td>
         <td>

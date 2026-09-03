@@ -15,6 +15,8 @@ from app.models import (
 from tests.conftest import login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
+# The back arrow's path, rendered only by the back_link macro.
+BACK_ARROW = b'M16 10H4.5'
 
 
 def test_manage_requires_permission(app, client, acme, globex):
@@ -754,3 +756,61 @@ def test_an_excerpt_written_before_the_field_was_removed_survives(app, client,
         assert saved.excerpt == 'A hand-written summary.'   # not wiped
         # but no longer what a listing shows
         assert saved.excerpt_or_summary().startswith('The body text.')
+
+
+def test_the_editor_offers_one_way_out_at_the_top(app, client, acme, user):
+    """Leaving used to mean finding Cancel at the foot of the sidebar, under
+    the publish controls. The way out is now a back link above the title, on
+    a new item, a draft and a published one alike.
+
+    Asserted on the back arrow's own svg path rather than the link's href:
+    the Manage sidenav also links to /manage/content/article, and it renders
+    before this block, so an href assertion passes whether or not the back
+    link exists at all.
+    """
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'A draft', 'slug': 'a-draft', 'body': 'Body.',
+        'visibility': 'public', 'action': 'save'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        published_id = Content.published_by_slug('article', 'a-post').id
+        draft_id = Content.query.filter_by(slug='a-draft').one().id
+
+    for path in ('/manage/content/article/new',
+                 f'/manage/content/{published_id}/edit',
+                 f'/manage/content/{draft_id}/edit'):
+        form = client.get(path, base_url=ACME)
+        assert form.status_code == 200, path
+        assert BACK_ARROW in form.data, path
+        assert form.data.index(BACK_ARROW) < form.data.index(b'page-title'), path
+
+    # The two controls it replaces are gone from the editor of a published
+    # item, which is the only state that rendered both.
+    published = client.get(f'/manage/content/{published_id}/edit',
+                           base_url=ACME).data
+    assert b'View page' not in published
+    assert b'Cancel' not in published
+
+
+def test_the_content_list_links_a_published_item_to_its_live_page(app, client,
+                                                                  acme, user):
+    """Removing "View page" from the editor left no way to click through to
+    the live page from the console, so the list's permalink column, which
+    already printed the address, became the link. A draft has nothing to
+    link to and stays plain text."""
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Live one', 'slug': 'live-one', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Draft one', 'slug': 'draft-one', 'body': 'Body.',
+        'visibility': 'public', 'action': 'save'})
+
+    listing = client.get('/manage/content/article', base_url=ACME).data
+    assert b'href="/blog/live-one"' in listing
+    assert b'href="/blog/draft-one"' not in listing
+    assert b'/blog/draft-one' in listing          # still shown, just not a link
