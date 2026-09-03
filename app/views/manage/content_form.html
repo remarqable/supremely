@@ -47,12 +47,6 @@
       <label for="body" class="label">{{ _('manage.body_markdown') }}</label>
       <textarea id="body" name="body" class="textarea mt-1 min-h-96 font-mono text-sm">{{ content.body if content else '' }}</textarea>
     </div>
-    {% if not content_type.is_page %}
-    <div>
-      <label for="excerpt" class="label">{{ _('manage.excerpt') }}</label>
-      <textarea id="excerpt" name="excerpt" class="textarea mt-1" maxlength="500">{{ content.excerpt or '' if content else '' }}</textarea>
-    </div>
-    {% endif %}
   </div>
 
   <div class="space-y-5">

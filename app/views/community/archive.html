@@ -25,7 +25,7 @@
   {% for item in items %}
   <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
     <div class="flex items-start gap-3.5">
-      {# Locked rows tease: title, byline, and a lock -- never the excerpt,
+      {# Locked rows tease: title, byline, and a lock -- never the summary,
          and never a structured field such as the date or the location.
          The permalink lands on the gate page. #}
       {% set locked = not can_view(item) %}

@@ -53,13 +53,13 @@ channels — an email address, a form link, or your social profiles.
 """
 
 FIRST_ANNOUNCEMENT_BODY = """\
-Welcome to **{name}**! This is the announcements space — official updates
-from the team live here and in the community sidebar. Edit or delete this
-one under **Manage → Announcements**, then tell your members what's new.
+Official updates from the team live here and in the community sidebar, so
+members see them without going looking. Edit or delete this one under
+**Manage → Announcements**, then tell your members what's new.
 """
 
 FIRST_ARTICLE_BODY = """\
-Hello, world! This is the first article on **{name}**.
+The first article on **{name}**, and a demonstration of what one can hold.
 
 Articles support **Markdown**, categories, tags, featured images, and
 member-only visibility. This one was created automatically — edit or delete
@@ -157,9 +157,7 @@ def seed_default_content(session, org, owner_id=None,
                              '**Manage → Videos**.',
                         status='published', published_at=now,
                         visibility='public', tags=[], created_by_id=owner_id,
-                        fields={'video_url': 'https://example.com/videos/hello',
-                                'duration_minutes': 12,
-                                'recorded_on': now.strftime('%Y-%m-%d')}))
+                        fields={'video_url': 'https://example.com/videos/hello'}))
     session.add(Content(org_id=org.id, type='episode',
                         title='Example: a podcast episode',
                         slug='example-episode',
@@ -168,9 +166,7 @@ def seed_default_content(session, org, owner_id=None,
                              '**Manage → Podcast**.',
                         status='published', published_at=now,
                         visibility='public', tags=[], created_by_id=owner_id,
-                        fields={'audio_url': 'https://example.com/audio/hello',
-                                'episode_number': 1,
-                                'duration_minutes': 20}))
+                        fields={'audio_url': 'https://example.com/audio/hello'}))
     session.add(Content(org_id=org.id, type='resource',
                         title='Example: a shared resource',
                         slug='example-resource',
@@ -185,14 +181,12 @@ def seed_default_content(session, org, owner_id=None,
                         title=f'Welcome to {org.name}',
                         slug='welcome',
                         body=FIRST_ANNOUNCEMENT_BODY.format(name=org.name),
-                        excerpt='Official updates from the team live here.',
                         status='published', published_at=now,
                         visibility='public', tags=[], fields={},
                         created_by_id=owner_id))
     session.add(Content(org_id=org.id, type='article', title='Hello, World!',
                         slug='hello-world',
                         body=FIRST_ARTICLE_BODY.format(name=org.name),
-                        excerpt=f'The first article on {org.name}.',
                         status='published', published_at=now,
                         visibility='public', tags=['welcome'], fields={},
                         created_by_id=owner_id))
@@ -202,7 +196,6 @@ def seed_default_content(session, org, owner_id=None,
                         title='For members: how gated content works',
                         slug='for-members',
                         body=MEMBERS_ARTICLE_BODY.format(name=org.name),
-                        excerpt='A members-only example article.',
                         status='published', published_at=now,
                         visibility='members', tags=['welcome'], fields={},
                         created_by_id=owner_id))

@@ -9,7 +9,7 @@
 <div class="space-y-10">
   {% for item in items %}
   {% set locked = not can_view(item) %}
-  {# Locked rows tease: title, date, and a lock — never the excerpt or the
+  {# Locked rows tease: title, date, and a lock, never the summary or the
      featured image. The link lands on the gate page. #}
   <article class="flex gap-5">
     {% if item.featured_upload and not locked %}

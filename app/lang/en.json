@@ -189,7 +189,6 @@
   "manage.theme_settings": "Theme settings",
   "manage.theme_hint": "Themes are installed at the installation level by Platform Admins.",
   "manage.post_type": "Type",
-  "manage.excerpt": "Excerpt",
   "manage.categories": "Categories",
   "manage.new_of": "New {name}",
   "manage.no_content": "No {name} yet.",

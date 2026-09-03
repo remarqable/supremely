@@ -127,7 +127,6 @@ def _content_from_form(content):
     content.title = request.form.get('title', '')
     content.slug = request.form.get('slug', '')
     content.body = request.form.get('body', '')
-    content.excerpt = request.form.get('excerpt', '').strip() or None
     content.visibility = request.form.get('visibility', 'public')
     content.seo_title = request.form.get('seo_title', '').strip() or None
     content.seo_description = request.form.get('seo_description', '').strip() or None

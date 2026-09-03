@@ -701,3 +701,56 @@ def test_uploading_a_featured_image_inline_creates_a_media_upload(
     assert b'featured_upload_file' in form.data
     assert f'value="{upload.id}" class="peer sr-only"\n                   checked'.encode() in form.data or \
         f'value="{upload.id}"'.encode() in form.data
+
+
+def test_the_editor_no_longer_offers_an_excerpt(app, client, acme, globex,
+                                                user):
+    """Every item summarises the same way now, from its own body. Checked
+    on a new form, on an edit form, and on a second content type, since the
+    field was universal and could return to any of them."""
+    login_as(client, user)
+    for path in ('/manage/content/article/new', '/manage/content/recording/new',
+                 '/manage/content/page/new'):
+        form = client.get(path, base_url=ACME)
+        assert form.status_code == 200, path
+        assert b'name="excerpt"' not in form.data, path
+
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item_id = Content.published_by_slug('article', 'a-post').id
+    edit = client.get(f'/manage/content/{item_id}/edit', base_url=ACME)
+    assert edit.status_code == 200
+    assert b'name="excerpt"' not in edit.data
+
+
+def test_an_excerpt_written_before_the_field_was_removed_survives(app, client,
+                                                                  acme, globex,
+                                                                  user):
+    """The form no longer posts the field, and a form that does not post a
+    field is not asking for it to be cleared. The column keeps what an
+    organization wrote; listings simply stop using it."""
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Old post', 'slug': 'old-post', 'body': 'The body text.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item = Content.published_by_slug('article', 'old-post')
+        item.excerpt = 'A hand-written summary.'
+        item.save()
+        item_id = item.id
+
+    client.post(f'/manage/content/{item_id}/edit', base_url=ACME, data={
+        'title': 'Old post edited', 'slug': 'old-post',
+        'body': 'The body text.', 'visibility': 'public', 'action': 'save'})
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        saved = db.session.get(Content, item_id)
+        assert saved.title == 'Old post edited'
+        assert saved.excerpt == 'A hand-written summary.'   # not wiped
+        # but no longer what a listing shows
+        assert saved.excerpt_or_summary().startswith('The body text.')

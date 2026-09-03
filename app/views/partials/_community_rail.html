@@ -16,7 +16,7 @@
 {% macro announcement_card() %}
 {# latest_announcement()/upcoming_event() already refuse to return
    anything the visitor may not read. can_view repeats it here because
-   these cards print an excerpt and raw field values. #}
+   these cards print a summary and raw field values. #}
 {% set announcement = latest_announcement() %}
 {% if announcement and not can_view(announcement) %}{% set announcement = none %}{% endif %}
 <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">

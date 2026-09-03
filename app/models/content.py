@@ -85,6 +85,10 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     title = db.Column(db.String(200), nullable=False)
     slug = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text, nullable=False, default='')
+    # Retained, not read. The editor offered a hand-written summary until
+    # every item was made to summarise from its body instead
+    # (excerpt_or_summary). Values organizations wrote before then are kept
+    # rather than destroyed, and nothing writes or renders this column now.
     excerpt = db.Column(db.String(500), nullable=True)
     featured_upload_id = db.Column(BigIntFK,
                                    db.ForeignKey('upload.id', ondelete='SET NULL'),
@@ -207,15 +211,33 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         return f'{ct.base}/{self.slug}'
 
     def excerpt_or_summary(self, length: int = 200) -> str:
-        if self.excerpt:
-            return self.excerpt
+        """The short form of this item, for a listing or an email.
+
+        Always derived from the body. The editor used to offer a separate
+        excerpt and no longer does, so deriving it is the only way every
+        item summarises the same way: otherwise an item written before the
+        field was removed would keep showing copy nobody could edit, next
+        to one that summarises itself, with nothing on screen to explain
+        the difference. The column keeps whatever was written in it.
+        """
         import nh3
         text = nh3.clean(self.html, tags=set())
         text = ' '.join(text.split())
         return text[:length] + ('…' if len(text) > length else '')
 
     def set_structured_fields(self, data: dict):
-        self.fields = self.content_type.clean_fields(data)
+        """Write the type's declared fields, keeping anything else.
+
+        A type can stop declaring a field, and the values organizations
+        already typed into it do not stop existing. Replacing the whole bag
+        with the cleaned declared fields would destroy them on the next
+        unrelated save, so an author fixing a typo in a title would silently
+        lose data. Same rule the excerpt follows: keep what was written,
+        stop offering it.
+        """
+        kept = {key: value for key, value in (self.fields or {}).items()
+                if key not in self.content_type.field_keys}
+        self.fields = {**kept, **self.content_type.clean_fields(data)}
         return self
 
     def publish(self):

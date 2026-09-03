@@ -87,7 +87,7 @@ def publish_article(app, org, slug, title, body, visibility='public'):
     with app.test_request_context():
         g.org = org
         article = Content(type='article', title=title, slug=slug, body=body,
-                          excerpt=body[:80], org_id=org.id,
+                          org_id=org.id,
                           visibility=visibility, fields={}, tags=[])
         article.save()
         article.publish()

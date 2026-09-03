@@ -36,7 +36,7 @@ the same objects.
 **Published content** is a single `Content` model typed by a registry
 (`app/platform/content_types.py`). A content type declares its labels, its
 public URL base (`/blog`, `/events`, `/recordings`), its structured fields
-(a recording has a video URL and duration; an event has a date and
+(a recording has a video URL; an event has a date and
 location), and which sidebar section of the community it belongs to
 (Community / Meet / Learn). Core ships `page`, `article`, `event`; the
 library (`app/platform/content_library.py`) adds `announcement`,

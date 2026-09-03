@@ -34,9 +34,7 @@ def test_publish_and_view_recording(app, client, acme, globex, user):
                                  'slug': 'member-deep-dive',
                                  'body': 'A great **session**.',
                                  'visibility': 'public', 'action': 'publish',
-                                 'field_video_url': 'https://example.com/v/9',
-                                 'field_duration_minutes': '67',
-                                 'field_speakers': 'Joshua Thacker'})
+                                 'field_video_url': 'https://example.com/v/9'})
     assert response.status_code == 302
 
     archive = client.get('/recordings', base_url=ACME)

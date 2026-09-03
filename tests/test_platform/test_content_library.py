@@ -41,16 +41,25 @@ def test_planned_types_are_valid_and_unregistered(app):
     assert len(COMING_SOON) >= 3
 
 
-def test_recording_requires_video_url(app):
+def test_a_video_asks_for_a_url_and_nothing_else(app):
+    """Duration, speakers and a recorded-on date were removed: three things
+    to type that nothing rendered. A value posted for one of them is not an
+    error, it is simply not stored."""
     ct = get_content_type('recording')
     with pytest.raises(ValidationError):
-        ct.clean_fields({'speakers': 'Someone'})
+        ct.clean_fields({})
     cleaned = ct.clean_fields({'video_url': 'https://example.com/v/1',
                                'duration_minutes': '57',
-                               'recorded_on': '2026-03-18'})
-    assert cleaned == {'video_url': 'https://example.com/v/1',
-                       'duration_minutes': 57,
-                       'recorded_on': '2026-03-18'}
+                               'speakers': 'Someone'})
+    assert cleaned == {'video_url': 'https://example.com/v/1'}
+
+
+def test_an_episode_asks_for_a_url_and_nothing_else(app):
+    ct = get_content_type('episode')
+    cleaned = ct.clean_fields({'audio_url': 'https://example.com/a/1',
+                               'episode_number': '4',
+                               'duration_minutes': '20'})
+    assert cleaned == {'audio_url': 'https://example.com/a/1'}
 
 
 def test_count_by_type_is_tenant_scoped(app, acme, globex):

@@ -121,6 +121,16 @@ class ContentType:
                 raise ValueError(f'Duplicate field key: {spec.key}')
             seen.add(spec.key)
 
+    @property
+    def field_keys(self) -> set:
+        """The keys this type declares today.
+
+        Anything stored outside this set was written when the type declared
+        more than it does now, and is kept rather than dropped
+        (Content.set_structured_fields).
+        """
+        return {spec.key for spec in self.fields}
+
     def clean_fields(self, data: dict) -> dict:
         cleaned = {}
         for spec in self.fields:

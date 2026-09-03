@@ -34,26 +34,23 @@ def register_library_types() -> None:
         description='Talks, webinars and member deep dives, linked from '
                     'wherever the video is hosted.',
         base='/recordings', group='learn',
+        # One field. Duration, speakers and a recorded-on date were three
+        # more things to type for something the video page already shows,
+        # and nothing rendered them.
         fields=(
             FieldSpec(key='video_url', type='url', label='Video URL',
                       required=True,
                       help='Where the video is hosted (YouTube, Vimeo, ...).'),
-            FieldSpec(key='duration_minutes', type='number',
-                      label='Duration (minutes)'),
-            FieldSpec(key='speakers', type='string', label='Speakers'),
-            FieldSpec(key='recorded_on', type='date', label='Recorded on'),
         ),
     ))
     register_content_type(ContentType(
         slug='episode', singular='Episode', plural='Podcast',
-        description='Podcast episodes with an audio link and episode number.',
+        description='Podcast episodes, linked from wherever the audio is '
+                    'hosted.',
         base='/podcast', group='learn',
         fields=(
             FieldSpec(key='audio_url', type='url', label='Audio URL',
                       required=True),
-            FieldSpec(key='episode_number', type='number', label='Episode #'),
-            FieldSpec(key='duration_minutes', type='number',
-                      label='Duration (minutes)'),
         ),
     ))
     register_content_type(ContentType(

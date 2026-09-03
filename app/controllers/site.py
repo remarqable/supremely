@@ -49,7 +49,7 @@ def render_org_home():
 
 
 # Gated content is teased by default: archives list members-only items as
-# locked titles (templates render them via can_view, body and excerpt
+# locked titles (templates render them via can_view, body and summary
 # withheld) and a direct hit lands on the gate page. Only the title leaks —
 # that is the demonstration of what membership unlocks. Orgs can turn
 # teasing off (Manage → Settings → Privacy): Content.visible_query then
