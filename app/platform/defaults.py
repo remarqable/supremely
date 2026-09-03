@@ -150,11 +150,11 @@ def seed_default_content(session, org, owner_id=None,
     # the Publish menu demonstrate themselves on day one. Owner-authored,
     # ordinary content — edit or delete under Manage.
     session.add(Content(org_id=org.id, type='recording',
-                        title='Example: a community recording',
-                        slug='example-recording',
-                        body='A placeholder recording so you can see how '
-                             'video content renders. Replace it under '
-                             '**Manage → Recordings**.',
+                        title='Example: a community video',
+                        slug='example-video',
+                        body='A placeholder video so you can see how video '
+                             'content renders. Replace it under '
+                             '**Manage → Videos**.',
                         status='published', published_at=now,
                         visibility='public', tags=[], created_by_id=owner_id,
                         fields={'video_url': 'https://example.com/videos/hello',

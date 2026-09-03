@@ -17,6 +17,20 @@ def test_library_types_registered(app):
         assert ct.plugin is None
 
 
+def test_videos_are_labelled_videos_but_still_live_at_recordings(app):
+    """The type shows as Video/Videos because "Recording" read as audio.
+
+    Labels only: the slug and the archive URL are what published links and
+    stored rows are made of, and both stay put. The singular is "Video" and
+    not "Videos" because it renders in "New {name}" buttons, in per-item
+    badges, and in the duplicate-slug validation error.
+    """
+    ct = CONTENT_TYPES['recording']
+    assert (ct.singular, ct.plural) == ('Video', 'Videos')
+    assert ct.slug == 'recording'
+    assert ct.base == '/recordings'
+
+
 def test_no_base_collisions(app):
     bases = [ct.base for ct in CONTENT_TYPES.values() if ct.base]
     assert len(bases) == len(set(bases))

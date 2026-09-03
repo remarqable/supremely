@@ -68,8 +68,8 @@
        ],
        "default": [
          {"title": "Website & Blog",
-          "body": "A real website, not just a feed. Pages for your story, a blog for your updates, and typed content — events, recordings, resources — all under your own domain, styled by your theme.",
-          "points": "Pages and articles\nTyped content: events, recordings, resources\nYour domain, your theme",
+          "body": "A real website, not just a feed. Pages for your story, a blog for your updates, and typed content — events, videos, resources — all under your own domain, styled by your theme.",
+          "points": "Pages and articles\nTyped content: events, videos, resources\nYour domain, your theme",
           "link_label": "Read the blog", "link_url": "/blog"},
          {"title": "Newsletter",
           "body": "Turn readers into subscribers. Collect an audience with double opt-in and send issues straight from your site — the list lives in your database, not on someone else's platform.",

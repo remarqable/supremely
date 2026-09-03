@@ -24,7 +24,7 @@ The scope is defined in [the v1.0 release plan](releases/v1.0.md) and tracked
 in the GitHub v1.0.0 milestone. Against the four components, v1.0 delivers:
 
 - **CMS**: pages and posts. Done, with a handful of fixes open from using the
-  Recording type in earnest (#78, #80 to #84).
+  Videos type in earnest (#78, #80 to #84).
 - **Discussions**: basic threading, replies, reactions, and moderation. Done.
 - **Newsletters**: sending through Gmail SMTP works today; Mailgun and a
   documented setup recipe for each are open, as is a proper HTML layout for

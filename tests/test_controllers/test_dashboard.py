@@ -106,7 +106,7 @@ def test_sidebar_lists_content_type_sections(app, client, acme, user):
     response = client.get('/dashboard', base_url=ACME)
     for base, label in ((b'/blog', b'Articles'), (b'/events', b'Events'),
                         (b'/announcements', b'Announcements'),
-                        (b'/recordings', b'Recordings'),
+                        (b'/recordings', b'Videos'),
                         (b'/podcast', b'Podcast'), (b'/resources', b'Resources')):
         assert b'href="' + base + b'"' in response.data, base
         assert label in response.data, label

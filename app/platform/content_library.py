@@ -27,8 +27,12 @@ def register_library_types() -> None:
     if 'recording' in CONTENT_TYPES:
         return
     register_content_type(ContentType(
-        slug='recording', singular='Recording', plural='Recordings',
-        description='Video recordings: webinars, talks, member deep dives.',
+        # Labels only: the slug stays 'recording' and the archive stays at
+        # /recordings, so no published link breaks. "Recording" read as
+        # audio to people who had not been told otherwise.
+        slug='recording', singular='Video', plural='Videos',
+        description='Talks, webinars and member deep dives, linked from '
+                    'wherever the video is hosted.',
         base='/recordings', group='learn',
         fields=(
             FieldSpec(key='video_url', type='url', label='Video URL',

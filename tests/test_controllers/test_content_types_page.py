@@ -17,7 +17,7 @@ def test_page_lists_active_and_coming_soon(app, client, acme, user):
     login_as(client, user)
     response = client.get('/manage/content-types', base_url=ACME)
     assert response.status_code == 200
-    assert b'Recordings' in response.data
+    assert b'Videos' in response.data
     assert b'Podcast' in response.data
     assert b'Resources' in response.data
     assert b'Coming soon' in response.data
@@ -57,3 +57,12 @@ def test_recording_field_validation(app, client, acme, user):
                                  'field_video_url': 'not-a-url'})
     assert response.status_code == 200            # re-rendered form
     assert b'must be an http(s) URL' in response.data
+
+
+def test_the_videos_archive_keeps_its_recordings_url(client, acme):
+    """The other half of the rename: the label moved, the URL did not, so
+    a link published before the rename still resolves."""
+    archive = client.get('/recordings', base_url=ACME)
+    assert archive.status_code == 200
+    assert b'Videos' in archive.data
+    assert b'Recordings' not in archive.data
