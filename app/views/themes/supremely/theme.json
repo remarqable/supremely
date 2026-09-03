@@ -52,6 +52,37 @@
          {"title": "Newsletter", "desc": "Send beautiful emails"},
          {"title": "Discussions", "desc": "Connect and talk with your members"},
          {"title": "Membership", "desc": "Offer access and grow your community"}
+       ]},
+      {"key": "pillars_title", "type": "text", "label": "Pillars headline", "max": 80,
+       "default": "Everything your community needs. Nothing bolted on.",
+       "hint": "Headline above the four expanded pillar rows. Clear it to keep the headline area empty."},
+      {"key": "pillars", "type": "repeater", "label": "Pillars", "max_items": 4,
+       "hint": "Four expanded rows between the highlights and the closing statement. A row with an empty title is skipped.",
+       "item_fields": [
+         {"key": "title", "type": "text", "label": "Title", "max": 60},
+         {"key": "body", "type": "textarea", "label": "Description", "max": 300},
+         {"key": "points", "type": "textarea", "label": "Capabilities", "max": 200,
+          "hint": "One per line, up to four."},
+         {"key": "link_label", "type": "text", "label": "Link label", "max": 30},
+         {"key": "link_url", "type": "url", "label": "Link", "max": 200}
+       ],
+       "default": [
+         {"title": "Website & Blog",
+          "body": "A real website, not just a feed. Pages for your story, a blog for your updates, and typed content — events, recordings, resources — all under your own domain, styled by your theme.",
+          "points": "Pages and articles\nTyped content: events, recordings, resources\nYour domain, your theme",
+          "link_label": "Read the blog", "link_url": "/blog"},
+         {"title": "Newsletter",
+          "body": "Turn readers into subscribers. Collect an audience with double opt-in and send issues straight from your site — the list lives in your database, not on someone else's platform.",
+          "points": "Subscriber management\nDouble opt-in\nBring your own email provider",
+          "link_label": "Subscribe", "link_url": "/subscribe"},
+         {"title": "Forum",
+          "body": "Durable discussions, not disappearing chat. Groups, topics, and replies that stay readable and searchable, with public and members-only spaces side by side.",
+          "points": "Discussion groups\nPublic or members-only\nModeration built in",
+          "link_label": "Join the discussion", "link_url": "/discussions"},
+         {"title": "Memberships",
+          "body": "Your community has a door, and you hold the key. Member accounts, roles, and members-only content — tease what's behind the gate to visitors, or hide it entirely.",
+          "points": "Member accounts and roles\nMembers-only content\nTease or hide gated content",
+          "link_label": "Get Supremely", "link_url": "/get"}
        ]}
     ]
   }
