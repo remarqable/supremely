@@ -12,9 +12,10 @@ import re
 import zipfile
 from pathlib import Path
 
-from flask import current_app, g
+from flask import current_app, g, has_app_context
 from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
 
+from app.platform.devices import device_candidates, mobile_variant
 from app.platform.errors import ValidationError
 from app.platform.logger import get_logger
 
@@ -337,14 +338,32 @@ def render_site(candidates: list[str], context_name: str = 'publication',
         names.append(f'themes/origin/{candidate}')
         names.append(candidate)        # core partials and plugin templates
     names = list(dict.fromkeys(names))
+    # On a phone, each candidate gains its mobile sibling immediately ahead
+    # of it (app/platform/devices.py). A theme or the shell that ships no
+    # mobile template is unaffected: the ordinary one still renders.
+    names = device_candidates(names)
     context.setdefault('theme_settings', theme_config())
     # Site templates extend {{ site_layout }} so a theme's layout override
     # applies even to pages the theme does not override itself.
     if shell:
-        context.setdefault('site_layout', 'layouts/community.html')
+        context.setdefault('site_layout', shell_layout())
     else:
         context.setdefault('site_layout', themed('layout.html'))
     return render_template(names, **context)
+
+
+def shell_layout() -> str:
+    """The community shell's layout, mobile version when one exists.
+
+    Exposed to templates as `community_layout` because three shell pages
+    extend the layout by name rather than receiving it from render_site;
+    without this they would be the only shell surfaces a mobile layout did
+    not reach.
+    """
+    for candidate in device_candidates(['layouts/community.html']):
+        if _template_exists(candidate):
+            return candidate
+    return 'layouts/community.html'
 
 
 def render_gate(title: str, kind: str | None = None):
@@ -423,23 +442,45 @@ def themed(name: str) -> str:
     """Resolve a template part through the theme chain: active theme ->
     Origin -> bare name. The Jinja-native get_header()/get_footer():
     layouts do `{% include themed('header.html') %}` so a theme can
-    override just one part."""
+    override just one part.
+
+    Device-aware for the same reason render_site is: a theme that wants a
+    different header on a phone ships mobile/header.html and gets it, and a
+    theme that does not is unaffected."""
     theme = current_theme()
-    if theme != 'origin' and _template_exists(f'themes/{theme}/{name}'):
-        return f'themes/{theme}/{name}'
-    if _template_exists(f'themes/origin/{name}'):
-        return f'themes/origin/{name}'
+    # Theme first, device second. The other nesting would let Origin's
+    # mobile header replace the active theme's own header on a phone, which
+    # is the same inversion device_candidates() exists to prevent: a mobile
+    # variant may only displace the exact template it is the mobile version
+    # of, never one further down the chain.
+    roots = [f'themes/{theme}'] if theme != 'origin' else []
+    roots.append('themes/origin')
+    for root in roots:
+        for candidate in device_candidates([name]):
+            if _template_exists(f'{root}/{candidate}'):
+                return f'{root}/{candidate}'
     return name
 
 
 def _template_exists(name: str) -> bool:
+    """Does this template resolve?
+
+    Memoized per request: the loader reads the whole file to answer, and
+    the same names are asked repeatedly: once per part per layout, and
+    twice as often on a phone, where each name is tried with its mobile
+    sibling. Template files do not appear or vanish mid-request.
+    """
     from jinja2 import TemplateNotFound
+    seen = g.setdefault('_template_exists', {}) if has_app_context() else {}
+    if name in seen:
+        return seen[name]
     env = current_app.jinja_env
     try:
         env.loader.get_source(env, name)
-        return True
+        seen[name] = True
     except TemplateNotFound:
-        return False
+        seen[name] = False
+    return seen[name]
 
 
 PAGE_TEMPLATE_RE = re.compile(r'[a-z0-9][a-z0-9_-]{0,49}')
@@ -458,7 +499,11 @@ def page_template_allowed(name: str | None) -> bool:
     """
     if not name or not PAGE_TEMPLATE_RE.fullmatch(name):
         return False
-    return not _template_exists(f'community/{name}.html')
+    # Both namespaces: device expansion makes community/mobile/<name>.html a
+    # resolvable name too, and one that outranks the theme's.
+    return not any(_template_exists(f'community/{candidate}')
+                   for candidate in [f'{name}.html',
+                                     mobile_variant(f'{name}.html')])
 
 
 def page_template_exists(name: str) -> bool:

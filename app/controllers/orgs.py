@@ -6,13 +6,13 @@ from flask import (
     flash,
     g,
     redirect,
-    render_template,
     request,
 )
 from flask_login import current_user, login_required
 
 from app.models import InstallationSetting, Organization
 from app.platform.authz import is_member_or_platform_admin, org_required
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -38,7 +38,7 @@ def launcher():
     if len(memberships) == 1 and not current_user.is_platform_admin:
         return redirect(org_url(memberships[0].organization))
 
-    return render_template('orgs/launcher.html', memberships=memberships,
+    return render_device_template('orgs/launcher.html', memberships=memberships,
                            may_create=user_may_create_org())
 
 
@@ -60,7 +60,7 @@ def create():
         except ValidationError as e:
             flash(e.message, 'error')
 
-    return render_template('orgs/new.html')
+    return render_device_template('orgs/new.html')
 
 
 FEED_LIMIT = 20
@@ -106,6 +106,6 @@ def dashboard():
               DiscussionGroup.in_order()
               if group.readable_by_current_visitor()]
 
-    return render_template('orgs/dashboard.html', org=g.org, groups=groups,
+    return render_device_template('orgs/dashboard.html', org=g.org, groups=groups,
                            feed=_recent_posts(groups),
                            latest_published=_latest_published())

@@ -9,7 +9,6 @@ from flask import (
     abort,
     flash,
     redirect,
-    render_template,
     request,
     session,
     url_for,
@@ -24,6 +23,7 @@ from app.middleware.ratelimit import (
 )
 from app.models import User
 from app.models.user import verify_credentials
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -60,20 +60,20 @@ def register():
 
         if User.get_by_email(email) is not None:
             flash(t('auth.register_exists'), 'error')
-            return render_template('auth/register.html'), 400
+            return render_device_template('auth/register.html'), 400
         try:
             user = User.create(email=email, name=name or email.split('@')[0],
                                password=password)
         except ValidationError as e:
             flash(e.message, 'error')
-            return render_template('auth/register.html'), 400
+            return render_device_template('auth/register.html'), 400
 
         session.clear()
         login_user(user, remember=True)
         log.info('user_registered', user_id=user.id)
         return redirect(url_for('orgs.create'))
 
-    return render_template('auth/register.html')
+    return render_device_template('auth/register.html')
 
 
 # Per address limits bound one attacker; this bounds one account being
@@ -129,7 +129,7 @@ def login():
                 log.warning('login_throttled', email=email[:255])
             log.info('login_failed', email=email[:255])
             flash(t('auth.invalid_credentials'), 'error')
-            return render_template('auth/login.html'), 401
+            return render_device_template('auth/login.html'), 401
 
         clear_failures(email)
 
@@ -149,7 +149,7 @@ def login():
             return redirect(_safe_next(url_for('main.index')))
         return redirect(_safe_next(url_for('orgs.launcher')))
 
-    return render_template('auth/login.html',
+    return render_device_template('auth/login.html',
                            signups_enabled=_signups_enabled())
 
 
@@ -199,4 +199,4 @@ def change_password():
                 else:
                     raise
 
-    return render_template('auth/password.html')
+    return render_device_template('auth/password.html')

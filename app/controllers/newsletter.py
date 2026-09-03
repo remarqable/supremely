@@ -9,6 +9,7 @@ from flask import Blueprint, abort, flash, g, redirect, request
 from app.middleware.ratelimit import rate_limit
 from app.models.newsletter import Subscriber
 from app.platform.authz import is_member_or_platform_admin, org_required
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -24,8 +25,6 @@ log = get_logger()
 def archive():
     """Past issues, for members: sent deliveries whose post is still
     published. Visitors get the gate (tease-don't-hide), not a 404."""
-    from flask import render_template
-
     from app.models import Content
     from app.models.newsletter import Delivery
     from app.platform.i18n import t
@@ -36,7 +35,7 @@ def archive():
               .join(Delivery.content)
               .filter(Content.status == 'published')
               .order_by(Delivery.finished_at.desc()).limit(50).all())
-    return render_template('community/newsletters.html', issues=issues)
+    return render_device_template('community/newsletters.html', issues=issues)
 
 
 @bp.route('/subscribe', methods=['GET', 'POST'])

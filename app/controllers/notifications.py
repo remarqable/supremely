@@ -1,11 +1,12 @@
 """In-app notification UI: unread count, listing, mark read."""
 
-from flask import Blueprint, abort, g, redirect, render_template, url_for
+from flask import Blueprint, abort, g, redirect, url_for
 from flask_login import current_user, login_required
 
 from app.extensions import db
 from app.models.notification import Notification
 from app.platform.authz import org_required
+from app.platform.devices import render_device_template
 from app.platform.redirects import safe_next
 
 bp = Blueprint('notifications', __name__, url_prefix='/notifications')
@@ -16,7 +17,7 @@ bp = Blueprint('notifications', __name__, url_prefix='/notifications')
 @login_required
 def index():
     notifications = Notification.for_user(current_user.id)
-    return render_template('members/notifications.html',
+    return render_device_template('members/notifications.html',
                            notifications=notifications)
 
 

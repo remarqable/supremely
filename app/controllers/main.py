@@ -6,7 +6,6 @@ from flask import (
     current_app,
     g,
     redirect,
-    render_template,
     request,
     url_for,
 )
@@ -14,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from flask_login import current_user
 
 from app.middleware.ratelimit import rate_limit
+from app.platform.devices import render_device_template
 from app.platform.tenant import org_for_host
 
 bp = Blueprint('main', __name__)
@@ -28,7 +28,7 @@ def index():
     # Bare installation domain with zero or multiple organizations.
     if current_user.is_authenticated:
         return redirect(url_for('orgs.launcher'))
-    return render_template('main/index.html')
+    return render_device_template('main/index.html')
 
 
 @bp.route('/health')

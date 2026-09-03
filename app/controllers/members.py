@@ -10,7 +10,6 @@ from flask import (
     flash,
     g,
     redirect,
-    render_template,
     request,
     send_file,
     session,
@@ -24,6 +23,7 @@ from app.models import Membership, User
 from app.models.invitation import Invitation
 from app.models.upload import open_bounded, sniff
 from app.platform.authz import is_member_or_platform_admin, org_required
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -43,7 +43,7 @@ def invite(token):
         abort(404)
     already_member = (current_user.is_authenticated and
                       Membership.get(current_user.id, g.org.id) is not None)
-    return render_template('members/invite.html', invitation=invitation,
+    return render_device_template('members/invite.html', invitation=invitation,
                            token=token, already_member=already_member)
 
 
@@ -131,7 +131,7 @@ def profile():
             except ValidationError as e:
                 db.session.rollback()
                 flash(e.message, 'error')
-                return render_template('members/profile.html')
+                return render_device_template('members/profile.html')
         try:
             current_user.save()
             flash(t('common.saved'), 'success')
@@ -139,7 +139,7 @@ def profile():
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
-    return render_template('members/profile.html')
+    return render_device_template('members/profile.html')
 
 
 AVATAR_EDGE = 400

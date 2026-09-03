@@ -6,13 +6,14 @@ import platform as _platform
 import sys
 
 import sqlalchemy as sa
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, request, url_for
 from flask_login import current_user, login_user
 
 from app.extensions import db
 from app.models import InstallationSetting, Job, Membership, Organization, User
 from app.models.base import like_contains
 from app.platform.authz import platform_admin_required
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -40,7 +41,7 @@ def dashboard():
     }
     recent_orgs = (Organization.query
                    .order_by(Organization.created_at.desc()).limit(5).all())
-    return render_template('admin/dashboard.html', stats=stats,
+    return render_device_template('admin/dashboard.html', stats=stats,
                            recent_orgs=recent_orgs,
                            email_configured=is_email_configured())
 
@@ -55,7 +56,7 @@ def orgs():
         query = query.filter(sa.or_(like_contains(Organization.name, q),
                                     like_contains(Organization.slug, q)))
     organizations = query.order_by(Organization.created_at.desc()).all()
-    return render_template('admin/orgs.html', organizations=organizations, q=q)
+    return render_device_template('admin/orgs.html', organizations=organizations, q=q)
 
 
 @bp.route('/orgs/new', methods=['GET', 'POST'])
@@ -68,7 +69,7 @@ def new_org():
         owner = db.session.get(User, owner_id) if owner_id else current_user
         if owner is None:
             flash(t('admin.owner_not_found'), 'error')
-            return render_template('admin/org_new.html', users=users), 400
+            return render_device_template('admin/org_new.html', users=users), 400
         try:
             org = Organization.provision(name=name, slug=slug, owner=owner)
             log.info('org_created', org_id=org.id, slug=org.slug, by='admin')
@@ -76,7 +77,7 @@ def new_org():
             return redirect(url_for('admin.org_detail', org_id=org.id))
         except ValidationError as e:
             flash(e.message, 'error')
-    return render_template('admin/org_new.html', users=users)
+    return render_device_template('admin/org_new.html', users=users)
 
 
 @bp.route('/orgs/<int:org_id>')
@@ -96,7 +97,7 @@ def org_detail(org_id):
     }
     plugins = OrgPlugin.query.filter_by(org_id=org.id).all()
     domains = OrgDomain.query.filter_by(org_id=org.id).all()
-    return render_template('admin/org_detail.html', org=org,
+    return render_device_template('admin/org_detail.html', org=org,
                            memberships=memberships, usage=usage,
                            plugins=plugins, domains=domains)
 
@@ -215,7 +216,7 @@ def users():
         query = query.filter(sa.or_(like_contains(User.email, q),
                                     like_contains(User.name, q)))
     user_list = query.order_by(User.created_at.desc()).all()
-    return render_template('admin/users.html', users=user_list, q=q)
+    return render_device_template('admin/users.html', users=user_list, q=q)
 
 
 @bp.route('/users/new', methods=['GET', 'POST'])
@@ -233,7 +234,7 @@ def new_user():
             return redirect(url_for('admin.user_detail', user_id=user.id))
         except ValidationError as e:
             flash(e.message, 'error')
-    return render_template('admin/user_new.html')
+    return render_device_template('admin/user_new.html')
 
 
 @bp.route('/users/<int:user_id>')
@@ -242,7 +243,7 @@ def user_detail(user_id):
     memberships = (Membership.query.filter_by(user_id=user.id)
                    .join(Membership.organization).order_by(Organization.name).all())
     organizations = Organization.query.order_by(Organization.name).all()
-    return render_template('admin/user_detail.html', user=user,
+    return render_device_template('admin/user_detail.html', user=user,
                            memberships=memberships, organizations=organizations)
 
 
@@ -339,7 +340,7 @@ def settings():
         return redirect(url_for('admin.settings'))
 
     values = InstallationSetting.get_map()
-    return render_template('admin/settings.html', values=values,
+    return render_device_template('admin/settings.html', values=values,
                            email_configured=is_email_configured())
 
 
@@ -373,7 +374,7 @@ def themes():
     usage = dict(db.session.execute(
         sa.select(Organization.theme, sa.func.count())
         .group_by(Organization.theme)).all())
-    return render_template('admin/themes.html', themes=AVAILABLE_THEMES,
+    return render_device_template('admin/themes.html', themes=AVAILABLE_THEMES,
                            usage=usage)
 
 
@@ -418,7 +419,7 @@ def system():
         'database_url': engine.url.render_as_string(hide_password=True),
         'email_configured': is_email_configured(),
     }
-    return render_template('admin/system.html', info=info,
+    return render_device_template('admin/system.html', info=info,
                            job_stats=Job.counts_by_status())
 
 
@@ -431,7 +432,7 @@ def jobs():
     The queue records last_error already; before this the only way to read it
     was the log stream or the database.
     """
-    return render_template('admin/jobs.html', failed=Job.failed(),
+    return render_device_template('admin/jobs.html', failed=Job.failed(),
                            job_stats=Job.counts_by_status())
 
 

@@ -9,7 +9,6 @@ from flask import (
     flash,
     g,
     redirect,
-    render_template,
     request,
     url_for,
 )
@@ -30,6 +29,7 @@ from app.platform.authz import (
     require,
 )
 from app.platform.content_types import CONTENT_TYPES, active_types, get_content_type
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -119,7 +119,7 @@ def content_list(type_slug):
     ct = get_content_type(type_slug)
     items = (Content.of_type(type_slug)
              .order_by(Content.created_at.desc()).all())
-    return render_template('manage/content_list.html', items=items,
+    return render_device_template('manage/content_list.html', items=items,
                            content_type=ct)
 
 
@@ -184,7 +184,7 @@ def _render_content_form(content, ct):
     if (content is not None and content.featured_upload is not None
             and content.featured_upload not in image_uploads):
         image_uploads.insert(0, content.featured_upload)
-    return render_template('manage/content_form.html', content=content,
+    return render_device_template('manage/content_form.html', content=content,
                            content_type=ct, image_uploads=image_uploads,
                            categories=Category.query.order_by(Category.name).all())
 
@@ -282,7 +282,7 @@ def content_types_page():
     and the premade types that are on the way."""
     from app.platform.content_library import COMING_SOON
     counts = dict(Content.count_by_type())
-    return render_template('manage/content_types.html',
+    return render_device_template('manage/content_types.html',
                            types=CONTENT_TYPES.values(), counts=counts,
                            coming_soon=COMING_SOON,
                            section_visibility=Content.section_visibility)
@@ -321,7 +321,7 @@ def categories():
             flash(e.message, 'error')
         return redirect(url_for('manage.categories'))
     category_list = Category.query.order_by(Category.name).all()
-    return render_template('manage/categories.html', categories=category_list)
+    return render_device_template('manage/categories.html', categories=category_list)
 
 
 @bp.route('/categories/<int:category_id>/delete', methods=['POST'])
@@ -375,7 +375,7 @@ def navigation():
     # Any published content can be a nav target (pages most commonly).
     linkable = (Content.published_query()
                 .order_by(Content.type, Content.title).all())
-    return render_template('manage/navigation.html', menus=menus,
+    return render_device_template('manage/navigation.html', menus=menus,
                            linkable=linkable)
 
 
@@ -419,7 +419,7 @@ def members():
     invitations = (Invitation.query
                    .order_by(Invitation.created_at.desc()).limit(20).all())
     from app.platform.mailer import is_email_configured
-    return render_template('manage/members.html', members=member_list,
+    return render_device_template('manage/members.html', members=member_list,
                            invitations=invitations,
                            email_configured=is_email_configured())
 
@@ -621,7 +621,7 @@ def media():
         return redirect(url_for('manage.media'))
 
     uploads = Upload.query.order_by(Upload.created_at.desc()).all()
-    return render_template('manage/media.html', uploads=uploads)
+    return render_device_template('manage/media.html', uploads=uploads)
 
 
 def _upload_visibility(current: str = 'public') -> str:
@@ -690,7 +690,7 @@ def domains():
         return redirect(url_for('manage.domains'))
     domain_list = OrgDomain.query.filter_by(org_id=g.org.id) \
         .order_by(OrgDomain.created_at).all()
-    return render_template('manage/domains.html', domains=domain_list)
+    return render_device_template('manage/domains.html', domains=domain_list)
 
 
 @bp.route('/domains/<int:domain_id>/delete', methods=['POST'])
@@ -716,7 +716,7 @@ def plugins():
     from app.platform.plugins import MANIFESTS
     rows = {row.plugin_slug: row
             for row in OrgPlugin.query.filter_by(org_id=g.org.id).all()}
-    return render_template('manage/plugins.html', manifests=MANIFESTS,
+    return render_device_template('manage/plugins.html', manifests=MANIFESTS,
                            rows=rows)
 
 
@@ -794,7 +794,7 @@ def newsletter():
         'pending': Subscriber.query.filter_by(status='pending').count(),
         'unsubscribed': Subscriber.query.filter_by(status='unsubscribed').count(),
     }
-    return render_template('manage/newsletter.html', subscribers=subscribers,
+    return render_device_template('manage/newsletter.html', subscribers=subscribers,
                            deliveries=deliveries, stats=stats,
                            email_configured=is_email_configured())
 
@@ -877,7 +877,7 @@ def discussions():
             flash(e.message, 'error')
         return redirect(url_for('manage.discussions'))
     groups = DiscussionGroup.in_order()
-    return render_template('manage/discussions.html', groups=groups)
+    return render_device_template('manage/discussions.html', groups=groups)
 
 
 @bp.route('/discussions/<int:group_id>/visibility', methods=['POST'])
@@ -914,7 +914,7 @@ def flags():
     from app.models.discussion import Flag
     open_flags = (Flag.query.filter_by(resolved_at=None)
                   .order_by(Flag.created_at.desc()).all())
-    return render_template('manage/flags.html', flags=open_flags)
+    return render_device_template('manage/flags.html', flags=open_flags)
 
 
 @bp.route('/flags/<int:flag_id>/resolve', methods=['POST'])
@@ -975,7 +975,7 @@ def branding():
     uploads = Upload.query.filter(Upload.content_type.like('image/%'),
                                   Upload.visibility == 'public') \
         .order_by(Upload.created_at.desc()).all()
-    return render_template('manage/branding.html', org=org, uploads=uploads)
+    return render_device_template('manage/branding.html', org=org, uploads=uploads)
 
 
 @bp.route('/theme', methods=['GET', 'POST'])
@@ -1003,7 +1003,7 @@ def theme_settings():
             db.session.rollback()
             flash(e.message, 'error')
         return redirect(url_for('manage.theme_settings'))
-    return render_template('manage/theme.html', org=org,
+    return render_device_template('manage/theme.html', org=org,
                            themes=AVAILABLE_THEMES)
 
 
@@ -1022,7 +1022,7 @@ def analytics_settings():
             db.session.rollback()
             flash(e.message, 'error')
         return redirect(url_for('manage.analytics_settings'))
-    return render_template('manage/analytics.html', org=org,
+    return render_device_template('manage/analytics.html', org=org,
                            analytics_providers=ANALYTICS_PROVIDERS)
 
 
@@ -1036,7 +1036,7 @@ def privacy_settings():
         org.update_settings(gated_teasers='gated_teasers' in request.form)
         flash(t('common.saved'), 'success')
         return redirect(url_for('manage.privacy_settings'))
-    return render_template('manage/privacy.html', org=org)
+    return render_device_template('manage/privacy.html', org=org)
 
 
 # --- Theme editor (theme-declared editable content) ---------------------------
@@ -1091,7 +1091,7 @@ def landing_settings():
     for field in fields:
         if field['type'] == 'image' and field['value']:
             field['unavailable'] = field['value'] not in still_offered
-    return render_template('manage/landing.html',
+    return render_device_template('manage/landing.html',
                            fields=fields,
                            image_uploads=image_uploads,
                            theme_name=AVAILABLE_THEMES[theme]['name'])

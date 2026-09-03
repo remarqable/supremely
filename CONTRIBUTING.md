@@ -65,6 +65,36 @@ A few rules are worth knowing before you write code, because they are easy to mi
 - Logical CSS properties (`ms-`, `me-`, `ps-`, `pe-`, `text-start`), never `ml-`, `mr-` or `text-left`. Physical properties silently break right-to-left languages.
 - User-visible strings go through `t()` / `_()` with a key in `app/lang/en.json`.
 
+## Mobile
+
+Supremely is responsive first. A phone gets the same template with Tailwind's
+`sm:` / `md:` / `lg:` prefixes doing the rearranging, and that is what almost
+every surface should do — one file to change, one thing to review, no chance
+of the two versions drifting apart.
+
+Where a phone needs a genuinely different layout rather than a narrower one,
+add a mobile sibling of the template under `mobile/`:
+
+```
+app/views/manage/media.html         ->  app/views/manage/mobile/media.html
+app/views/community/single.html     ->  app/views/community/mobile/single.html
+app/views/themes/origin/single.html ->  app/views/themes/origin/mobile/single.html
+```
+
+Nothing else changes. Every render already goes through the device-aware
+resolver (`app/platform/devices.py`), so adding a mobile screen is adding a
+file, not editing Python, and a template with no mobile sibling — which is
+nearly all of them — renders on a phone exactly as it does on a laptop.
+
+Two rules worth keeping:
+
+- **Reach for a `sm:` prefix first.** A dedicated mobile template is for a
+  different information layout, not for a smaller one. Every one you add is a
+  second file that has to be kept in step forever.
+- **Test both.** `?device=mobile` on any URL pins the mobile layout for your
+  session so you can click around on a laptop; `?device=auto` releases it.
+  In tests, send a mobile `User-Agent` header.
+
 ## Releases and versioning
 
 Supremely is versioned with [semantic versioning](https://semver.org), and

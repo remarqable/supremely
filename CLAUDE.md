@@ -50,6 +50,15 @@ The community is the application: members and admins share the same routes and l
 - **Admin-only controls are marked, not hidden.** An inline control is rendered whenever `can()` allows it, and one a member could never use carries `.btn-admin` (amber) so an admin can see at a glance what a member does not. There is no manage mode: a toggle that revealed controls was removed, because the marking does that job without a second presentation state to reason about. Authorization is unaffected either way, since the backend enforces every action regardless of what the UI drew. Do not mark an action a member can take on their own content, such as editing or deleting their own post.
 - **The community shell serves everyone; themes render the site-presented surfaces.** The shell (`app/views/layouts/community.html` + `app/views/community/*`) is app-owned and never theme-resolvable; themes may tint it only through the approved token whitelist (`theming.community_tokens`). `render_site` picks community templates and the shell layout for members **and visitors** (`SHELL_CONTEXTS` in `theming.py`); the theme renders the front page (`force_theme`), previews, and every object that declares `presentation: 'site'` — which pages do by default, and types like `team_member` declare (see the Presentation seam note above). Gated content is **teased, not hidden** by default: visitors see locked titles in lists/nav (`lock_badge`/`lock_icon` in `partials/_ui.html`) and land on the gate page (`theming.render_gate`) — never the body. Teasing is an org switch (`org.teases_gated_content()`, Manage → Settings → Privacy); off means gated items vanish from public lists and `render_gate` degrades to login-redirect/404. Discussions have an org-wide switch (`org.settings['discussions_visibility']`: per_group/public/members) enforced in `DiscussionGroup`.
 
+## Mobile
+
+Responsive first. A mobile template is optional and lives as a sibling under
+`mobile/` (`manage/media.html` -> `manage/mobile/media.html`); when absent —
+the normal case — the ordinary template renders. All three seams resolve it:
+`render_site`, `themed()`, and `render_device_template` (used by every
+controller). Add one only when a phone needs a different layout, not a
+narrower one. `?device=mobile|desktop|auto` overrides detection for testing.
+
 ## Architecture
 
 MVC with fat models, thin controllers, dumb templates. Server-rendered Jinja (`app/views/` — note `template_folder='views'`) + HTMX + Alpine; no SPA, no npm.

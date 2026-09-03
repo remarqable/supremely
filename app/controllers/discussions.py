@@ -8,7 +8,6 @@ from flask import (
     flash,
     g,
     redirect,
-    render_template,
     request,
     url_for,
 )
@@ -26,6 +25,7 @@ from app.models.discussion import (
     Reply,
 )
 from app.platform.authz import can, org_required, require
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -359,7 +359,7 @@ def react():
     # HTMX: swap just the reaction bar in place; full-page fallback otherwise.
     if request.headers.get('HX-Request') == 'true':
         counts = Reaction.counts_for(target_type, [target_id]).get(target_id, {})
-        return render_template('partials/_reaction_bar.html',
+        return render_device_template('partials/_reaction_bar.html',
                                target_type=target_type, target_id=target_id,
                                counts=counts, emoji_set=REACTION_EMOJI)
     return redirect(post.url)

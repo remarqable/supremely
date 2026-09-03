@@ -22,7 +22,6 @@ from flask import (
     current_app,
     flash,
     redirect,
-    render_template,
     request,
     session,
     url_for,
@@ -34,6 +33,7 @@ from app.extensions import db
 from app.models import Organization, User
 from app.models.common_passwords import COMMON_PASSWORDS
 from app.platform.config_store import mark_installed, write_runtime_config
+from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.install import seed_installation
@@ -100,7 +100,7 @@ def _clear_state() -> None:
 
 @bp.route('/')
 def index() -> ResponseReturnValue:
-    return render_template('setup/welcome.html')
+    return render_device_template('setup/welcome.html')
 
 
 @bp.route('/environment', methods=['GET', 'POST'])
@@ -127,7 +127,7 @@ def environment() -> ResponseReturnValue:
         'name': 'Supremely', 'base_url': request.url_root.rstrip('/'),
         'timezone': 'UTC', 'language': 'en',
     })
-    return render_template('setup/environment.html', defaults=defaults,
+    return render_device_template('setup/environment.html', defaults=defaults,
                            timezones=COMMON_TIMEZONES, step='environment')
 
 
@@ -154,7 +154,7 @@ def admin() -> ResponseReturnValue:
             _save_state(state)
             return redirect(url_for('setup.organization'))
 
-    return render_template('setup/admin.html', step='admin',
+    return render_device_template('setup/admin.html', step='admin',
                            username=ADMIN_USERNAME)
 
 
@@ -178,13 +178,13 @@ def organization() -> ResponseReturnValue:
                 Organization(name=name, slug=slug).validate()
             except ValidationError as e:
                 flash(e.message, 'error')
-                return render_template('setup/organization.html', step='organization',
+                return render_device_template('setup/organization.html', step='organization',
                                        defaults={'name': name, 'slug': slug})
             state['organization'] = {'name': name, 'slug': slug}
         _save_state(state)
         return _apply(state)
 
-    return render_template('setup/organization.html', step='organization',
+    return render_device_template('setup/organization.html', step='organization',
                            defaults=state.get('organization') or DEFAULT_ORG)
 
 
@@ -212,4 +212,4 @@ def _apply(state: dict) -> ResponseReturnValue:
     login_user(admin_user, remember=True)
     log.info('installation_complete',
              database='postgres' if app.config['IS_POSTGRES'] else 'sqlite')
-    return render_template('setup/done.html')
+    return render_device_template('setup/done.html')

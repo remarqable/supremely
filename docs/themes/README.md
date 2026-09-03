@@ -266,6 +266,35 @@ identity. A built-in theme with a bad manifest fails the build; an installed
 theme with one is skipped with a log line, so a third-party theme can never
 take an installation down. Either way it never surfaces mid-request.
 
+## Mobile
+
+Your templates are responsive: one file, Tailwind's `sm:` / `md:` / `lg:`
+prefixes, and a phone gets the same page rearranged. That is the default and
+it is what almost every surface should do.
+
+When a phone genuinely needs a different layout — not a narrower one, a
+different one — add a mobile sibling of the template under `mobile/`:
+
+```
+themes/yourtheme/
+  front-page.html
+  single.html
+  header.html
+  mobile/
+    front-page.html     # only used on phones
+    header.html         # swap just the header if that is all that differs
+```
+
+Anything you do not provide falls back exactly as it always did: no
+`mobile/` directory at all is the normal case, and a phone then renders your
+ordinary template. A mobile variant replaces only the template it is the
+mobile version of, so `mobile/single.html` never displaces a more specific
+template further down the chain.
+
+To see a mobile template on a desktop browser, add `?device=mobile` to any
+URL; `?device=desktop` pins the other way and `?device=auto` goes back to
+detection.
+
 ## Attribution
 
 Every theme's footer carries a "Powered by Supremely" line, and it comes

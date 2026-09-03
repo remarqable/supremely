@@ -67,6 +67,10 @@ def create_app(config_class=Config):
         _g.pop('_login_user', None)
         _g.pop('_content_feeds', None)
         _g.pop('_content_counts', None)
+        # Template resolution is memoized for the same reason and with the
+        # same hazard: a held app context would otherwise carry one
+        # request's answers into the next.
+        _g.pop('_template_exists', None)
 
     # Before CSRF and tenant resolution, so a blocked request answers 404
     # rather than 403 or 410 and never resolves a tenant.
@@ -161,7 +165,9 @@ def _init_context(app):
         is_member_or_platform_admin,
         is_org_member,
     )
+    from .platform.devices import device_type, is_mobile
     from .platform.redirects import current_target
+    from .platform.theming import shell_layout
 
     @app.context_processor
     def inject_globals():
@@ -309,6 +315,12 @@ def _init_context(app):
             'latest_content': latest_content,
             'content_count': content_count,
             'powered_by_url': powered_by_url,
+            # Values, not the functions: `{% if is_mobile %}` on a
+            # callable is always true, and the first mobile template written
+            # would have hit that silently.
+            'is_mobile': is_mobile(),
+            'device_type': device_type(),
+            'community_layout': shell_layout(),
         }
 
     @app.template_filter('localdate')
@@ -357,6 +369,11 @@ def _init_security_headers(app):
 
     @app.after_request
     def add_security_headers(response):
+        # An HTML page can render differently per device (see
+        # app/platform/devices.py), so anything caching it has to key on
+        # that. Only HTML branches, so assets and JSON keep a clean cache.
+        if response.mimetype == 'text/html':
+            response.vary.add('User-Agent')
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'

@@ -128,6 +128,22 @@ types (for example the Team card grid) and the site error page, so every
 theme renders every type out of the box and overrides only what it wants to
 redesign.
 
+## Mobile
+
+Responsive first: one template per surface, with Tailwind breakpoints doing
+the rearranging. Where a phone needs a different layout rather than a
+narrower one, a template may have a mobile sibling under `mobile/`
+(`manage/media.html` -> `manage/mobile/media.html`), and every rendering seam
+prefers it when it exists: `render_site` for the themed site and the
+community shell, `themed()` for theme parts, and `render_device_template` in
+the controllers. A surface with no mobile sibling — nearly all of them —
+renders identically on both, so the pattern costs nothing until it is used.
+
+Detection is User-Agent based, with `?device=mobile|desktop|auto` overriding
+it for a session (`app/platform/devices.py`). HTML responses carry
+`Vary: User-Agent` so a cache in front of the application knows one URL can
+render two ways.
+
 ## The community application
 
 Members land in an app shell: a grouped sidebar derived from the org's
