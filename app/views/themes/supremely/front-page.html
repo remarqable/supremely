@@ -192,56 +192,59 @@
   </section>
 
   {# ---- Pillars: the four jobs, expanded ---------------------------------- #}
-  {# Alternating rows: copy one side, a capability checklist card the other.
+  {# Each pillar is a full-width band — white and faint slate alternating —
+     so the rows read as distinct sections; the checklist card flips its
+     ground against each band. Copy alternates sides on large screens.
      Words are theme content (Manage → Home page); icons pair by slot with
      the same order as the feature strip above. #}
   {% set pillar_rows = home.pillars | selectattr('title') | list %}
   {% if pillar_rows %}
   <section class="border-t border-slate-100" aria-labelledby="pillars-title">
-    <div class="mx-auto max-w-6xl px-6 py-16 sm:py-24">
-      {% if home.pillars_title %}
+    {% if home.pillars_title %}
+    <div class="mx-auto max-w-6xl px-6 pt-16 pb-4 sm:pt-24">
       <h2 id="pillars-title" class="mx-auto max-w-2xl text-center text-3xl font-black tracking-tight [text-wrap:balance] sm:text-4xl">{{ home.pillars_title }}</h2>
-      {% endif %}
-      <div class="mt-14 space-y-16 sm:space-y-20">
-        {% for pillar in pillar_rows %}
-        <div class="grid items-center gap-8 lg:grid-cols-2 lg:gap-16">
-          <div {% if loop.index is even %}class="lg:order-2"{% endif %}>
-            <div class="flex items-center gap-3">
-              <span class="grid h-10 w-10 flex-none place-items-center rounded-xl bg-violet-50 text-violet-600">
-                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="{{ feature_icons[loop.index0] }}"/>
-                </svg>
-              </span>
-              <h3 class="text-2xl font-bold tracking-tight">{{ pillar.title }}</h3>
-            </div>
-            <p class="mt-4 text-lg leading-relaxed text-slate-500">{{ pillar.body }}</p>
-            {% if pillar.link_label %}
-            <a href="{{ pillar.link_url or '/' }}"
-               class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 transition-colors hover:text-violet-700">
-              {{ pillar.link_label }}
-              <svg class="h-4 w-4 rtl:-scale-x-100" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M5 12h14m-6-6 6 6-6 6"/>
+    </div>
+    {% endif %}
+    {% for pillar in pillar_rows %}
+    {% set tinted = loop.index is even %}
+    <div class="{{ 'border-y border-slate-100 bg-slate-50/70' if tinted else '' }}">
+      <div class="mx-auto grid max-w-6xl items-center gap-8 px-6 py-14 sm:py-16 lg:grid-cols-2 lg:gap-16">
+        <div {% if tinted %}class="lg:order-2"{% endif %}>
+          <div class="flex items-center gap-3">
+            <span class="grid h-10 w-10 flex-none place-items-center rounded-xl {{ 'bg-white ring-1 ring-slate-200/80' if tinted else 'bg-violet-50' }} text-violet-600">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="{{ feature_icons[loop.index0] }}"/>
               </svg>
-            </a>
-            {% endif %}
+            </span>
+            <h3 class="text-2xl font-bold tracking-tight">{{ pillar.title }}</h3>
           </div>
-          <ul class="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-6 {% if loop.index is even %}lg:order-1{% endif %}">
-            {% for point in pillar.points.splitlines() if point.strip() %}
-            <li class="flex items-start gap-3 text-sm text-slate-700">
-              <svg class="mt-0.5 h-4 w-4 flex-none text-violet-600" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m5 13 4 4L19 7"/>
-              </svg>
-              {{ point.strip() }}
-            </li>
-            {% endfor %}
-          </ul>
+          <p class="mt-4 text-lg leading-relaxed text-slate-500">{{ pillar.body }}</p>
+          {% if pillar.link_label %}
+          <a href="{{ pillar.link_url or '/' }}"
+             class="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 transition-colors hover:text-violet-700">
+            {{ pillar.link_label }}
+            <svg class="h-4 w-4 rtl:-scale-x-100" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14m-6-6 6 6-6 6"/>
+            </svg>
+          </a>
+          {% endif %}
         </div>
-        {% endfor %}
+        <ul class="space-y-3 rounded-2xl border border-slate-200/80 p-6 {{ 'bg-white shadow-sm lg:order-1' if tinted else 'bg-slate-50/60' }}">
+          {% for point in pillar.points.splitlines() if point.strip() %}
+          <li class="flex items-start gap-3 text-sm text-slate-700">
+            <svg class="mt-0.5 h-4 w-4 flex-none text-violet-600" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m5 13 4 4L19 7"/>
+            </svg>
+            {{ point.strip() }}
+          </li>
+          {% endfor %}
+        </ul>
       </div>
     </div>
+    {% endfor %}
   </section>
   {% endif %}
 
