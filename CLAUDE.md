@@ -18,6 +18,8 @@ make db           # flask dev sync-db — dev schema straight from models
 make migrate      # flask db upgrade — prod/CI path only
 make reset        # wipe data/ (DB, wizard config, uploads); re-runs setup wizard
 make pull-data    # mirror the production DB + uploads locally (needs PROD_SSH in Makefile.local)
+make image        # build the multi-arch Docker image and push it (creates its own buildx builder)
+make deploy       # make image, then update the server over SSH (needs PROD_SSH in Makefile.local)
 ```
 
 - Single test: `uv run pytest tests/test_platform/test_content_types.py -k test_name`

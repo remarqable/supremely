@@ -7,7 +7,7 @@ DATA_DIR ?= data
 -include Makefile.local
 
 .DEFAULT_GOAL := help
-.PHONY: help install css css-watch db run worker test lint migrate reset kill demo pull-data
+.PHONY: help install css css-watch db run worker test lint migrate reset kill demo pull-data image deploy
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  \033[36m%-11s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -97,3 +97,20 @@ pull-data: ## Pull the server's DB + uploads for local testing (needs PROD_SSH)
 	rsync -a $(PROD_SSH):$(PROD_DIR)/data/themes/ $(DATA_DIR)/themes/ 2>/dev/null || true
 	uv run flask dev sync-db
 	@echo "Server data mirrored locally. Start the dev server to see it."
+
+# Release image. Multi-platform builds need a BuildKit builder that is not the
+# plain "docker" driver (Docker Desktop's default), so the target creates a
+# docker-container builder once and always builds through it by name. Set
+# IMAGE in Makefile.local to publish under a different repository.
+IMAGE ?= remarqable/supremely
+PLATFORMS ?= linux/amd64,linux/arm64
+BUILDER ?= supremely
+image: ## Build the multi-arch image and push it to the registry
+	@docker buildx inspect $(BUILDER) >/dev/null 2>&1 || \
+	  docker buildx create --name $(BUILDER) --driver docker-container --bootstrap
+	docker buildx build --builder $(BUILDER) --platform $(PLATFORMS) -t $(IMAGE):latest --push .
+
+deploy: image ## Build + push the image, then update the server (needs PROD_SSH)
+	@test -n "$(PROD_SSH)" || { echo "Set PROD_SSH in Makefile.local (e.g. PROD_SSH = root@example.com)"; exit 1; }
+	ssh $(PROD_SSH) "bash $(PROD_DIR)/installer --update"
+	@echo "Deployed $(IMAGE):latest to $(PROD_SSH)."
