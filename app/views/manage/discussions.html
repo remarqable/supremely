@@ -31,7 +31,19 @@
         <span class="font-medium text-slate-900">{{ group.name }}</span>
         <span class="font-mono text-xs text-slate-400">/discussions/{{ group.slug }}</span>
         <span class="badge-slate">{{ _('manage.visibility_' + group.visibility) }}</span>
-        <form method="POST" action="{{ url_for('manage.toggle_group_visibility', group_id=group.id) }}" class="ms-auto">
+        <span class="ms-auto flex shrink-0 gap-1">
+          <form method="POST" action="{{ url_for('manage.move_group', group_id=group.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="direction" value="up">
+            <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" {{ 'disabled' if loop.first }}><span aria-hidden="true">↑</span><span class="sr-only">{{ _('manage.move_up') }}</span></button>
+          </form>
+          <form method="POST" action="{{ url_for('manage.move_group', group_id=group.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="direction" value="down">
+            <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" {{ 'disabled' if loop.last }}><span aria-hidden="true">↓</span><span class="sr-only">{{ _('manage.move_down') }}</span></button>
+          </form>
+        </span>
+        <form method="POST" action="{{ url_for('manage.toggle_group_visibility', group_id=group.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="text-slate-500 hover:text-slate-900">
             {{ _('manage.unlock_section') if group.visibility == 'members' else _('manage.lock_section') }}</button>

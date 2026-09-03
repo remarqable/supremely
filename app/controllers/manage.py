@@ -895,6 +895,16 @@ def toggle_group_visibility(group_id):
     return redirect(url_for('manage.discussions'))
 
 
+@bp.route('/discussions/<int:group_id>/move', methods=['POST'])
+@org_required
+@require('content.moderate')
+def move_group(group_id):
+    from app.models.discussion import DiscussionGroup
+    group = db.get_or_404(DiscussionGroup, group_id)
+    group.move(-1 if request.form.get('direction') == 'up' else 1)
+    return redirect(url_for('manage.discussions'))
+
+
 @bp.route('/discussions/<int:group_id>/delete', methods=['POST'])
 @org_required
 @require('content.moderate')

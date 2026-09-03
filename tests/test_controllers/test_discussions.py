@@ -215,6 +215,49 @@ def test_manage_group_lock_toggle(app, client, acme, globex, user):
                               group_id).visibility == 'members'
 
 
+def test_manage_group_reorder(app, client, acme, globex, user):
+    """An admin can move a group up or down; groups that share a position
+    (seeded together) are renumbered so the move is visible."""
+    general = make_group(app, acme, slug='general', name='General')
+    help_ = make_group(app, acme, slug='help', name='Help')
+    other = make_group(app, globex, slug='other', name='Other')
+    general_id, help_id, other_id = general.id, help_.id, other.id
+    with app.test_request_context():
+        g.org = globex
+        db.session.expunge(db.session.get(DiscussionGroup, other_id))  # requests never share an identity map
+
+    def order():
+        with app.test_request_context():
+            g.org = acme
+            return [x.slug for x in DiscussionGroup.in_order()]
+
+    with app.test_request_context():
+        g.org = acme
+        # Two groups tied on position, so name decides: General before Help.
+        for group_id in (general_id, help_id):
+            db.session.get(DiscussionGroup, group_id).position = 0
+        db.session.commit()
+    assert order()[:2] == ['general', 'help']
+    login_as(client, user)                       # acme's owner
+    response = client.post(f'/manage/discussions/{help_id}/move',
+                           base_url=ACME, data={'direction': 'up'})
+    assert response.status_code == 302
+    assert order()[:2] == ['help', 'general']
+    # Moving the top group up again is a no-op, not an error.
+    client.post(f'/manage/discussions/{help_id}/move', base_url=ACME,
+                data={'direction': 'up'})
+    assert order()[:2] == ['help', 'general']
+    client.post(f'/manage/discussions/{help_id}/move', base_url=ACME,
+                data={'direction': 'down'})
+    assert order()[:2] == ['general', 'help']
+    # Another tenant's group is out of reach.
+    response = client.post(f'/manage/discussions/{other_id}/move',
+                           base_url=ACME, data={'direction': 'up'})
+    assert response.status_code == 404
+    page = client.get('/manage/discussions', base_url=ACME)
+    assert b'Move up' in page.data and b'Move down' in page.data
+
+
 def test_manage_area_visibility_switch(app, client, acme, globex, user):
     login_as(client, user)                       # acme's owner
     response = client.post('/manage/discussions', base_url=ACME,

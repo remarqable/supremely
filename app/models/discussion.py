@@ -106,6 +106,25 @@ class DiscussionGroup(OrgScoped, BaseModel):
         """Every group for this tenant, in display order."""
         return cls.query.order_by(cls.position, cls.name).all()
 
+    def move(self, direction: int):
+        """Swap places with the neighbor above (-1) or below (+1) in display
+        order. Groups seeded together share a position, so the whole list is
+        renumbered 1..n in its current order first; that way a move always
+        changes what the visitor sees, not just a hidden tiebreaker."""
+        groups = self.in_order()
+        ids = [group.id for group in groups]
+        if self.id not in ids:
+            return self             # not one of this tenant's groups
+        for index, group in enumerate(groups, start=1):
+            group.position = index
+        here = ids.index(self.id)
+        there = here + (-1 if direction < 0 else 1)
+        if 0 <= there < len(groups):
+            neighbor = groups[there]
+            self.position, neighbor.position = neighbor.position, self.position
+        db.session.commit()
+        return self
+
     @classmethod
     def get_by_slug(cls, slug: str):
         return cls.query.filter_by(slug=(slug or '').strip().lower()).first()
