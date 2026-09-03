@@ -3,13 +3,17 @@
 import contextlib
 from pathlib import Path
 
-from flask import Flask, abort, g, redirect, render_template, request
+from flask import Flask, abort, g, redirect, request
 
 from .config import Config
 from .extensions import db, init_sqlite_pragmas, login_manager, migrate
 from .platform.logger import get_logger, init_logger
 
-APP_VERSION = '1.0.0'
+# One source of truth for the release, kept in step with
+# pyproject.toml and the top entry of CHANGELOG.md (see
+# tests/test_platform/test_version.py). Docker images are tagged
+# with it, and :latest always points at the newest release.
+APP_VERSION = '0.1.0'
 
 
 def create_app(config_class=Config):
@@ -56,8 +60,13 @@ def create_app(config_class=Config):
         # (tests, scripts driving test_client), Flask reuses it and
         # Flask-Login's per-request user cache on `g` would leak across
         # requests. Clearing it forces re-authentication from the session.
+        # The content memos below are the same hazard with a worse blast
+        # radius: `g` is application-context scoped, so a memo left behind
+        # would serve one organization's rows on another's page.
         from flask import g as _g
         _g.pop('_login_user', None)
+        _g.pop('_content_feeds', None)
+        _g.pop('_content_counts', None)
 
     # Before CSRF and tenant resolution, so a blocked request answers 404
     # rather than 403 or 410 and never resolves a tenant.
@@ -228,6 +237,49 @@ def _init_context(app):
             from .models import Content
             return Content.section_readable_by_current_visitor(type_slug)
 
+        def _memo_key(type_slug: str) -> tuple:
+            """Cache identity for a content question.
+
+            The organization and the viewer are both part of the question:
+            the same type returns different rows for a member than for a
+            visitor, and must never return one organization's rows to
+            another. The memo is cleared per request as well (see
+            _reset_request_state); this key is the second lock on the same
+            door, because a cache that outlives its request is the one way
+            to defeat the global tenant filter.
+            """
+            return (g.org.id, _member_view(), type_slug)
+
+        def latest_content(type_slug: str, limit: int | None = None) -> list:
+            """Published items of a content type, newest first.
+
+            The theme contract's data verb: a theme names what it wants and
+            the application decides how to fetch it, so a front page can
+            render a grid of articles, episodes or team members without any
+            code that knows that theme exists. Lazy (nothing runs until a
+            template asks) and memoized per request, so two sections asking
+            the same question cost one query.
+            """
+            if getattr(g, 'org', None) is None or not type_slug:
+                return []
+            cache = g.setdefault('_content_feeds', {})
+            key = (*_memo_key(type_slug), limit)
+            if key not in cache:
+                from .models import Content
+                cache[key] = Content.feed(type_slug, limit)
+            return cache[key]
+
+        def content_count(type_slug: str) -> int:
+            """How many published items of a type the visitor may see."""
+            if getattr(g, 'org', None) is None or not type_slug:
+                return 0
+            cache = g.setdefault('_content_counts', {})
+            key = _memo_key(type_slug)
+            if key not in cache:
+                from .models import Content
+                cache[key] = Content.feed_count(type_slug)
+            return cache[key]
+
         def discussions_area_readable():
             """Whether the current viewer may see the discussions area at
             all (the org-wide discussions_visibility switch)."""
@@ -253,6 +305,8 @@ def _init_context(app):
             'discussions_area_readable': discussions_area_readable,
             'section_readable': section_readable,
             'content_types': active_types,
+            'latest_content': latest_content,
+            'content_count': content_count,
         }
 
     @app.template_filter('localdate')
@@ -327,27 +381,31 @@ def _init_security_headers(app):
 
 def _register_error_handlers(app):
     from .platform.errors import AppError
+    from .platform.theming import render_error
+
+    # Error pages render through the theme chain on an organization's own
+    # site, and unthemed everywhere else (the console, the installer, and any
+    # request that resolved no organization). See theming.render_error.
 
     @app.errorhandler(AppError)
     def handle_app_error(error):
         if error.http_status >= 500:
             db.session.rollback()
-        return render_template('errors/error.html', code=error.http_status,
-                               message=error.message), error.http_status
+        return render_error(error.http_status, error.message), error.http_status
 
     @app.errorhandler(403)
     def forbidden(error):
-        return render_template('errors/403.html'), 403
+        return render_error(403), 403
 
     @app.errorhandler(404)
     def not_found(error):
-        return render_template('errors/404.html'), 404
+        return render_error(404), 404
 
     @app.errorhandler(410)
     def gone(error):
-        return render_template('errors/410.html'), 410
+        return render_error(410), 410
 
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
-        return render_template('errors/500.html'), 500
+        return render_error(500), 500

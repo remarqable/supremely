@@ -284,6 +284,64 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         return q.order_by(cls.published_at.desc())
 
     @classmethod
+    def visible_query(cls, type_slug: str | None = None):
+        """Published content the current visitor may see listed.
+
+        The tease-don't-hide switch decides what "listed" means: on (the
+        default) a gated item stays in the list as a locked title, and the
+        template draws the padlock from can_view; off, it is filtered out
+        here. One path, so a theme's grid and an archive page agree.
+        """
+        from flask import g
+
+        from app.platform.authz import is_member_or_platform_admin
+        query = cls.published_query(type_slug)
+        org = getattr(g, 'org', None)
+        if org and org.teases_gated_content():
+            return query
+        if is_member_or_platform_admin():
+            return query
+        return query.filter_by(visibility='public')
+
+    # A theme asks for "recent articles" without saying how many; this is how
+    # many it gets, and the ceiling on how many it can ask for. A front page
+    # renders a grid, not an archive.
+    FEED_LIMIT = 24
+
+    @classmethod
+    def feed(cls, type_slug: str, limit: int | None = None) -> list['Content']:
+        """Published items of one type, newest first, for a theme template.
+
+        Empty is normal: an unregistered type, a locked section or a site
+        with nothing published all return [], never an error. The featured
+        image and author are loaded with the rows, so iterating the result
+        cannot turn into an N+1.
+        """
+        from sqlalchemy.orm import joinedload
+        if not cls.section_readable_by_current_visitor(type_slug):
+            return []
+        if limit is None:
+            limit = cls.FEED_LIMIT
+        else:
+            try:
+                limit = min(int(limit), cls.FEED_LIMIT)
+            except (TypeError, ValueError):
+                limit = cls.FEED_LIMIT      # a theme's typo is not an error
+        if limit < 1:
+            return []
+        return (cls.visible_query(type_slug)
+                .options(joinedload(cls.featured_upload),
+                         joinedload(cls.created_by))
+                .limit(limit).all())
+
+    @classmethod
+    def feed_count(cls, type_slug: str) -> int:
+        """How many items `feed()` is drawing from, for "view all" links."""
+        if not cls.section_readable_by_current_visitor(type_slug):
+            return 0
+        return cls.visible_query(type_slug).count()
+
+    @classmethod
     def upcoming_event(cls, public_only=False):
         """The next published event dated today or later. Event dates live in
         the structured `fields` JSON, so the (few) events are filtered in
@@ -313,7 +371,12 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     def with_tag(cls, type_slug: str, tag: str):
         import sqlalchemy as sa
         needle = json.dumps(tag)[1:-1]
-        return (cls.published_query(type_slug)
+        return (cls.visible_query(type_slug)
                 .filter(sa.cast(cls.tags, sa.String)
                         .like(f'%"{escape_like(needle)}"%',
                               escape=LIKE_ESCAPE)))
+
+    @classmethod
+    def visible_in_category(cls, type_slug: str, category):
+        return (cls.visible_query(type_slug)
+                .filter(cls.categories.contains(category)))

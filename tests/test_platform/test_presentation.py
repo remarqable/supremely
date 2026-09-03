@@ -15,9 +15,14 @@ SHELL_MARKER = b'aria-label="Community navigation"'
 
 
 def test_context_vocabulary():
-    assert PRESENTATION_CONTEXTS == ('publication', 'application', 'console')
+    assert PRESENTATION_CONTEXTS == ('publication', 'application', 'console',
+                                     'error')
     # Policy lives in ONE mapping; flipping a surface is a data edit here.
     assert set(SHELL_CONTEXTS) <= set(PRESENTATION_CONTEXTS)
+    # An error page is themed: the common case is a stale or mistyped link
+    # arriving from outside, and it should land somewhere that still looks
+    # like the site it was aimed at.
+    assert SHELL_CONTEXTS['error'] is False
 
 
 def test_unknown_context_is_loud(app, acme):

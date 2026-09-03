@@ -65,6 +65,23 @@ A few rules are worth knowing before you write code, because they are easy to mi
 - Logical CSS properties (`ms-`, `me-`, `ps-`, `pe-`, `text-start`), never `ml-`, `mr-` or `text-left`. Physical properties silently break right-to-left languages.
 - User-visible strings go through `t()` / `_()` with a key in `app/lang/en.json`.
 
+## Releases and versioning
+
+Supremely is versioned with [semantic versioning](https://semver.org), and
+the version lives in three places that have to agree: `APP_VERSION` in
+`app/__init__.py`, `version` in `pyproject.toml`, and the top entry of
+[CHANGELOG.md](CHANGELOG.md). A test fails if they drift apart, so bump all
+three in the same commit.
+
+The changelog follows [Common Changelog](https://common-changelog.org):
+one section per release, newest first, grouped into Added / Changed /
+Fixed / Removed, written for someone deciding whether to upgrade rather
+than for someone reading the diff.
+
+Publishing a release is a maintainer action. Each one is pushed as a Docker
+image under its own version tag and under `latest`, so an installation can
+pin a version, and `latest` is the newest release.
+
 ## Reporting a security issue
 
 Do not open a public issue for a suspected vulnerability. [SECURITY.md](SECURITY.md) has the private reporting route, which is GitHub's private vulnerability reporting or an email address if you would rather not use GitHub.

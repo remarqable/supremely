@@ -7,21 +7,27 @@ values to templates via the `theme_content()` Jinja global. This is what lets
 a marketing theme ship its *design* while each org supplies its own *words*,
 with neutral placeholder defaults so activating a theme never clones anyone.
 
-Field types (v1 — deliberately small so it's easy to extend):
+Field types (deliberately small so it's easy to extend):
     text      one-line string        -> <input type=text>
     textarea  multi-line string      -> <textarea>
     url       a link                 -> <input type=text> (kept simple)
+    image     a picture              -> a chooser over the media library
     repeater  a fixed list of groups -> N rows of sub-fields
 
 Each field: {key, type, label, default?, hint?, max?}. A repeater adds
 {max_items, item_fields:[...], default:[{...}]} — item_fields are text-like
 fields paired by index (e.g. the four feature slots, each keeping its icon).
 
-Extension points for later (Aidan): an `image` type backed by the media
-library; per-field validation beyond length; i18n of theme-declared labels;
-and richer repeaters (add/remove/reorder). The seams are the type switches in
-`_view_field`, `clean`, and `resolve`, plus the editor template's `{% if %}`
-ladder — add a branch to each.
+An image field stores an upload id and nothing else. resolve() hands the
+template the Upload itself, so a theme writes {{ img.url('full') }} and
+{{ img.alt }} the way it already does for a content item's featured image.
+The id is re-queried on both write and read, which is what makes another
+organization's id resolve to nothing rather than to a picture.
+
+Extension points for later: per-field validation beyond length; i18n of
+theme-declared labels; and richer repeaters (add/remove/reorder). The seams
+are the type switches in `_view_field`, `clean`, and `resolve`, plus the
+editor template's `{% if %}` ladder — add a branch to each.
 
 Values are rendered into autoescaped HTML, so markup can't break out. That
 holds for text inside an element and not for a value placed in an attribute:
@@ -31,6 +37,7 @@ a url field needs its scheme checked as well as its length.
 from flask import g
 
 TEXT_TYPES = ('text', 'textarea', 'url')
+FIELD_TYPES = ('text', 'textarea', 'url', 'image', 'repeater')
 DEFAULT_MAX = 200
 
 
@@ -67,11 +74,31 @@ def resolve(theme: str, org=None) -> dict:
         key = field['key']
         if field['type'] == 'repeater':
             out[key] = _resolve_repeater(field, saved.get(key))
+        elif field['type'] == 'image':
+            out[key] = _resolve_image(saved.get(key))
         else:
             raw = saved.get(key)
             raw = raw.strip() if isinstance(raw, str) else ''
             out[key] = raw or field.get('default', '')
     return out
+
+
+def _resolve_image(saved_value):
+    """The Upload for a stored id, or None (app.models.Upload).
+
+    A query, not a trusted value: the tenant filter runs on it, so an id
+    that belonged to another organization (or to a file since deleted)
+    comes back as None and the theme renders its no-image branch.
+
+    Visibility is re-checked here and not only on write, because it can
+    change afterwards. A file switched to members-only would otherwise keep
+    publishing its description into a public page and serve a broken image
+    to the visitors that page exists for.
+    """
+    from app.models import Upload
+    if not isinstance(saved_value, int):
+        return None
+    return Upload.query.filter_by(id=saved_value, visibility='public').first()
 
 
 def _resolve_repeater(field: dict, saved_items) -> list:
@@ -109,12 +136,27 @@ def clean(theme: str, form) -> dict:
                     row[sub['key']] = raw[:sub.get('max', DEFAULT_MAX)]
                 rows.append(row)
             out[key] = rows
+        elif field['type'] == 'image':
+            out[key] = _clean_image(form.get(key, ''))
         else:
             value = form.get(key, '').strip()[:field.get('max', DEFAULT_MAX)]
             if field['type'] == 'url':
                 value = _safe_url(value)
             out[key] = value
     return out
+
+
+def _clean_image(raw: str) -> int | None:
+    """A submitted upload id, or None.
+
+    Public images only. A members-only file used as a hero would 404 for
+    the visitors the page exists for, so it is not offered and not accepted.
+    """
+    from app.models import Upload
+    if not str(raw).isdigit():
+        return None
+    chosen = Upload.query.filter_by(id=int(raw), visibility='public').first()
+    return chosen.id if chosen and chosen.is_image else None
 
 
 def _safe_url(value: str) -> str:
@@ -140,7 +182,16 @@ def editor_view(theme: str, org) -> list:
     saved = _saved_for(theme, org)
     view = []
     for field in schema(theme):
-        if field['type'] == 'repeater':
+        if field['type'] == 'image':
+            view.append({
+                'type': 'image',
+                'name': field['key'],
+                'label': field.get('label', field['key']),
+                'hint': field.get('hint'),
+                'value': saved.get(field['key'])
+                         if isinstance(saved.get(field['key']), int) else None,
+            })
+        elif field['type'] == 'repeater':
             view.append({
                 'type': 'repeater',
                 'label': field.get('label', field['key']),

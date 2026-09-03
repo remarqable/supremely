@@ -96,21 +96,37 @@ site can look like anything.
 
 Themes are **renderers, not applications**: `theme.json` + Jinja templates
 + static CSS. No Python, no routes, no queries, no permission logic — the
-server resolves content and access, then hands the theme presentation
-objects. Templates resolve through a WordPress-style hierarchy
-(`front-page.html` → `archive-{type}.html` → `archive.html` →
-`single-{slug}.html` → `single.html`, with `layout/header/footer` parts),
-falling back to the built-in Origin theme, so a five-file theme restyles an
-entire site. Full contract: [docs/themes/README.md](themes/README.md).
+server resolves content and access, then hands the theme what to draw.
+Templates resolve through a WordPress-style hierarchy (`front-page.html` →
+`archive-{type}.html` → `archive.html` → `single-{item-slug}.html` →
+`single-{type}.html` → `single.html` → `errors/{code}.html`, with
+`layout/header/footer` parts), falling back to the built-in Origin theme,
+so a five-file theme restyles an entire site. Full contract:
+[docs/themes/README.md](themes/README.md).
+
+The contract has two halves, and both are documented. A theme declares what
+an organizer may customize (`settings`, `content` fields including images
+from the media library, `capabilities`, `community_tokens`), validated when
+the theme is discovered and when a package is installed. In return the
+application guarantees a fixed set of names in every template, of which the
+data verbs are `latest_content(type, limit)` and `content_count(type)`:
+a theme names a content type and gets published, access-filtered,
+eager-loaded rows, so a landing page can grid recent articles or podcast
+episodes with no controller aware that theme exists. Asking for a type
+nobody publishes returns nothing rather than failing.
+
+Ownership follows one rule: a name, description, logo, favicon or hero
+image belongs to the **organization** (Manage → Branding) and survives a
+theme change; copy written for a particular layout belongs to the **theme**
+(Manage → Theme editor) and does not.
 
 Built-in themes: **Origin** (the default and universal fallback),
 **Supremely** (the project's own marketing theme), **Midnight** (a
 layout-only dark variant of Origin), **Trailhead** (the worked example from
-the tutorial). Themes declare editable content fields (the landing hero)
-that organizers fill in under Manage → Home page. Origin also ships the
-fallback templates for library content types (for example the Team card
-grid), so every theme renders every type out of the box and overrides only
-what it wants to redesign.
+the tutorial). Origin also ships the fallback templates for library content
+types (for example the Team card grid) and the site error page, so every
+theme renders every type out of the box and overrides only what it wants to
+redesign.
 
 ## The community application
 

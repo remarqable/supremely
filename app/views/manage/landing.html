@@ -1,4 +1,5 @@
 {% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header, empty_state, image_chooser with context %}
 
 {# Schema-driven editor: renders whatever fields the active theme declares in
    its theme.json "content" block (see app.platform.theme_content). To add a
@@ -14,9 +15,16 @@
 {% endmacro %}
 
 {% block manage_content %}
-{% from 'partials/_ui.html' import page_header with context %}
 {{ page_header(_('manage.landing'), _('landing.intro', theme=theme_name)) }}
 
+{% if not fields %}
+{# A theme is not obliged to declare any editable copy. Say so plainly and
+   point at what does change the look, rather than showing an empty form. #}
+<div class="card">
+  {{ empty_state(_('landing.none', theme=theme_name),
+                 url_for('manage.theme_settings'), _('manage.theme')) }}
+</div>
+{% else %}
 <form method="POST" class="space-y-5">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -39,6 +47,23 @@
           {% endfor %}
         </div>
       </div>
+      {% elif f.type == 'image' %}
+      <div class="border-t border-slate-100 pt-4 first:border-0 first:pt-0">
+        <span class="label">{{ f.label }}</span>
+        {% if f.unavailable %}
+        {# The stored picture is members-only or gone, so it is not in the
+           chooser below and saving will drop it. Say that plainly rather
+           than letting the field read as "None" for no visible reason. #}
+        <p class="mt-1 text-xs text-amber-700">{{ _('landing.image_unavailable') }}</p>
+        {% endif %}
+        {{ image_chooser(f.name, image_uploads, f.value, f.label, _('common.none')) }}
+        {% if image_uploads %}
+        <p class="mt-1 text-xs text-slate-500">
+          {{ f.hint or _('landing.image_hint') }}</p>
+        {% else %}
+        <p class="mt-1 text-xs text-slate-500">{{ _('landing.image_none') }}</p>
+        {% endif %}
+      </div>
       {% else %}
       <div class="border-t border-slate-100 pt-4 first:border-0 first:pt-0">
         <label for="{{ f.name }}" class="label">{{ f.label }}</label>
@@ -55,4 +80,5 @@
     <a href="{{ url_for('manage.theme_settings') }}" class="btn-ghost">{{ _('common.cancel') }}</a>
   </div>
 </form>
+{% endif %}
 {% endblock %}

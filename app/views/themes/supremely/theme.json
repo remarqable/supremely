@@ -3,8 +3,6 @@
   "name": "Supremely",
   "version": "1.0.0",
   "author": "Supremely",
-  "extends": "origin",
-  "overrides": ["layout.html", "header.html", "footer.html", "front-page.html"],
   "description": "The Supremely marketing theme. A warm, product-forward landing page for the open-source community platform.",
   "capabilities": {"footer_groups": true},
   "settings": {
@@ -16,9 +14,6 @@
   },
   "content": {
     "fields": [
-      {"key": "brand_name", "type": "text", "label": "Site name", "max": 60,
-       "default": "",
-       "hint": "Shown next to the logo in the site header and footer. Leave blank to use your community's name."},
       {"key": "headline_lead", "type": "text", "label": "Headline", "max": 80,
        "default": "Your community,"},
       {"key": "headline_accent", "type": "text", "label": "Accent line", "max": 80,

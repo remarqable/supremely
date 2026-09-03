@@ -3,8 +3,6 @@
   "name": "Midnight",
   "version": "1.0.0",
   "author": "Supremely",
-  "extends": "origin",
-  "overrides": ["layout.html"],
   "capabilities": {"footer_groups": true},
   "settings": {
     "accent": {

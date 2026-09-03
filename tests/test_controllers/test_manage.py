@@ -400,20 +400,26 @@ def test_landing_editor_saves_copy(app, client, acme, globex, user):
     assert len(saved['features']) == 4          # always the four fixed slots
 
 
-def test_landing_nav_gated_by_content_schema(app, client, acme, globex, user):
+def test_theme_editor_is_always_in_the_nav(app, client, acme, globex, user):
+    """The entry does not come and go with the active theme: a theme that
+    declares no editable copy still has the page, which explains itself."""
     login_as(client, user)
-    # Origin and Supremely both declare content -> editor entry present.
-    acme.theme = 'origin'
+    for theme in ('origin', 'supremely', 'midnight'):
+        acme.theme = theme
+        acme.save()
+        assert b'/manage/landing' in client.get('/manage/branding',
+                                                base_url=ACME).data
+        assert client.get('/manage/landing', base_url=ACME).status_code == 200
+
+
+def test_theme_editor_explains_itself_when_nothing_is_editable(app, client, acme,
+                                                               globex, user):
+    login_as(client, user)
+    acme.theme = 'midnight'                 # declares no content fields
     acme.save()
-    assert b'/manage/landing' in client.get('/manage/branding', base_url=ACME).data
-    acme.theme = 'supremely'
-    acme.save()
-    assert b'/manage/landing' in client.get('/manage/branding', base_url=ACME).data
-    # Midnight declares none -> no editor, and the route itself 404s.
-    acme.theme = 'midnight'
-    acme.save()
-    assert b'/manage/landing' not in client.get('/manage/branding', base_url=ACME).data
-    assert client.get('/manage/landing', base_url=ACME).status_code == 404
+    body = client.get('/manage/landing', base_url=ACME).data
+    assert b'no editable text of its own' in body
+    assert b'name="headline"' not in body   # no empty form to fill in
 
 
 # --- media visibility ----------------------------------------------------------------
@@ -466,7 +472,7 @@ def test_visibility_can_be_changed_after_upload(app, client, acme, globex, user)
     login_as(client, user)
     upload_id = _upload(client, 'members')
 
-    client.post(f'/manage/media/{upload_id}/visibility', base_url=ACME,
+    client.post(f'/manage/media/{upload_id}', base_url=ACME,
                 data={'visibility': 'public'})
     assert app.test_client().get(f'/files/{upload_id}/original',
                                  base_url=ACME).status_code == 200
@@ -495,7 +501,7 @@ def test_visibility_cannot_be_changed_from_another_tenants_host(app, client, acm
     hank = User.query.filter_by(email='hank@example.com').one()
     other = app.test_client()
     login_as(other, hank)
-    response = other.post(f'/manage/media/{upload_id}/visibility',
+    response = other.post(f'/manage/media/{upload_id}',
                           base_url='http://globex.example.test',
                           data={'visibility': 'public'})
     assert response.status_code == 404
@@ -503,7 +509,7 @@ def test_visibility_cannot_be_changed_from_another_tenants_host(app, client, acm
     # Positive control: the same route works for a file Globex does own, so
     # the 404 above is the tenant filter and not a missing route.
     own_id = _upload(other, 'members', base_url='http://globex.example.test')
-    assert other.post(f'/manage/media/{own_id}/visibility',
+    assert other.post(f'/manage/media/{own_id}',
                       base_url='http://globex.example.test',
                       data={'visibility': 'public'}).status_code == 302
 
@@ -544,7 +550,7 @@ def test_omitting_the_field_leaves_visibility_alone(app, client, acme,
     login_as(client, user)
     upload_id = _upload(client, 'members')
 
-    client.post(f'/manage/media/{upload_id}/visibility', base_url=ACME, data={})
+    client.post(f'/manage/media/{upload_id}', base_url=ACME, data={})
 
     assert app.test_client().get(f'/files/{upload_id}/original',
                                  base_url=ACME).status_code == 404

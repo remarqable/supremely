@@ -18,6 +18,7 @@ from flask_login import current_user
 from app.extensions import db
 from app.middleware.ratelimit import rate_limit
 from app.models import Content, Upload
+from app.models.base import reject_control_characters
 from app.models.content import Category
 from app.models.navigation import MENUS, NavigationItem
 from app.platform import theme_content as tc
@@ -52,16 +53,24 @@ def index():
 
 # --- Content (all types: page, article, event, plugin types) -------------------
 
-def _own_upload_id(field: str) -> int | None:
+def _own_upload_id(field: str, public_only: bool = False) -> int | None:
     """The id of the upload named in `field`, or None.
 
     Resolved through a query rather than trusted, so an id belonging to
     another organization comes back None instead of being stored: the tenant
     filter runs on a real query. Same reasoning as _own_content_id.
+
+    `public_only` for anything that lands on a public page (a logo, a
+    favicon, a hero image): accepting a members-only file there would store
+    a reference that renders as a broken image to every visitor.
     """
     raw = request.form.get(field, '')
-    chosen = (Upload.query.filter_by(id=int(raw)).first()
-              if raw.isdigit() else None)
+    if not raw.isdigit():
+        return None
+    query = Upload.query.filter_by(id=int(raw))
+    if public_only:
+        query = query.filter_by(visibility='public')
+    chosen = query.first()
     return chosen.id if chosen else None
 
 
@@ -260,7 +269,7 @@ def preview_content(content_id):
                 if page_template_allowed(content.template) else None) or ct.template
         names = [f'{tmpl}.html', 'page.html']
     else:
-        names = [f'{ct.template}.html', 'single.html']
+        names = [f'single-{ct.slug}.html', f'{ct.template}.html', 'single.html']
     return render_site(names, content=content, content_type=ct,
                        page=content, preview=True)
 
@@ -629,12 +638,18 @@ def _upload_visibility(current: str = 'public') -> str:
     return choice if choice in VISIBILITY_LEVELS else current
 
 
-@bp.route('/media/<int:upload_id>/visibility', methods=['POST'])
+@bp.route('/media/<int:upload_id>', methods=['POST'])
 @org_required
 @require('content.write')
-def media_visibility(upload_id):
+def update_media(upload_id):
+    """The per-file form in Manage → Media: who may see it, and what a
+    screen reader says in its place."""
     upload = db.get_or_404(Upload, upload_id)
     upload.visibility = _upload_visibility(upload.visibility)
+    # Absent means "not being edited", never "clear it" -- same reasoning as
+    # _upload_visibility. The form omits this field for non-images.
+    if 'alt' in request.form:
+        upload.alt = request.form['alt'].strip()[:200] or None
     upload.stamp_audit()
     upload.save()
     flash(t('common.saved'), 'success')
@@ -939,9 +954,16 @@ def branding():
             org.description = request.form.get('description', '').strip() or None
             org.brand_primary = request.form.get('brand_primary', '').strip() or None
             org.save()
+            # Public-site name: blank means "same as the community name", so
+            # it is stored empty rather than copied, and follows a later
+            # rename on its own.
+            site_name = request.form.get('site_name', '').strip()[:100]
+            reject_control_characters(site_name, t('manage.site_name'))
+            org.update_settings(site_name=site_name)
             org.update_settings(**{
-                field: _own_upload_id(field)
-                for field in ('logo_upload_id', 'favicon_upload_id')})
+                field: _own_upload_id(field, public_only=True)
+                for field in ('logo_upload_id', 'favicon_upload_id',
+                              'hero_upload_id')})
             flash(t('common.saved'), 'success')
         except ValidationError as e:
             db.session.rollback()
@@ -1017,7 +1039,7 @@ def privacy_settings():
     return render_template('manage/privacy.html', org=org)
 
 
-# --- Landing page (theme-declared editable content) ---------------------------
+# --- Theme editor (theme-declared editable content) ---------------------------
 
 @bp.route('/landing', methods=['GET', 'POST'])
 @org_required
@@ -1027,18 +1049,49 @@ def landing_settings():
     design ships in the theme; only the words are per-org, stored under
     settings['theme_content'][<theme>] so each theme keeps its own copy. Text
     renders into autoescaped HTML — the schema's length caps are the only
-    write-time guard (see app.platform.theme_content)."""
+    write-time guard (see app.platform.theme_content).
+
+    Always reachable, even for a theme that declares nothing editable: the
+    page then explains why it is empty. A nav entry that comes and goes with
+    the active theme is harder to learn than one that is always there.
+    """
     theme = current_theme()
-    if not tc.has_editor(theme):
-        abort(404)
 
     if request.method == 'POST':
-        store = dict(g.org.setting('theme_content') or {})
-        store[theme] = tc.clean(theme, request.form)
-        g.org.update_settings(theme_content=store)
-        flash(t('common.saved'), 'success')
+        if tc.has_editor(theme):
+            store = dict(g.org.setting('theme_content') or {})
+            store[theme] = tc.clean(theme, request.form)
+            g.org.update_settings(theme_content=store)
+            flash(t('common.saved'), 'success')
         return redirect(url_for('manage.landing_settings'))
 
+    fields = tc.editor_view(theme, g.org)
+    # Only public images: what the theme renders is a public page, so a
+    # members-only file would be a broken image on it.
+    image_uploads = (Upload.query
+                     .filter(Upload.content_type.like('image/%'),
+                             Upload.visibility == 'public')
+                     .order_by(Upload.created_at.desc()).limit(24).all())
+    # A picture chosen long ago can fall out of that list two ways, and they
+    # need opposite handling. Still public but no longer recent: put it back,
+    # or the form would offer no radio for it and the next save would clear
+    # it. No longer public (or deleted): it cannot go back, because the
+    # chooser's whole promise is that everything in it is safe to publish --
+    # so the field says so instead of quietly showing None.
+    chosen = {f['value'] for f in fields
+              if f['type'] == 'image' and f['value']}
+    still_offered = set()
+    if chosen:
+        for upload in (Upload.query
+                       .filter(Upload.id.in_(chosen),
+                               Upload.visibility == 'public').all()):
+            still_offered.add(upload.id)
+            if upload not in image_uploads:
+                image_uploads.insert(0, upload)
+    for field in fields:
+        if field['type'] == 'image' and field['value']:
+            field['unavailable'] = field['value'] not in still_offered
     return render_template('manage/landing.html',
-                           fields=tc.editor_view(theme, g.org),
+                           fields=fields,
+                           image_uploads=image_uploads,
                            theme_name=AVAILABLE_THEMES[theme]['name'])

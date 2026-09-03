@@ -52,14 +52,11 @@ def render_org_home():
 # locked titles (templates render them via can_view, body and excerpt
 # withheld) and a direct hit lands on the gate page. Only the title leaks —
 # that is the demonstration of what membership unlocks. Orgs can turn
-# teasing off (Manage → Settings → Privacy): _visible then drops gated
-# items from listings and render_gate degrades to login-redirect/404.
-
-
-def _visible(query):
-    if g.org.teases_gated_content() or is_member_or_platform_admin():
-        return query
-    return query.filter_by(visibility='public')
+# teasing off (Manage → Settings → Privacy): Content.visible_query then
+# drops gated items from listings, and render_gate degrades to a login
+# redirect or a 404. That one query method is the rule for every listing --
+# archives here and a theme's latest_content() alike -- so the two cannot
+# drift apart.
 
 
 def _render_page(content):
@@ -85,7 +82,7 @@ def _render_archive(ct, title=None):
         # The whole section is locked: one gate, no item titles teased.
         return render_gate(ct.plural)
     page_number = request.args.get('page', 1, type=int)
-    pagination = _visible(Content.published_query(ct.slug)).paginate(
+    pagination = Content.visible_query(ct.slug).paginate(
         page=page_number, per_page=PER_PAGE, error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
@@ -101,8 +98,12 @@ def _render_single(ct, content):
         return render_gate(ct.plural)
     if not content.visible_to_current_visitor():
         return render_gate(content.title, kind=ct.singular)
+    # Specificity order, and symmetric with archives: this item, then this
+    # type, then the generic single. A theme shipping single-recipe.html has
+    # it used for recipes without registering anything.
     return render_site(
-        [f'single-{content.slug}.html', f'{ct.template}.html', 'single.html'],
+        [f'single-{content.slug}.html', f'single-{ct.slug}.html',
+         f'{ct.template}.html', 'single.html'],
         force_theme=(ct.presentation == 'site'),
         content_type=ct, content=content)
 
@@ -131,8 +132,7 @@ def archive_category(seg, cslug):
     if category is None:
         abort(404)
     page_number = request.args.get('page', 1, type=int)
-    pagination = (_visible(Content.published_query(ct.slug)
-                           .filter(Content.categories.contains(category)))
+    pagination = (Content.visible_in_category(ct.slug, category)
                   .paginate(page=page_number, per_page=PER_PAGE,
                             error_out=False))
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
@@ -151,7 +151,7 @@ def archive_tag(seg, tag):
     if not Content.section_readable_by_current_visitor(ct.slug):
         return render_gate(ct.plural)
     page_number = request.args.get('page', 1, type=int)
-    pagination = _visible(Content.with_tag(ct.slug, tag)).paginate(
+    pagination = Content.with_tag(ct.slug, tag).paginate(
         page=page_number, per_page=PER_PAGE, error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],

@@ -22,17 +22,22 @@
   {'endpoint': 'manage.media', 'label': _('manage.media')},
 ] %}
 
-{# Appearance group (how the site looks): the Landing editor appears only for
-   themes that declare an editable content schema (theme.json "content"), so
-   it's never a dead link. #}
+{# Appearance group (how the site looks). The Theme editor is a parent entry
+   with its own second column, and it is always present: a theme that
+   declares no editable copy still gets the page, which explains why it is
+   empty. A nav entry that appears and disappears with the active theme is
+   harder to learn than one that is always in the same place. #}
+{% set theme_editor_items = [
+  {'endpoint': 'manage.landing_settings', 'label': _('manage.landing')},
+] %}
 {% set appearance_items = [
   {'endpoint': 'manage.theme_settings', 'label': _('manage.theme')},
   {'endpoint': 'manage.branding', 'label': _('manage.branding')},
+  {'endpoint': theme_editor_items[0].endpoint,
+   'label': _('manage.theme_editor'), 'subnav': theme_editor_items,
+   'also': theme_editor_items|map(attribute='endpoint')|list},
+  {'endpoint': 'manage.navigation', 'label': _('manage.navigation')},
 ] %}
-{% if available_themes().get(current_theme(), {}).get('content', {}).get('fields') %}
-  {% do appearance_items.append({'endpoint': 'manage.landing_settings', 'label': _('manage.landing')}) %}
-{% endif %}
-{% do appearance_items.append({'endpoint': 'manage.navigation', 'label': _('manage.navigation')}) %}
 
 {# Site group (how the site runs): Settings is a parent entry — its 'subnav'
    pages render as a second column (see the subnav render below). #}

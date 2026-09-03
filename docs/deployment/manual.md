@@ -12,9 +12,13 @@ complete the setup wizard in your browser.
 
 ```
 remarqable/supremely:latest
+remarqable/supremely:0.1.0
 ```
 
-Only `latest` is published today. Build your own with
+Every release is published under its own version tag, and `latest` points at
+the newest release, so `latest` is what you want unless you are pinning a
+version deliberately. Version numbers and what changed in each are in
+[CHANGELOG.md](../../CHANGELOG.md). Build your own with
 `docker build -t supremely .` from a clone.
 
 The image runs as a non-root user, **uid and gid 10001**, stores everything

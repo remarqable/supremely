@@ -27,6 +27,63 @@ AVAILABLE_THEMES: dict[str, dict] = {}
 THEME_SLUG_RE = re.compile(r'[a-z0-9]([a-z0-9-]{1,48}[a-z0-9])?')
 
 
+# A theme may not declare copy that duplicates something the organization
+# already owns. Its name, description and pictures follow it from theme to
+# theme; a field asking an admin to retype one of them is a bug, not a
+# feature (that is what Manage -> Branding is for).
+ORG_OWNED_KEYS = frozenset({
+    'brand_name', 'site_name', 'org_name', 'name', 'description',
+    'logo', 'favicon', 'hero_image',
+})
+
+SETTING_TYPES = ('color', 'number', 'string')
+
+
+def validate_manifest(manifest: dict) -> None:
+    """Raise ValidationError unless this theme.json is usable.
+
+    Called from theme discovery and from the installer, so a manifest that
+    parses but is missing a required entry is caught once, at the boundary,
+    rather than during someone's page view.
+    """
+    from app.platform.theme_content import FIELD_TYPES
+    if not isinstance(manifest, dict):
+        raise ValidationError('theme.json must be a JSON object')
+    for key in ('slug', 'name', 'version'):
+        if not str(manifest.get(key, '')).strip():
+            raise ValidationError(f'theme.json is missing "{key}"')
+    if not THEME_SLUG_RE.fullmatch(str(manifest['slug'])):
+        raise ValidationError(f'Invalid theme slug: {manifest["slug"]!r}')
+
+    settings = manifest.get('settings') or {}
+    if not isinstance(settings, dict):
+        raise ValidationError('theme.json "settings" must be an object')
+    for key, spec in settings.items():
+        if not isinstance(spec, dict):
+            raise ValidationError(f'Setting {key} must be an object')
+        if spec.get('type', 'string') not in SETTING_TYPES:
+            raise ValidationError(
+                f'Setting {key} has unknown type {spec.get("type")!r}')
+
+    content = manifest.get('content') or {}
+    if not isinstance(content, dict):
+        raise ValidationError('theme.json "content" must be an object')
+    fields = content.get('fields') or []
+    if not isinstance(fields, list):
+        raise ValidationError('theme.json "content.fields" must be a list')
+    for field in fields:
+        if not isinstance(field, dict) or not field.get('key'):
+            raise ValidationError('Every content field needs a "key"')
+        if field.get('type') not in FIELD_TYPES:
+            raise ValidationError(
+                f'Content field {field["key"]} has unknown type '
+                f'{field.get("type")!r}')
+        if field['key'] in ORG_OWNED_KEYS:
+            raise ValidationError(
+                f'Content field {field["key"]} duplicates something the '
+                f'organization owns; read it from g.org instead')
+
+
 def builtin_themes_dir(app) -> Path:
     return Path(app.root_path) / 'views' / 'themes'
 
@@ -74,9 +131,20 @@ def scan_themes() -> None:
         for manifest_path in sorted(root.glob('*/theme.json')):
             try:
                 manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-                slug = manifest.get('slug') or manifest_path.parent.name
-                if not THEME_SLUG_RE.fullmatch(slug):
+                manifest.setdefault('slug', manifest_path.parent.name)
+                # A built-in theme with a bad manifest is a developer error
+                # and fails loudly (CI renders every shipped theme); an
+                # operator's third-party theme is skipped with a log line,
+                # because it must never take a whole installation down.
+                try:
+                    validate_manifest(manifest)
+                except ValidationError:
+                    if source == 'builtin':
+                        raise
+                    log.error('theme_manifest_invalid',
+                              path=str(manifest_path))
                     continue
+                slug = manifest['slug']
                 if slug in themes:
                     continue            # built-in wins over installed
                 themes[slug] = {
@@ -216,12 +284,20 @@ def community_tokens() -> dict:
 # Direction: supremely-dev/docs/"Supremely — Themes, Visibility, and
 # Presentation Architecture".
 
-PRESENTATION_CONTEXTS = ('publication', 'application', 'console')
+PRESENTATION_CONTEXTS = ('publication', 'application', 'console', 'error')
 
 SHELL_CONTEXTS = {
     'publication': True,     # everyone sees content in-app; the themed
                              # front page remains the public landing
     'application': True,
+    # An error is the one page whose surface is unknowable: the URL did not
+    # resolve, so there is nothing to ask which surface it belonged to. It
+    # renders themed, because the common case by far is a bad or stale link
+    # arriving from outside — a typo, an old bookmark, a search result — and
+    # such a visitor should land somewhere that still looks like the site
+    # they were going to. The cost is that a member who mistypes a community
+    # URL sees the public look for one page.
+    'error': False,
 }
 
 
@@ -293,6 +369,56 @@ def render_gate(title: str, kind: str | None = None):
                        login_next=request.path)
 
 
+# Surfaces that are not part of an organization's site at all. They render
+# outside render_site in normal operation, so their errors do too.
+_UNTHEMED_BLUEPRINTS = frozenset({'manage', 'admin', 'setup', 'auth',
+                                  'launcher'})
+_UNTHEMED_SEGMENTS = frozenset({'manage', 'admin', 'setup', 'auth',
+                                'launcher'})
+
+
+def _outside_the_site(request) -> bool:
+    """Is this request on a surface a theme never renders?
+
+    Asks the blueprint first, which is exact. A 404 matched no route and so
+    has no blueprint, and only then does the URL decide -- by whole first
+    segment, never by string prefix, because a tenant may legitimately
+    publish a page at /managers and that page's 404 is the tenant's.
+    """
+    if request.blueprint in _UNTHEMED_BLUEPRINTS:
+        return True
+    first = request.path.lstrip('/').split('/', 1)[0]
+    return first in _UNTHEMED_SEGMENTS
+
+
+def render_error(code: int, message: str | None = None) -> str:
+    """An error page in the site's own clothes.
+
+    A bad URL on an organization's site used to drop the visitor onto
+    Supremely chrome, which reads as a different website. Errors now resolve
+    through the same candidate list as every other page, so a theme may ship
+    errors/404.html or a single errors/error.html and have it used. Whether
+    the theme or the shell renders it is decided by SHELL_CONTEXTS like every
+    other surface, not here.
+
+    Falls back to the plain template whenever the themed one cannot be
+    rendered: a 500 has already had its transaction rolled back, and an
+    error page that raises inside the error handler serves nothing at all.
+    """
+    from flask import render_template, request
+    plain = f'errors/plain/{code}.html'
+    if not _template_exists(plain):
+        plain = 'errors/plain/error.html'
+    if getattr(g, 'org', None) is None or _outside_the_site(request):
+        return render_template(plain, code=code, message=message)
+    try:
+        return render_site([f'errors/{code}.html', 'errors/error.html'],
+                           context_name='error', code=code, message=message)
+    except Exception:                   # an error page must never fail twice
+        log.exception('themed_error_page_failed', code=code)
+        return render_template(plain, code=code, message=message)
+
+
 def themed(name: str) -> str:
     """Resolve a template part through the theme chain: active theme ->
     Origin -> bare name. The Jinja-native get_header()/get_footer():
@@ -357,6 +483,32 @@ def theme_asset(filename: str) -> str:
                    v=info.get('version', '0'))
 
 
+# What a theme is made of. Extension-based on purpose: this runs before
+# anything is written to disk, where content sniffing cannot help. SVG is
+# allowed here and not for tenant uploads, because a theme is code an
+# operator deployed and reviewed -- the same trust that lets it ship
+# templates at all.
+ALLOWED_THEME_SUFFIXES = frozenset({
+    '.html', '.json', '.css', '.js', '.map', '.txt', '.md',
+    '.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.ico',
+    '.woff', '.woff2', '.ttf', '.otf',
+})
+
+# Files a repository carries with no extension at all. Without these a
+# perfectly ordinary theme ZIP -- one that happens to include its licence --
+# would be refused.
+ALLOWED_THEME_FILENAMES = frozenset({
+    'LICENSE', 'LICENCE', 'COPYING', 'NOTICE', 'README', 'AUTHORS',
+    'CHANGELOG', 'VERSION',
+})
+
+
+def _packageable(relative: str) -> bool:
+    name = Path(relative).name
+    return (Path(relative).suffix.lower() in ALLOWED_THEME_SUFFIXES
+            or name.upper() in ALLOWED_THEME_FILENAMES)
+
+
 def install_theme_zip(file) -> str:
     """Unpack a theme ZIP into the installed-themes root. Operator-only --
     a Jinja template is code, so this is a deploy, not tenant self-service."""
@@ -386,9 +538,10 @@ def install_theme_zip(file) -> str:
         except (json.JSONDecodeError, KeyError) as exc:
             raise ValidationError('theme.json is not valid JSON') from exc
 
-        slug = manifest.get('slug', '')
-        if not THEME_SLUG_RE.fullmatch(slug) or slug in ('default', 'origin'):
-            raise ValidationError('Theme manifest needs a valid slug')
+        validate_manifest(manifest)
+        slug = manifest['slug']
+        if slug in ('default', 'origin'):
+            raise ValidationError('That theme slug is reserved')
 
         target = (target_root / slug).resolve()
         members = [m for m in names
@@ -409,6 +562,13 @@ def install_theme_zip(file) -> str:
             dest = (target / relative).resolve()
             if dest != target and not dest.is_relative_to(target):
                 raise ValidationError(f'Unsafe path in theme package: {member}')
+            # A theme is templates, styles, scripts, fonts and pictures.
+            # Anything else in the archive is something nobody meant to
+            # deploy onto the data volume, so the package is refused rather
+            # than quietly unpacked minus a file.
+            if not _packageable(relative):
+                raise ValidationError(
+                    f'Theme package contains an unsupported file: {relative}')
 
         for member in members:
             relative = member[len(prefix):]

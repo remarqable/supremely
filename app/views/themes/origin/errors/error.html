@@ -1,0 +1,21 @@
+{% extends site_layout %}
+
+{# The site's own error page. A theme overrides this file for one look across
+   every code, or ships errors/404.html for a bespoke "not found" and lets the
+   rest fall back here. Receives `code` and, for application errors, a
+   `message`. #}
+
+{% set known = code in [403, 404, 410, 500] %}
+{% set title = _('errors.' ~ code ~ '_title') if known else _('errors.title') %}
+
+{% block title %}{{ title }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md py-16 text-center">
+  <div class="text-5xl font-bold text-slate-300">{{ code }}</div>
+  <h1 class="mt-2 text-xl font-semibold">{{ title }}</h1>
+  <p class="mt-2 text-slate-600">
+    {{ message or (_('errors.' ~ code ~ '_body') if known else _('errors.body')) }}</p>
+  <a href="/" class="btn-secondary mt-6 inline-flex">{{ _('errors.home') }}</a>
+</div>
+{% endblock %}

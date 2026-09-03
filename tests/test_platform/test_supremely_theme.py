@@ -5,6 +5,7 @@ shared theme."""
 from flask import g
 
 from app.platform.theming import AVAILABLE_THEMES
+from tests.conftest import login_as
 
 ACME = 'http://acme.example.test'
 
@@ -25,13 +26,34 @@ def test_rotating_words_field_is_neutral_by_default(app):
         assert fields['headline_rotate']['default'] == ''
 
 
-def test_brand_name_is_separate_from_org_name(app, client, acme):
-    """The marketing header/footer can carry their own site name — the
-    community keeps the org name (e.g. site "Supremely", community
-    "Supremely Community"). Blank falls back to the org name."""
-    use_supremely(app, acme, brand_name='Acme HQ')
+def test_the_site_name_belongs_to_the_organization(app, client, acme):
+    """A public site can be named differently from the community behind it
+    (site "Supremely", community "Supremely Community"). That name is the
+    organization's, not the theme's: it is read from g.org.site_name, no
+    theme declares it, and it survives a change of theme."""
+    use_supremely(app, acme)
+    acme.update_settings(site_name='Acme HQ')
     body = client.get('/', base_url=ACME).data
     assert b'Acme HQ' in body
+
+    keys = [f['key'] for f in
+            AVAILABLE_THEMES['supremely']['content']['fields']]
+    assert 'brand_name' not in keys
+
+    # Blank falls back to the community's own name.
+    acme.update_settings(site_name='')
+    assert acme.name.encode() in client.get('/', base_url=ACME).data
+
+
+def test_the_community_keeps_its_own_name(app, client, acme, globex, user):
+    """The site name renames the public site only. The community shell is
+    the organization itself and keeps the organization's name."""
+    use_supremely(app, acme)
+    acme.update_settings(site_name='Acme HQ')
+    login_as(client, user)
+    shell = client.get('/discussions/', base_url=ACME).data
+    assert acme.name.encode() in shell
+    assert b'Acme HQ' not in shell
 
 
 def test_front_page_without_rotation_uses_accent(app, client, acme):

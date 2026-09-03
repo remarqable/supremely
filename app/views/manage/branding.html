@@ -8,9 +8,16 @@
   <form method="POST" class="space-y-4">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div>
-      <label for="name" class="label">{{ _('orgs.name_label') }}</label>
+      <label for="name" class="label">{{ _('manage.community_name') }}</label>
       <input type="text" id="name" name="name" class="input mt-1" required
              maxlength="100" value="{{ org.name }}">
+    </div>
+    <div>
+      <label for="site_name" class="label">{{ _('manage.site_name') }}</label>
+      <input type="text" id="site_name" name="site_name" class="input mt-1"
+             maxlength="100" value="{{ org.setting('site_name') or '' }}"
+             placeholder="{{ org.name }}">
+      <p class="mt-1 text-xs text-slate-500">{{ _('manage.site_name_hint') }}</p>
     </div>
     <div>
       <label for="description" class="label">{{ _('manage.description') }}</label>
@@ -47,6 +54,16 @@
         {% endfor %}
       </select>
       <p class="mt-1 text-xs text-slate-500">{{ _('manage.media_hint') }}</p>
+    </div>
+    <div>
+      <label for="hero_upload_id" class="label">{{ _('manage.hero_image') }}</label>
+      <select id="hero_upload_id" name="hero_upload_id" class="select mt-1">
+        <option value="">{{ _('common.none') }}</option>
+        {% for upload in uploads %}
+        <option value="{{ upload.id }}" {{ 'selected' if org.setting('hero_upload_id') == upload.id }}>{{ upload.filename }}</option>
+        {% endfor %}
+      </select>
+      <p class="mt-1 text-xs text-slate-500">{{ _('manage.hero_image_hint') }}</p>
     </div>
     <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
   </form>

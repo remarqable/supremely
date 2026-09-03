@@ -57,7 +57,7 @@ layout — so five files restyle the entire site. We can specialize later.
 
 `theme.json` declares identity, two color **settings** (organizer-tweakable
 under Manage → Settings → Theme), and the **content fields** of our landing
-hero (edited under Manage → Home page):
+hero (edited under Manage → Theme editor → Home page):
 
 ```json
 {
@@ -161,10 +161,36 @@ organizer writes the words; you own the design:
 {% endblock %}
 ```
 
-Note what the landing page does **not** do: it doesn't fetch "the five
-latest stories." Themes don't query. Sections that pull content will
-arrive as server-provided objects in a future homepage-sections release;
-until then, link to the archives (`/blog`, `/events`, `/discussions`).
+### Showing the newest stories
+
+A landing page that is only hero copy gets stale. Ask for content by name
+and Supremely fetches it — you never write a query:
+
+```html
+{% if content_count('article') %}
+<h2 class="font-serif text-3xl">From the trail</h2>
+<div class="mt-6 grid gap-6 sm:grid-cols-3">
+  {% for story in latest_content('article', 3) %}
+  <a href="{{ story.permalink }}" class="block">
+    {% if story.featured_upload %}
+    <img src="{{ story.featured_upload.url('thumb') }}"
+         alt="{{ story.featured_upload.alt or '' }}" class="rounded-lg">
+    {% endif %}
+    <h3 class="mt-3 font-semibold">{{ story.title }}</h3>
+    <p class="text-sm text-slate-600">{{ story.excerpt_or_summary(120) }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+```
+
+`latest_content` takes any registered type — swap `'article'` for
+`'event'`, `'team_member'`, or a type a plugin adds later, and the same
+three lines work. A club with nothing published yet gets an empty list, not
+an error, which is why the section is wrapped in `content_count` rather
+than a guard you have to invent. And gating happens before you see the
+rows: a members-only story is filtered out, or teased, according to the
+organizer's setting.
 
 ## Part 5 — Stories and events, free of charge
 
@@ -212,7 +238,7 @@ make run
 ```
 
 Log in as the owner → Manage → Settings → Theme → **Trailhead** → Save.
-Then Manage → Home page to write the hero. Verification checklist:
+Then Manage → Theme editor → Home page to write the hero. Verification checklist:
 
 | As a visitor (private window) | Expect |
 |---|---|
@@ -228,8 +254,10 @@ Then Manage → Home page to write the hero. Verification checklist:
 - Never gate content in a template; if you can render it, the server
   already authorized it.
 - JavaScript is optional presentation enhancement, not functionality.
-- If a design needs something the context doesn't provide, request a
-  presentation object — don't reach into internals.
+- Ask for content with `latest_content` / `content_count`; never reach past
+  them into models or the session.
+- If a design needs something the documented context doesn't provide, open
+  an issue — don't reach into internals.
 
 That's the whole contract. Five files, one afternoon, a completely
 different website — and not one access check.

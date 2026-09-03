@@ -62,6 +62,34 @@
   {{ back_arrow() }}{{ label }}</a>
 {% endmacro %}
 
+{% macro image_chooser(name, uploads, selected_id, label, none_label) %}
+{#- Pick a picture from the media library: sr-only radios with the thumbnail
+    as the control, so choosing one is a click and a keyboard stop, not a
+    filename in a dropdown. Callers rendering a public surface pass public
+    images only, because a members-only file behind a public page is a
+    broken image, not a private one; a caller whose stored value is missing
+    from the list is responsible for saying so. -#}
+{% if uploads %}
+<div class="mt-2 grid max-h-56 grid-cols-4 gap-2 overflow-y-auto pe-1"
+     role="radiogroup" aria-label="{{ label }}">
+  <label class="cursor-pointer">
+    <input type="radio" name="{{ name }}" value="" class="peer sr-only"
+           {{ 'checked' if not selected_id }}>
+    <span class="flex h-16 items-center justify-center rounded-md bg-slate-100 text-xs text-slate-500 ring-1 ring-slate-900/5 peer-checked:ring-2 peer-checked:ring-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500">{{ none_label or _('manage.featured_none') }}</span>
+  </label>
+  {% for upload in uploads %}
+  <label class="cursor-pointer" title="{{ upload.filename }}">
+    <input type="radio" name="{{ name }}" value="{{ upload.id }}" class="peer sr-only"
+           {{ 'checked' if selected_id == upload.id }}>
+    <img src="{{ upload.url('thumb' if upload.has_variants else 'original') }}"
+         alt="{{ upload.alt or upload.filename }}"
+         class="h-16 w-full rounded-md object-cover ring-1 ring-slate-900/5 peer-checked:ring-2 peer-checked:ring-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500">
+  </label>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
 {% macro status_badge(status) %}
 {%- if status == 'published' -%}<span class="badge-green">{{ _('manage.published') }}</span>
 {%- elif status == 'archived' -%}<span class="badge-red">{{ _('manage.archived') }}</span>

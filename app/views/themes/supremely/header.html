@@ -13,7 +13,7 @@
       {# The marketing site's brand name is its own content field — the
          community can be "Supremely Community" while the site says
          "Supremely". #}
-      <span>{{ theme_content().brand_name or g.org.name or 'Supremely' }}</span>
+      <span>{{ g.org.site_name }}</span>
     </a>
 
     {# Navigation is content, not theme code: the org's primary menu

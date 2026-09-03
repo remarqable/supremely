@@ -147,6 +147,10 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
     size = db.Column(db.Integer, nullable=False)
     # public: anyone with the URL; private: members of the owning org
     visibility = db.Column(db.String(10), nullable=False, default='public')
+    # What a screen reader says in place of the picture. Stored with the file
+    # rather than with whatever references it, so one description follows the
+    # image everywhere it is used (theme hero, featured image, media grid).
+    alt = db.Column(db.String(200), nullable=True)
     has_variants = db.Column(db.Boolean, nullable=False, default=False)
 
     @property

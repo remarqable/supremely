@@ -120,12 +120,45 @@ class Organization(BaseModel):
         self.settings = {**(self.settings or {}), **updates}
         return self.save()
 
-    def logo(self):
+    @property
+    def site_name(self) -> str:
+        """What the public site calls this organization.
+
+        Usually the same as `name`, and defaults to it. They differ when the
+        community and the product it belongs to are named separately -- a
+        community called "Acme Community" whose website is just "Acme". It
+        lives on the organization rather than in a theme's copy, because it
+        is the organization's identity: it must not disappear when someone
+        tries a different theme.
+        """
+        return (self.setting('site_name') or '').strip() or self.name
+
+    def _site_image(self, key: str):
+        """An image this organization shows on its public pages.
+
+        Public only, and re-checked here rather than trusted from settings:
+        a file can be switched to members-only long after it was chosen, and
+        a private file behind a public page is a broken image to every
+        visitor, not a private one. A query, so the tenant filter runs.
+        """
         from .upload import Upload
-        upload_id = self.setting('logo_upload_id')
-        return Upload.get_by_id(upload_id) if upload_id else None
+        upload_id = self.setting(key)
+        if not upload_id:
+            return None
+        return Upload.query.filter_by(id=upload_id,
+                                      visibility='public').first()
+
+    def logo(self):
+        return self._site_image('logo_upload_id')
 
     def favicon(self):
-        from .upload import Upload
-        upload_id = self.setting('favicon_upload_id')
-        return Upload.get_by_id(upload_id) if upload_id else None
+        return self._site_image('favicon_upload_id')
+
+    def hero_image(self):
+        """The organization's main picture, for a theme that wants one.
+
+        Owned by the organization the way the logo and favicon are, so it
+        survives a theme change: a photo of the business is not copy written
+        for one theme's layout. Themes read it and are free to ignore it.
+        """
+        return self._site_image('hero_upload_id')
