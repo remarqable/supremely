@@ -188,17 +188,6 @@ def _init_context(app):
             from .models.notification import Notification
             return Notification.unread_count(current_user.id)
 
-        def start_here_page():
-            """The community sidebar's Start Here target: the published About
-            page, if any. Making this configurable is future Manage work."""
-            if getattr(g, 'org', None) is None:
-                return None
-            from .models import Content
-            page = Content.published_page('about')
-            # Linking it would tell a visitor the page exists; the sidebar
-            # row is not a tease surface.
-            return page if page and page.visible_to_current_visitor() else None
-
         def _member_view():
             """The shell serves visitors too; rail cards must not leak
             gated content or member data to them."""
@@ -305,7 +294,6 @@ def _init_context(app):
             'app_version': APP_VERSION,
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,
-            'start_here_page': start_here_page,
             'latest_announcement': latest_announcement,
             'upcoming_event': upcoming_event,
             'rail_members': rail_members,

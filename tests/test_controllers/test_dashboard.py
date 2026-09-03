@@ -113,15 +113,16 @@ def test_sidebar_lists_content_type_sections(app, client, acme, user):
 
 
 def test_sidebar_groups_and_fixed_items(app, client, acme, user):
-    """Community -> Meet -> Learn in order; Start Here, Newsletters archive,
-    and Settings present; the public /subscribe page is out of the sidebar."""
+    """Community -> Meet -> Learn in order; Newsletters archive and Settings
+    present; the public /subscribe page and the removed Start Here row are
+    out of the sidebar."""
     login_as(client, user)
     html = client.get('/dashboard', base_url=ACME).data
     community = html.index(b'>Community</div>')
     meet = html.index(b'>Meet</div>')
     learn = html.index(b'>Learn</div>')
     assert community < meet < learn
-    assert b'Start Here' in html and b'href="/about"' in html
+    assert b'Start Here' not in html
     assert b'href="/newsletters"' in html
     assert b'href="/subscribe"' not in html
     assert b'Settings' in html

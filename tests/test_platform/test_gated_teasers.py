@@ -52,20 +52,19 @@ def test_public_event_still_shows_its_date_and_location(app, client, acme):
     assert 'THE-VENUE' in body
 
 
-def test_sidebar_hides_start_here_when_the_about_page_is_gated(app, client, acme):
-    with app.test_request_context(base_url=ACME):
-        from flask import g
-        g.org = acme
-        _publish(acme, 'page', slug='about', visibility='members')
+def test_sidebar_does_not_link_the_about_page(app, client, acme):
+    """The sidebar used to carry a "Start Here" row pointing at a published
+    About page. It was removed (#100): the page stays reachable at /about,
+    but the community nav no longer links it, whatever its visibility."""
+    for visibility in ('members', 'public'):
+        with app.test_request_context(base_url=ACME):
+            from flask import g
+            g.org = acme
+            _publish(acme, 'page', slug='about', visibility=visibility)
 
-    assert '/about' not in client.get('/discussions/', base_url=ACME).data.decode()
-
-    with app.test_request_context(base_url=ACME):
-        from flask import g
-        g.org = acme
-        _publish(acme, 'page', slug='about', visibility='public')
-
-    assert '/about' in client.get('/discussions/', base_url=ACME).data.decode()
+        body = client.get('/discussions/', base_url=ACME).data.decode()
+        assert 'Start Here' not in body
+        assert '/about' not in body
 
 
 def test_a_locked_section_teases_nothing_anywhere(app, client, acme):

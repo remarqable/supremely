@@ -60,11 +60,6 @@
 
       {{ group_label(_('community.group_community')) }}
       <div class="space-y-0.5">
-        {% if start_here_page() %}
-        {% call nav_item(_('community.start_here'), '/about', active=(request.path == '/about')) %}
-          <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6.5v.01M10 9.5V14"/></svg>
-        {% endcall %}
-        {% endif %}
         {% call nav_item(_('discussions.title'), '/discussions', active=(active == 'discussions'),
                          locked=not discussions_area_readable()) %}
           <svg class="h-[19px] w-[19px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
