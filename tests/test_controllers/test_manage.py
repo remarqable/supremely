@@ -814,3 +814,89 @@ def test_the_content_list_links_a_published_item_to_its_live_page(app, client,
     assert b'href="/blog/live-one"' in listing
     assert b'href="/blog/draft-one"' not in listing
     assert b'/blog/draft-one' in listing          # still shown, just not a link
+
+
+def test_a_preview_says_it_is_a_preview(app, client, acme, user):
+    """The banner lived only in single.html, so previewing a page looked
+    exactly like the live site. It is one shared partial now, included by
+    every template a preview can render."""
+    login_as(client, user)
+    ids = {}
+    for type_slug, slug, title in (('article', 'draft-post', 'Draft post'),
+                                   ('page', 'draft-page', 'Draft page')):
+        client.post(f'/manage/content/{type_slug}/new', base_url=ACME, data={
+            'title': title, 'slug': slug, 'body': 'Body.',
+            'visibility': 'public', 'action': 'save'})
+        with app.test_request_context(base_url=ACME):
+            g.org = acme
+            ids[type_slug] = Content.query.filter_by(slug=slug).one().id
+
+    for type_slug, content_id in ids.items():
+        preview = client.get(f'/manage/content/{content_id}/preview',
+                             base_url=ACME)
+        assert preview.status_code == 200, type_slug
+        assert b'not published yet' in preview.data, type_slug
+
+
+def test_the_live_page_never_says_preview(app, client, acme, user):
+    """The guard that keeps the notice off a published page."""
+    login_as(client, user)
+    client.post('/manage/content/page/new', base_url=ACME, data={
+        'title': 'About us', 'slug': 'about-us', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+
+    anon = app.test_client()
+    for path in ('/about-us', '/blog/a-post', '/'):
+        page = anon.get(path, base_url=ACME)
+        assert page.status_code == 200, path
+        assert b'not published yet' not in page.data, path
+
+
+def test_every_template_a_preview_can_render_carries_the_notice(app, client,
+                                                                acme, user):
+    """Themes are not the unit of coverage here, templates are.
+
+    Midnight and Trailhead ship no page or single template, so previewing
+    under them renders Origin's files; iterating themes would look like four
+    cases and exercise two. These are the four distinct templates a preview
+    can reach today, each identified by markup only that file produces, so
+    the test fails if a preview silently falls back to a different one.
+    """
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Draft post', 'slug': 'draft-post', 'body': 'Body.',
+        'visibility': 'public', 'action': 'save'})
+    client.post('/manage/content/page/new', base_url=ACME, data={
+        'title': 'Draft page', 'slug': 'draft-page', 'body': 'Body.',
+        'visibility': 'public', 'action': 'save'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        post_id = Content.query.filter_by(slug='draft-post').one().id
+        page = Content.query.filter_by(slug='draft-page').one()
+        page_id = page.id
+
+    cases = (
+        # theme, content, page template, markup unique to the file that wins
+        ('origin', post_id, None, b'prose-supremely'),
+        ('origin', page_id, None, b'prose-supremely'),
+        ('supremely', page_id, None, b'max-w-6xl'),
+        ('supremely', page_id, 'page-presskit', b'Brand colors'),
+    )
+    for theme, content_id, template, marker in cases:
+        acme.theme = theme
+        acme.save()
+        with app.test_request_context(base_url=ACME):
+            g.org = acme
+            item = db.session.get(Content, page_id)
+            item.template = template
+            item.save()
+
+        preview = client.get(f'/manage/content/{content_id}/preview',
+                             base_url=ACME)
+        label = f'{theme}/{template or "default"}'
+        assert preview.status_code == 200, label
+        assert marker in preview.data, label      # the file we think rendered
+        assert b'not published yet' in preview.data, label

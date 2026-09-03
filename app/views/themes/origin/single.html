@@ -12,12 +12,7 @@
 {% endblock %}
 
 {% block content %}
-{% if preview %}
-<div class="mb-6 rounded-md bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
-  {{ _('archive.preview_banner') }}
-</div>
-{% endif %}
-
+{% include 'partials/_preview_banner.html' %}
 {# The archive this item came from. Types without an archive (pages) render
    page.html, so content_type.base is always set here. #}
 <p class="mb-6">

@@ -1,0 +1,9 @@
+{# Shown when a draft is being previewed (manage.preview_content). One
+   definition, included at the top of the content by each template a preview
+   can render: single.html and page.html here, and any template a theme adds
+   for those (see docs/themes/README.md). #}
+{% if preview %}
+<div class="mb-6 rounded-md bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
+  {{ _('manage.preview_banner') }}
+</div>
+{% endif %}

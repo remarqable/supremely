@@ -11,6 +11,7 @@
 {% endblock %}
 
 {% block content %}
+{% include 'partials/_preview_banner.html' %}
 {# A page has no archive to return to, so the return path is the home page. #}
 <p class="mb-6">
   {{ back_link('/', _('nav.home')) }}

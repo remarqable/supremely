@@ -295,6 +295,22 @@ To see a mobile template on a desktop browser, add `?device=mobile` to any
 URL; `?device=desktop` pins the other way and `?device=auto` goes back to
 detection.
 
+## Previews
+
+An organizer can preview a draft before publishing it, and the preview
+renders through your theme. Include the banner that says so at the top of
+the content in every template a preview can reach:
+
+```jinja
+{% include 'partials/_preview_banner.html' %}
+```
+
+That means `single.html` and `page.html`, and also any `{template}.html` a
+page can be assigned, any `single-{type}.html` you ship, and their `mobile/`
+siblings if you have them. It renders nothing outside a preview, so it is
+safe to include unconditionally. Without it, a draft looks exactly like the
+live site, which is the whole reason the banner exists.
+
 ## Attribution
 
 Every theme's footer carries a "Powered by Supremely" line, and it comes
