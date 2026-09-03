@@ -26,39 +26,120 @@
 {% if uploads %}
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
   {% for upload in uploads %}
-  <div class="card p-2.5">
-    {% if upload.is_image %}
-    <img src="{{ upload.url('thumb' if upload.has_variants else 'original') }}"
-         alt="{{ upload.filename }}" class="mb-2 h-32 w-full rounded-md object-cover ring-1 ring-slate-900/5">
-    {% else %}
-    <div class="mb-2 flex h-32 items-center justify-center rounded-md bg-slate-100 font-mono text-xs text-slate-400">{{ upload.content_type }}</div>
-    {% endif %}
-    <div class="truncate px-0.5 text-xs font-medium text-slate-900" title="{{ upload.filename }}">{{ upload.filename }}</div>
-    {# No inline handler: the Content-Security-Policy has no unsafe-inline,
-       so an onchange submit would be dead in production. #}
-    <form method="POST" class="mt-1.5 space-y-1"
-          action="{{ url_for('manage.update_media', upload_id=upload.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {# One tile, one menu.
+
+     Every disclosure here is a native <details>, so the collapsed state is
+     what the HTML says rather than something JavaScript corrects after the
+     fact. That buys three things at once: an author whose script failed to
+     load can still describe, reshare and delete a file; nothing flashes
+     open on first paint waiting for Alpine; and the keyboard and screen
+     reader behaviour comes from the browser instead of from ARIA promises
+     the markup would have to keep by hand.
+
+     Alpine adds only what a <details> does not do: closing on an outside
+     click, closing on Escape, and putting focus where the eye went. The
+     other menus in the app are the usual x-show and x-cloak pair; this one
+     is not, because deleting a file is the kind of thing a page must not
+     lose when a script fails to load.
+
+     The panel anchors to the button's end edge, so it opens inward from
+     whichever column the tile is in, and the right way round in a
+     right-to-left language. #}
+  <div class="card group p-2.5" x-data>
+    <div class="relative">
       {% if upload.is_image %}
-      <input type="text" name="alt" class="input text-xs" maxlength="200"
-             value="{{ upload.alt or '' }}" placeholder="{{ _('manage.alt_placeholder') }}"
-             aria-label="{{ _('manage.alt_text') }}">
+      <img src="{{ upload.url('thumb' if upload.has_variants else 'original') }}"
+           alt="{{ upload.alt or upload.filename }}"
+           class="h-32 w-full rounded-md object-cover ring-1 ring-slate-900/5">
+      {% else %}
+      <div class="flex h-32 items-center justify-center rounded-md bg-slate-100 font-mono text-xs text-slate-600">{{ upload.content_type }}</div>
       {% endif %}
-      <div class="flex gap-1">
-        <select name="visibility" class="select w-full text-xs"
-                aria-label="{{ _('manage.visibility') }}">
-          <option value="public" {{ 'selected' if upload.visibility == 'public' }}>{{ _('manage.visibility_public') }}</option>
-          <option value="members" {{ 'selected' if upload.visibility == 'members' }}>{{ _('manage.visibility_members') }}</option>
-        </select>
-        <button type="submit" class="btn-secondary text-xs">{{ _('common.save') }}</button>
-      </div>
-    </form>
-    <div class="mt-1 flex items-center justify-between px-0.5 text-xs text-slate-400">
-      <span class="tabular-nums">{{ (upload.size / 1024) | round(1) }} KB</span>
-      <form method="POST" action="{{ url_for('manage.delete_media', upload_id=upload.id) }}">
+
+      <details class="absolute end-1.5 top-1.5" x-ref="menu"
+               @click.outside="$refs.menu.open = false"
+               @keydown.escape.stop="$refs.menu.open = false; $refs.trigger.focus()"
+               @focusout="if (!$el.contains($event.relatedTarget)) $el.open = false">
+        {# Revealed on hover where there is a pointer to hover with, and
+           always visible where there is not: on a touch screen an invisible
+           control is an absent one, and this is the only way to delete a
+           file. Sized past the 24px minimum for a touch target. #}
+        <summary x-ref="trigger" aria-haspopup="menu"
+                 class="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-md bg-white/90 text-slate-700 shadow-sm ring-1 ring-slate-900/10 transition-opacity hover:bg-white focus-visible:opacity-100 [&::-webkit-details-marker]:hidden [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
+          <span class="sr-only">{{ _('manage.file_actions') }}</span>
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="10" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="15" cy="10" r="1.4"/>
+          </svg>
+        </summary>
+
+        <div role="menu" class="absolute end-0 top-9 z-20 w-52 rounded-lg bg-white py-1 text-start shadow-lg ring-1 ring-slate-900/10">
+          {% if upload.is_image %}
+          <button type="button" role="menuitem"
+                  @click="$refs.menu.open = false; $refs.describe.open = true;
+                          $nextTick(() => $refs.alt.focus())"
+                  class="block w-full px-3.5 py-1.5 text-start text-sm text-slate-700 hover:bg-slate-50">
+            {{ _('manage.edit_description') }}</button>
+          {% endif %}
+
+          {# Visibility is one item, not a select and a Save: a menu offers
+             actions. The form posts only the new value, and update_media
+             leaves any field it was not given alone, so this cannot clear
+             the description. Both the value and the wording come from the
+             model's own answer, so they cannot disagree. #}
+          <form method="POST" action="{{ url_for('manage.update_media', upload_id=upload.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="visibility" value="{{ upload.other_visibility }}">
+            <button type="submit" role="menuitem"
+                    class="block w-full px-3.5 py-1.5 text-start text-sm text-slate-700 hover:bg-slate-50">
+              {{ _('manage.make_public') if upload.other_visibility == 'public'
+                 else _('manage.make_members_only') }}</button>
+          </form>
+
+          <div class="mt-1 border-t border-slate-100 pt-1">
+            <form method="POST" action="{{ url_for('manage.delete_media', upload_id=upload.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" role="menuitem"
+                      class="block w-full px-3.5 py-1.5 text-start text-sm text-red-600 hover:bg-red-50">
+                {{ _('common.delete') }}</button>
+            </form>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    {# The filename is the disclosure for its own description, so the editor
+       is collapsed in the markup and needs no script to stay that way. The
+       menu item opens this same one. #}
+    {% if upload.is_image %}
+    <details x-ref="describe"
+             @keydown.escape.stop="$refs.describe.open = false; $refs.name.focus()">
+      <summary x-ref="name"
+               class="mt-2 cursor-pointer list-none truncate px-0.5 text-xs font-medium text-slate-900 hover:text-brand-700 [&::-webkit-details-marker]:hidden"
+               title="{{ upload.filename }}">{{ upload.filename }}</summary>
+      <form method="POST" class="mt-1.5 flex gap-1"
+            action="{{ url_for('manage.update_media', upload_id=upload.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button type="submit" class="hover:text-red-600">{{ _('common.delete') }}</button>
+        <input type="text" name="alt" x-ref="alt" class="input text-xs" maxlength="200"
+               value="{{ upload.alt or '' }}" placeholder="{{ _('manage.alt_placeholder') }}"
+               aria-label="{{ _('manage.alt_text') }}">
+        <button type="submit" class="btn-secondary text-xs">{{ _('common.save') }}</button>
       </form>
+    </details>
+    {% else %}
+    <div class="mt-2 truncate px-0.5 text-xs font-medium text-slate-900"
+         title="{{ upload.filename }}">{{ upload.filename }}</div>
+    {% endif %}
+
+    <div class="mt-1 flex items-center gap-1.5 px-0.5 text-xs">
+      <span class="tabular-nums text-slate-500">{{ (upload.size / 1024) | round(1) }} KB</span>
+      {# The only sign of who can reach the file now that the select is gone,
+         so both states are named rather than one being read from the absence
+         of the other. Green carries public, as it does for published content
+         elsewhere in Manage. #}
+      {% if upload.visibility == 'public' %}
+      <span class="badge-green">{{ _('manage.visibility_public') }}</span>
+      {% else %}
+      <span class="badge-slate">{{ _('manage.visibility_members') }}</span>
+      {% endif %}
     </div>
   </div>
   {% endfor %}

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from flask import g
 
 from app.extensions import db
+from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 
 from .base import AuditMixin, BaseModel, OrgScoped
@@ -156,6 +157,18 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
     @property
     def is_image(self) -> bool:
         return self.content_type.startswith('image/')
+
+    @property
+    def other_visibility(self) -> str:
+        """The visibility a one-click toggle would move this file to.
+
+        Read off the platform's list of levels rather than written out here,
+        so a third level arrives as a failure on this line instead of
+        silently resolving to 'public' in every tile that offers the switch.
+        A toggle only means something while there are exactly two.
+        """
+        public, members = VISIBILITY_LEVELS
+        return members if self.visibility == public else public
 
     def variant_key(self, variant: str) -> str:
         if variant == 'original':

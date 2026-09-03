@@ -426,8 +426,10 @@ def test_theme_editor_explains_itself_when_nothing_is_editable(app, client, acme
 
 # --- media visibility ----------------------------------------------------------------
 
-def _upload(client, visibility=None, base_url=ACME):
-    data = {'file': (io.BytesIO(make_png()), 'photo.png')}
+def _upload(client, visibility=None, base_url=ACME, name='photo.png',
+            content=None):
+    data = {'file': (io.BytesIO(content if content is not None else make_png()),
+                     name)}
     if visibility is not None:
         data['visibility'] = visibility
     client.post('/manage/media', base_url=base_url, data=data,
@@ -962,3 +964,164 @@ def test_one_organizations_addresses_do_not_shape_anothers(app, client, acme,
         g.org = acme
         assert Content.query.filter_by(title='Shared title').one().slug == (
             'shared-title')
+
+
+def test_the_media_tile_hides_its_actions_behind_a_menu(app, client, acme,
+                                                        user):
+    """The grid used to be a grid of forms: a description box, a visibility
+    select and a Save button under every thumbnail. The actions live behind
+    a menu now, and the tile shows the file.
+
+    Asserted on strings a tile is the only thing that renders. The upload
+    form at the top of the page has its own visibility select, and the
+    navbar has its own dropdown, so a page with no tiles satisfies the
+    obvious assertions.
+    """
+    login_as(client, user)
+    _upload(client)
+
+    page = client.get('/manage/media', base_url=ACME).data
+    assert b'File actions' in page                # the tile's trigger
+    assert b'Edit description' in page
+    assert b'Make members only' in page           # one item, not a select
+    assert b'/delete"' in page                    # the delete form
+    # Two selects would mean a tile still carries one; there is exactly the
+    # upload form's.
+    assert page.count(b'<select') == 1
+
+    # The negative control: with no files, none of it renders, so none of
+    # the above can be coming from the page furniture.
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        for upload in Upload.query.all():
+            upload.delete()
+    empty = client.get('/manage/media', base_url=ACME).data
+    for marker in (b'File actions', b'Edit description', b'Make members only',
+                   b'/delete"'):
+        assert marker not in empty, marker
+
+
+def test_the_menu_works_without_javascript(app, client, acme, user):
+    """Every action is a plain form inside a <details>, which opens and
+    closes on its own, so an author whose script did not load can still
+    describe, reshare and delete a file.
+
+    Sliced from the tile's own trigger, not from the first <details> on the
+    page: the Manage sidenav is a <details> too, and starting there would
+    assert over layout markup and pass with no files at all.
+    """
+    login_as(client, user)
+    upload_id = _upload(client)
+    page = client.get('/manage/media', base_url=ACME).data
+    tile = page[page.index(b'File actions'):]
+
+    # Nothing is hidden by script or by the CSS that hides pre-Alpine state,
+    # so nothing is unreachable when neither runs.
+    assert b'x-show' not in tile
+    assert b'x-cloak' not in tile
+    # All three actions are real forms with real destinations.
+    assert tile.count(f'action="/manage/media/{upload_id}"'.encode()) == 2
+    assert f'action="/manage/media/{upload_id}/delete"'.encode() in tile
+
+
+def test_the_menu_can_change_visibility_in_one_click(app, client, acme, user):
+    """The item posts the opposite of the current value, and posting a
+    visibility must not clear the description."""
+    login_as(client, user)
+    upload_id = _upload(client)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        upload = db.session.get(Upload, upload_id)
+        upload.alt = 'A described image.'
+        upload.save()
+
+    # Both states are named on the tile. Asserted on the badge markup, not
+    # on the word: "Public" is also an option in the upload form's select.
+    page = client.get('/manage/media', base_url=ACME).data
+    assert b'badge-green">Public<' in page
+
+    client.post(f'/manage/media/{upload_id}', base_url=ACME,
+                data={'visibility': 'members'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        saved = db.session.get(Upload, upload_id)
+        assert saved.visibility == 'members'
+        assert saved.alt == 'A described image.'     # untouched
+
+    # The tile now offers the other direction, and says it is gated.
+    page = client.get('/manage/media', base_url=ACME).data
+    assert b'Make public' in page
+    assert b'Make members only' not in page
+    assert b'badge-slate">Members only<' in page
+    assert b'badge-green">Public<' not in page
+
+
+def test_the_menu_deletes_the_file(app, client, acme, user):
+    """The delete form's destination, end to end."""
+    login_as(client, user)
+    upload_id = _upload(client)
+    client.post(f'/manage/media/{upload_id}/delete', base_url=ACME)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Upload, upload_id) is None
+    assert client.get(f'/files/{upload_id}/original',
+                      base_url=ACME).status_code == 404
+
+
+def test_a_file_cannot_be_deleted_from_another_tenants_host(app, client, acme,
+                                                            globex, user):
+    """Delete is the destructive half of the menu and loads by id, so it gets
+    the same cross-tenant proof the visibility route has."""
+    login_as(client, user)
+    upload_id = _upload(client)
+
+    hank = User.query.filter_by(email='hank@example.com').one()
+    other = app.test_client()
+    login_as(other, hank)
+    assert other.post(f'/manage/media/{upload_id}/delete',
+                      base_url='http://globex.example.test').status_code == 404
+
+    # Positive control: Globex can delete a file Globex owns, so the 404 is
+    # the tenant filter rather than a route that never worked.
+    own_id = _upload(other, base_url='http://globex.example.test')
+    assert other.post(f'/manage/media/{own_id}/delete',
+                      base_url='http://globex.example.test').status_code == 302
+
+    # Acme's file survived, bytes and all.
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Upload, upload_id) is not None
+    assert client.get(f'/files/{upload_id}/original',
+                      base_url=ACME).status_code == 200
+
+
+def test_a_member_cannot_delete_a_file(app, client, acme, user):
+    """The menu is drawn for whoever can manage content. A member who reaches
+    the URL anyway is refused by the route, not by the absence of a button."""
+    member = make_user(email='reader@example.com', name='Reader')
+    Membership.add(member.id, acme.id, role='member')
+
+    login_as(client, user)
+    upload_id = _upload(client)
+
+    reader = app.test_client()
+    login_as(reader, member)
+    assert reader.post(f'/manage/media/{upload_id}/delete',
+                       base_url=ACME).status_code == 403
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Upload, upload_id) is not None
+
+
+def test_a_file_that_is_not_an_image_is_not_offered_a_description(app, client,
+                                                                  acme, user):
+    """Alt text describes a picture. A PDF still gets visibility and
+    delete."""
+    login_as(client, user)
+    _upload(client, name='notes.pdf', content=b'%PDF-1.4\n%%EOF\n')
+
+    page = client.get('/manage/media', base_url=ACME).data
+    assert b'notes.pdf' in page
+    assert b'Edit description' not in page
+    assert b'Make members only' in page
+    assert b'/delete"' in page
