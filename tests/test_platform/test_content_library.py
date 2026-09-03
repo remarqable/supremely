@@ -31,6 +31,17 @@ def test_videos_are_labelled_videos_but_still_live_at_recordings(app):
     assert ct.base == '/recordings'
 
 
+def test_site_presented_types_stay_out_of_the_community_nav(app):
+    """The sidebar asks each type whether it belongs there rather than
+    naming one, so a type that presents as site furniture drops out by
+    declaring what it is, and a type added later needs no nav change."""
+    assert not CONTENT_TYPES['team_member'].in_community_nav
+    assert CONTENT_TYPES['recording'].in_community_nav
+    assert CONTENT_TYPES['event'].in_community_nav
+    # A page has no archive to link to, so it is not a nav destination.
+    assert not CONTENT_TYPES['page'].in_community_nav
+
+
 def test_no_base_collisions(app):
     bases = [ct.base for ct in CONTENT_TYPES.values() if ct.base]
     assert len(bases) == len(set(bases))

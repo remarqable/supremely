@@ -91,11 +91,28 @@ class ContentType:
     # marketing look) — same vocabulary as Content.presentation for pages.
     # Declared here and passed through the render_site seam; never a
     # membership test at a callsite.
+    # A 'site' type is also left out of the community sidebar and the
+    # community home feed: its pages render themed, so sending a member
+    # there from inside the shell would drop them onto the public site
+    # mid-browse (see in_community_nav).
     presentation: str = 'community'
 
     @property
     def is_page(self) -> bool:
         return not self.has_archive
+
+    @property
+    def in_community_nav(self) -> bool:
+        """Does this type belong in the community sidebar?
+
+        A type that presents as site furniture does not. Its archive renders
+        through the theme, so a row in the community sidebar would take a
+        member out of the shell they were browsing and into the public site,
+        which is a jarring thing for a sidebar to do. Team is the current
+        example: a roster is something a visitor reads on the website, not
+        something a member navigates to from inside the community.
+        """
+        return self.has_archive and self.presentation == 'community'
 
     def validate_definition(self):
         if not _SLUG_RE.fullmatch(self.slug):
@@ -187,6 +204,18 @@ def active_types() -> dict[str, ContentType]:
 def feed_types() -> list[ContentType]:
     return [ct for ct in CONTENT_TYPES.values()
             if ct.has_archive and type_is_active(ct)]
+
+
+def community_types(group: str | None = None) -> list[ContentType]:
+    """Types the community surface lists, optionally within one nav group.
+
+    The community's own answer to feed_types(): everything a member can be
+    sent to from inside the shell, which excludes anything that presents on
+    the site (ContentType.in_community_nav).
+    """
+    return [ct for ct in CONTENT_TYPES.values()
+            if ct.in_community_nav and type_is_active(ct)
+            and (group is None or ct.group == group)]
 
 
 def type_for_base(base: str) -> ContentType | None:

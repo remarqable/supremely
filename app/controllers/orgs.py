@@ -81,10 +81,16 @@ def _recent_posts(groups):
 
 def _latest_published():
     """The org's published voice for Home's org column. Announcements are
-    excluded — the rail's announcement card already features the latest."""
+    excluded — the rail's announcement card already features the latest.
+
+    Community types only, for the same reason the sidebar lists only those:
+    a card here linking to a site-presented type would drop a member out of
+    the shell and onto the themed public site mid-browse.
+    """
     from app.models import Content
-    from app.platform.content_types import feed_types
-    type_slugs = [ct.slug for ct in feed_types() if ct.slug != 'announcement']
+    from app.platform.content_types import community_types
+    type_slugs = [ct.slug for ct in community_types()
+                  if ct.slug != 'announcement']
     if not type_slugs:
         return []
     return (Content.published_query()

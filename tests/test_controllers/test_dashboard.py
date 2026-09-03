@@ -112,6 +112,39 @@ def test_sidebar_lists_content_type_sections(app, client, acme, user):
         assert label in response.data, label
 
 
+def test_the_sidebar_leaves_out_types_that_present_on_the_site(app, client,
+                                                               acme, user):
+    """Team is a roster a visitor reads on the website, and its archive
+    renders through the theme. A row here would take a member out of the
+    shell they are browsing and into the public site, so the sidebar lists
+    only the types that present inside the community.
+
+    The type, its data and /team are untouched: only the link is gone.
+    """
+    login_as(client, user)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        member = Content(type='team_member', title='Ada Lovelace',
+                         slug='ada-lovelace', body='Engineer.',
+                         org_id=acme.id, visibility='public',
+                         fields={}, tags=[])
+        member.save()
+        member.publish()
+
+    page = client.get('/dashboard', base_url=ACME).data
+    # Asserted on the href, not the label: the Publish menu on this page
+    # legitimately lists Team as somewhere to author, so the word itself is
+    # present and proves nothing either way.
+    assert b'href="/team"' not in page
+    assert b'/team/ada-lovelace' not in page      # nor in the home feed
+    # The group it sat in is still there, with what does belong in it.
+    assert b'href="/events"' in page
+    assert b'href="/members"' in page
+
+    assert client.get('/team', base_url=ACME).status_code == 200
+    assert client.get('/team/ada-lovelace', base_url=ACME).status_code == 200
+
+
 def test_sidebar_groups_and_fixed_items(app, client, acme, user):
     """Community -> Meet -> Learn in order; Newsletters archive and Settings
     present; the public /subscribe page and the removed Start Here row are

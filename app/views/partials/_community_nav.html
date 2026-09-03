@@ -31,7 +31,7 @@
 {% endmacro %}
 
 {% macro type_items(group_name) %}
-{% for ct in content_types().values() if ct.has_archive and ct.group == group_name %}
+{% for ct in community_types(group_name) %}
 {% call nav_item(ct.plural, ct.base,
                  active=(request.path == ct.base
                          or request.path.startswith(ct.base + '/')),
@@ -80,8 +80,7 @@
         {% endcall %}
       </div>
 
-      {% set learn_types = content_types().values()
-           | selectattr('has_archive') | selectattr('group', 'equalto', 'learn') | list %}
+      {% set learn_types = community_types('learn') %}
       {% if learn_types %}
       {{ group_label(_('community.group_learn')) }}
       <div class="space-y-0.5">

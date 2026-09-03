@@ -180,7 +180,7 @@ def _init_context(app):
         from flask_login import current_user
 
         from .models import NavigationItem
-        from .platform.content_types import active_types
+        from .platform.content_types import active_types, community_types
 
         def unread_notifications():
             if getattr(g, 'membership', None) is None:
@@ -300,6 +300,7 @@ def _init_context(app):
             'discussions_area_readable': discussions_area_readable,
             'section_readable': section_readable,
             'content_types': active_types,
+            'community_types': community_types,
             'latest_content': latest_content,
             'content_count': content_count,
             'powered_by_url': powered_by_url,
