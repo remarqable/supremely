@@ -23,12 +23,12 @@ self-hosted, used by real communities, and evaluated through actual use.
 The scope is defined in [the v1.0 release plan](releases/v1.0.md) and tracked
 in the GitHub v1.0.0 milestone. Against the four components, v1.0 delivers:
 
-- **CMS**: pages and posts. Done, with a handful of fixes open from using the
-  Videos type in earnest (#78, #80 to #84).
+- **CMS**: pages and posts. Done, with editor and Videos fixes open from
+  using the product in earnest (see section 4 of the release plan).
 - **Discussions**: basic threading, replies, reactions, and moderation. Done.
-- **Newsletters**: sending through Gmail SMTP works today; Mailgun and a
-  documented setup recipe for each are open, as is a proper HTML layout for
-  every email Supremely sends (#89).
+- **Newsletters**: sending through Gmail SMTP works today. The Mailgun
+  integration (#104), a documented Gmail recipe (#105) and a proper HTML
+  layout for every email Supremely sends (#89) are open.
 - **Membership**: tiers, with Free and Private built in and content gated by
   tier (#85). Open, and the largest remaining piece of feature work.
 
@@ -46,10 +46,10 @@ room. The items already known to belong here:
   demand appears (#79). Without this, an established community has to
   recreate everything by hand.
 - **Paid tiers**: Stripe Checkout and webhooks on top of the v1.0 tier model
-  (#86), if the v1.0 review moves it here as recommended.
+  (#86).
 - **Hosted audio and video**: direct mp3 and video upload with streaming
-  playback, rather than embeds from a URL (#84), if the v1.0 review moves it
-  here as recommended.
+  playback, rather than embeds from a URL (#84).
+- **AI summaries**: a generated short blurb on post preview cards (#103).
 
 Beyond those, let actual experience with v1.0 determine the priorities. Likely
 work will include strengthening the core product, removing assumptions that
