@@ -93,11 +93,11 @@ curl -s -b "$OWNER" "$BASE/discussions/lounge/1" | grep -q "Hello from the frien
 curl -s -b "$OWNER" "$BASE/notifications/" | grep -q "Introductions" \
   && pass "comment notification received" || fail "notification"
 
-# --- dogfood: getsupremely.org seeded on the same install ----------------------------------
+# --- dogfood: supremely.org seeded on the same install ----------------------------------
 uv run flask seed getsupremely >/dev/null 2>&1 && pass "getsupremely org seeded (dogfood)" || fail "seed"
-# getsupremely.org runs on the Supremely marketing theme (dogfood)
+# supremely.org runs on the Supremely marketing theme (dogfood)
 curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/" | grep -q "The open-source" \
-  && pass "getsupremely.org homepage serves" || fail "dogfood home"
+  && pass "supremely.org homepage serves" || fail "dogfood home"
 curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/docs" | grep -q "docker compose up" \
   && pass "docs page serves" || fail "docs"
 curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/blog" | grep -q "Supremely now runs on Supremely" \
