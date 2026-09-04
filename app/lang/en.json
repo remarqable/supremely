@@ -315,6 +315,8 @@
   "notifications.type_moderation": "Moderation",
   "manage.discussions": "Discussions",
   "manage.discussion_groups": "Groups",
+  "manage.new_group": "New group",
+  "manage.order": "Order",
   "manage.group_deleted": "Group deleted.",
   "manage.flag_queue": "Flag queue",
   "manage.no_flags": "No open flags.",

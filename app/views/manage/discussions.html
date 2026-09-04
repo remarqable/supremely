@@ -2,78 +2,92 @@
 {% from 'partials/_ui.html' import page_header, empty_state with context %}
 
 {% block manage_content %}
-<div class="mx-auto max-w-2xl">
-  {% call page_header(_('manage.discussion_groups')) %}
-    <a href="{{ url_for('manage.flags') }}" class="btn-secondary">{{ _('manage.flag_queue') }}</a>
-  {% endcall %}
-  {% set area = g.org.setting('discussions_visibility', 'per_group') %}
-  <div class="card mb-4">
-    <form method="POST" class="flex flex-wrap items-end gap-3">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="min-w-0 flex-1">
-        <label for="area_visibility" class="label">{{ _('manage.discussions_visibility') }}</label>
-        <select id="area_visibility" name="area_visibility" class="select mt-1">
-          <option value="per_group" {{ 'selected' if area == 'per_group' }}>{{ _('manage.area_per_group') }}</option>
-          <option value="public" {{ 'selected' if area == 'public' }}>{{ _('manage.area_public') }}</option>
-          <option value="members" {{ 'selected' if area == 'members' }}>{{ _('manage.area_members') }}</option>
-        </select>
-        <p class="mt-1.5 text-xs text-slate-500">{{ _('manage.discussions_visibility_hint') }}</p>
-      </div>
-      <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
-    </form>
-  </div>
+{% call page_header(_('manage.discussion_groups')) %}
+  <a href="{{ url_for('manage.flags') }}" class="btn-secondary">{{ _('manage.flag_queue') }}</a>
+{% endcall %}
+{% set area = g.org.setting('discussions_visibility', 'per_group') %}
+<div class="card mb-4">
+  <form method="POST" class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="min-w-0 flex-1">
+      <label for="area_visibility" class="label">{{ _('manage.discussions_visibility') }}</label>
+      <select id="area_visibility" name="area_visibility" class="select mt-1">
+        <option value="per_group" {{ 'selected' if area == 'per_group' }}>{{ _('manage.area_per_group') }}</option>
+        <option value="public" {{ 'selected' if area == 'public' }}>{{ _('manage.area_public') }}</option>
+        <option value="members" {{ 'selected' if area == 'members' }}>{{ _('manage.area_members') }}</option>
+      </select>
+      <p class="mt-1.5 text-xs text-slate-500">{{ _('manage.discussions_visibility_hint') }}</p>
+    </div>
+    <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+  </form>
+</div>
 
-  <div class="card">
-    {% if groups %}
-    <ul class="divide-y divide-slate-100">
+<div class="card mb-4">
+  {% if groups %}
+  <table class="table-plain">
+    <thead>
+      <tr>
+        <th>{{ _('common.name') }}</th>
+        <th>{{ _('orgs.slug_label') }}</th>
+        <th>{{ _('manage.visibility') }}</th>
+        <th class="w-20 text-center">{{ _('manage.order') }}</th>
+        <th class="w-56 text-end">{{ _('common.actions') }}</th>
+      </tr>
+    </thead>
+    <tbody>
       {% for group in groups %}
-      <li class="flex items-center gap-2.5 py-2.5 text-sm first:pt-0">
-        <span class="font-medium text-slate-900">{{ group.name }}</span>
-        <span class="font-mono text-xs text-slate-400">/discussions/{{ group.slug }}</span>
-        <span class="badge-slate">{{ _('manage.visibility_' + group.visibility) }}</span>
-        <span class="ms-auto flex shrink-0 gap-1">
-          <form method="POST" action="{{ url_for('manage.move_group', group_id=group.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="direction" value="up">
-            <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" {{ 'disabled' if loop.first }}><span aria-hidden="true">↑</span><span class="sr-only">{{ _('manage.move_up') }}</span></button>
-          </form>
-          <form method="POST" action="{{ url_for('manage.move_group', group_id=group.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="direction" value="down">
-            <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" {{ 'disabled' if loop.last }}><span aria-hidden="true">↓</span><span class="sr-only">{{ _('manage.move_down') }}</span></button>
-          </form>
-        </span>
-        <form method="POST" action="{{ url_for('manage.toggle_group_visibility', group_id=group.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="text-slate-500 hover:text-slate-900">
-            {{ _('manage.unlock_section') if group.visibility == 'members' else _('manage.lock_section') }}</button>
-        </form>
-        <form method="POST" action="{{ url_for('manage.delete_group', group_id=group.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
-        </form>
-      </li>
+      <tr>
+        <td class="font-medium text-slate-900">{{ group.name }}</td>
+        <td class="font-mono text-xs text-slate-500">/discussions/{{ group.slug }}</td>
+        <td><span class="badge-slate">{{ _('manage.visibility_' + group.visibility) }}</span></td>
+        <td class="whitespace-nowrap text-center">
+          <div class="inline-flex items-center gap-1">
+            <form method="POST" action="{{ url_for('manage.move_group', group_id=group.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="direction" value="up">
+              <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:invisible" {{ 'disabled' if loop.first }}><span aria-hidden="true">↑</span><span class="sr-only">{{ _('manage.move_up') }}</span></button>
+            </form>
+            <form method="POST" action="{{ url_for('manage.move_group', group_id=group.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="direction" value="down">
+              <button type="submit" class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:invisible" {{ 'disabled' if loop.last }}><span aria-hidden="true">↓</span><span class="sr-only">{{ _('manage.move_down') }}</span></button>
+            </form>
+          </div>
+        </td>
+        <td class="whitespace-nowrap">
+          <div class="flex items-center justify-end gap-4">
+            <form method="POST" action="{{ url_for('manage.toggle_group_visibility', group_id=group.id) }}" class="w-40">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="text-slate-500 hover:text-slate-900">
+                {{ _('manage.unlock_section') if group.visibility == 'members' else _('manage.lock_section') }}</button>
+            </form>
+            <form method="POST" action="{{ url_for('manage.delete_group', group_id=group.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
       {% endfor %}
-    </ul>
-    {% else %}
-    {{ empty_state(_('common.none')) }}
-    {% endif %}
+    </tbody>
+  </table>
+  {% else %}
+  {{ empty_state(_('common.none')) }}
+  {% endif %}
+</div>
 
-    <form method="POST" class="mt-6 space-y-3 border-t border-slate-100 pt-4">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="flex gap-3">
-        <div class="flex-1">
-          <label for="name" class="label">{{ _('common.name') }}</label>
-          <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
-        </div>
-        <div class="flex-1">
-          <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
-          <input type="text" id="slug" name="slug" class="input mt-1" required>
-        </div>
+<div class="card">
+  <h2 class="mb-3 text-sm font-semibold text-slate-900">{{ _('manage.new_group') }}</h2>
+  <form method="POST" class="space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid gap-3 md:grid-cols-3">
+      <div>
+        <label for="name" class="label">{{ _('common.name') }}</label>
+        <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
       </div>
       <div>
-        <label for="description" class="label">{{ _('manage.description') }}</label>
-        <input type="text" id="description" name="description" class="input mt-1" maxlength="500">
+        <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
+        <input type="text" id="slug" name="slug" class="input mt-1" required>
       </div>
       <div>
         <label for="visibility" class="label">{{ _('manage.visibility') }}</label>
@@ -82,8 +96,12 @@
           <option value="public">{{ _('manage.visibility_public') }}</option>
         </select>
       </div>
-      <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
-    </form>
-  </div>
+    </div>
+    <div>
+      <label for="description" class="label">{{ _('manage.description') }}</label>
+      <input type="text" id="description" name="description" class="input mt-1" maxlength="500">
+    </div>
+    <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
+  </form>
 </div>
 {% endblock %}
