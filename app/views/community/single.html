@@ -28,7 +28,7 @@
 
 <article class="min-w-0 rounded-xl bg-white p-6 ring-1 ring-slate-200 sm:p-8">
   <header class="mb-6">
-    <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ content.title }}</h1>
+    <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ content.title }}</h1>
     <p class="mt-2 text-sm text-slate-500">
       {% if content.published_at %}{{ content.published_at|localdate }}{% endif %}
       {% if content.author %} · {{ content.author.name }}{% endif %}
@@ -43,7 +43,7 @@
        alt="" class="mb-6 w-full rounded-lg object-cover">
   {% endif %}
 
-  <div class="prose-supremely">
+  <div class="prose-supremely text-[15px]">
     {{ content.html | safe }}
   </div>
 

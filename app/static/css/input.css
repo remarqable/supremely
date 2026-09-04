@@ -115,10 +115,10 @@
 
   /* Rendered markdown content */
   .prose-supremely { @apply leading-relaxed text-slate-800; }
-  .prose-supremely h1 { @apply mb-4 mt-8 text-3xl font-bold first:mt-0; }
-  .prose-supremely h2 { @apply mb-3 mt-8 text-2xl font-bold first:mt-0; }
-  .prose-supremely h3 { @apply mb-2 mt-6 text-xl font-semibold; }
-  .prose-supremely h4 { @apply mb-2 mt-4 text-lg font-semibold; }
+  .prose-supremely h1 { @apply mb-3 mt-8 text-2xl font-bold first:mt-0; }
+  .prose-supremely h2 { @apply mb-2 mt-7 text-xl font-bold first:mt-0; }
+  .prose-supremely h3 { @apply mb-2 mt-6 text-lg font-semibold; }
+  .prose-supremely h4 { @apply mb-1.5 mt-4 text-base font-semibold; }
   .prose-supremely p { @apply my-4; }
   .prose-supremely a { @apply text-brand-600 underline hover:text-brand-700; }
   .prose-supremely ul { @apply my-4 list-disc ps-6; }

@@ -25,7 +25,7 @@
             class="absolute inset-x-4 top-[12vh] mx-auto max-w-xl rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-900/10">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-bold tracking-tight text-slate-900">{{ _('community.new_post_button') }}</h2>
+          <h2 class="text-base font-bold tracking-tight text-slate-900">{{ _('community.new_post_button') }}</h2>
           <button type="button" @click="open = false" aria-label="{{ _('common.cancel') }}"
                   class="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
@@ -73,10 +73,10 @@
     <span class="badge-slate ms-auto shrink-0 uppercase tracking-wide">{{ post.group.name }}</span>
     {% endif %}
   </div>
-  <h2 class="mt-3 text-lg font-semibold tracking-tight">
+  <h2 class="mt-3 text-base font-semibold tracking-tight">
     <a href="{{ post.url }}" class="text-slate-900 hover:text-brand-700">{{ post.title }}</a>
   </h2>
-  {% if post.body %}<p class="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ post.body[:280] }}</p>{% endif %}
+  {% if post.body %}<p class="mt-1.5 line-clamp-2 text-sm leading-relaxed text-slate-600">{{ post.body[:280] }}</p>{% endif %}
   <div class="mt-3.5 flex items-center gap-3 text-sm text-slate-500">
     <a href="{{ post.url }}" class="inline-flex items-center gap-1.5 hover:text-slate-900">
       <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M17 10c0 3.3-3.1 6-7 6-1 0-2-.2-2.9-.5L3 17l1.2-3.2C3.4 12.7 3 11.4 3 10c0-3.3 3.1-6 7-6s7 2.7 7 6z"/></svg>
@@ -108,7 +108,7 @@
        class="mt-1 shrink-0 text-slate-500 transition-colors hover:text-slate-700">{{ back_arrow('h-5 w-5') }}</a>
     {% endif %}
     <div class="min-w-0">
-      <{{ tag }} class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-2xl font-bold tracking-tight">
+      <{{ tag }} class="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-xl font-bold tracking-tight">
       {% if url %}
       <a href="{{ url }}" class="{{ 'text-slate-400 transition-colors hover:text-slate-700' if trail else 'text-slate-900 hover:text-brand-700' }}">{{ title }}</a>
       {% else %}

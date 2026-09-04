@@ -39,7 +39,7 @@
     <span class="text-sm font-semibold text-slate-900">{{ reply.author.name if reply.author else g.org.name }}</span>
     <span class="text-xs text-slate-400">{{ reply.created_at|timeago }}</span>
   </div>
-  <div class="prose-supremely mt-2 text-[15px]">{{ reply.html | safe }}</div>
+  <div class="prose-supremely mt-2 text-sm">{{ reply.html | safe }}</div>
   {{ reaction_bar('reply', reply.id) }}
   <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
     {% if can('discuss') and not post.is_locked and not nested %}
@@ -119,7 +119,7 @@
         {% if post.is_locked %}<span class="badge-slate">{{ _('discussions.locked_badge') }}</span>{% endif %}
         {% if post.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
       </div>
-      <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ post.title }}</h1>
+      <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-900">{{ post.title }}</h1>
     </div>
 
     <div class="flex shrink-0 items-center gap-2">
@@ -151,7 +151,7 @@
     </div>
   </div>
 
-  <div class="prose-supremely mt-4">{{ post.html | safe }}</div>
+  <div class="prose-supremely mt-4 text-[15px]">{{ post.html | safe }}</div>
 
   <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-3">
     {{ reaction_bar('post', post.id) }}
@@ -221,7 +221,7 @@
 </article>
 
 <div class="mb-3 mt-7 flex items-center justify-between">
-  <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">
+  <h2 class="text-sm font-semibold tracking-tight text-slate-900">
     {{ post.reply_count }} {{ _('discussions.replies') }}</h2>
   {% if top_level|length > 1 %}
   <div class="flex gap-3 text-sm">
@@ -245,7 +245,7 @@
     {{ _('discussions.locked') }}</p>
   {% else %}
   <div id="reply-form" class="mt-6 rounded-xl bg-white p-5 ring-1 ring-slate-200">
-    <h3 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('discussions.add_reply') }}</h3>
+    <h3 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('discussions.add_reply') }}</h3>
     {{ reply_form() }}
   </div>
   {% endif %}

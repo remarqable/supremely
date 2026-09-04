@@ -51,11 +51,11 @@
              telling one kind of card from another. #}
           {% if locked %}<span class="ms-auto shrink-0">{{ lock_badge() }}</span>{% endif %}
         </div>
-        <h2 class="mt-1.5 text-lg font-semibold tracking-tight">
+        <h2 class="mt-1.5 text-base font-semibold tracking-tight">
           <a href="{{ item.permalink }}" class="text-slate-900 hover:text-brand-700">{{ item.title }}</a>
         </h2>
         {% set summary = none if locked else item.excerpt_or_summary() %}
-        {% if summary %}<p class="mt-1 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
+        {% if summary %}<p class="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
         <div class="mt-2.5 flex items-center gap-3 text-sm text-slate-500">
           <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
           {% if content_type.slug == 'event' and item.fields.get('location') and not locked %}

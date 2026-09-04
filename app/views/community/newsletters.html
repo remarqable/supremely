@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="mb-5">
-  <h1 class="text-2xl font-bold tracking-tight text-slate-900">{{ _('newsletters.archive_title') }}</h1>
+  <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ _('newsletters.archive_title') }}</h1>
   <p class="mt-0.5 text-sm text-slate-500">{{ _('newsletters.archive_intro') }}</p>
 </div>
 
@@ -15,11 +15,11 @@
     <div class="flex items-center gap-2 text-xs text-slate-400">
       <span>{{ _('newsletters.sent_on', date=issue.finished_at|localdate) }}</span>
     </div>
-    <h2 class="mt-1.5 text-lg font-semibold tracking-tight">
+    <h2 class="mt-1.5 text-base font-semibold tracking-tight">
       <a href="{{ issue.content.permalink }}" class="text-slate-900 hover:text-brand-700">{{ issue.content.title }}</a>
     </h2>
     {% set summary = issue.content.excerpt_or_summary() %}
-    {% if summary %}<p class="mt-1 line-clamp-2 text-[15px] leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
+    {% if summary %}<p class="mt-1 line-clamp-2 text-sm leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
     <div class="mt-2.5 text-sm text-slate-500">
       <a href="{{ issue.content.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
     </div>

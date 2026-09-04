@@ -28,13 +28,13 @@
   </div>
   {% if announcement %}
   <a href="{{ announcement.permalink }}" class="mt-3 block">
-    <span class="block text-[15px] font-semibold leading-snug text-slate-900 hover:text-brand-700">{{ announcement.title }}</span>
+    <span class="block text-sm font-semibold leading-snug text-slate-900 hover:text-brand-700">{{ announcement.title }}</span>
     <span class="mt-1 line-clamp-2 block text-sm leading-relaxed text-slate-600">{{ announcement.excerpt_or_summary() }}</span>
     <span class="mt-1.5 block text-xs text-slate-400">{{ announcement.published_at|timeago }}</span>
   </a>
   <a href="/announcements" class="mt-3 block text-sm text-slate-500 hover:text-slate-900">{{ _('community.all_announcements') }} →</a>
   {% else %}
-  <p class="mt-3 text-[15px] font-semibold leading-snug text-slate-900">{{ _('community.announcements_empty_title') }}</p>
+  <p class="mt-3 text-sm font-semibold leading-snug text-slate-900">{{ _('community.announcements_empty_title') }}</p>
   <p class="mt-1 text-sm leading-relaxed text-slate-500">{{ _('community.announcements_empty_body') }}</p>
   {% if can('content.write') %}
   <a href="{{ url_for('manage.new_content', type_slug='announcement') }}"
@@ -47,7 +47,7 @@
 {% macro members_card() %}
 {% set recent, total = rail_members() %}
 <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
-  <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.members_card') }}</h2>
+  <h2 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('community.members_card') }}</h2>
   {# Visitors get the count only — names and avatars are member data. #}
   {% if recent %}
   <div class="mt-3.5 flex items-center">
@@ -68,7 +68,7 @@
 {% set event = upcoming_event() %}
 {% if event and can_view(event) %}
 <div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
-  <h2 class="text-[15px] font-semibold tracking-tight text-slate-900">{{ _('community.upcoming_event') }}</h2>
+  <h2 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('community.upcoming_event') }}</h2>
   {% set starts = event.fields.get('starts_on', '') %}
   <div class="mt-3.5 flex items-start gap-3.5">
     <div class="min-w-[52px] overflow-hidden rounded-[10px] text-center ring-1 ring-slate-200">
@@ -77,7 +77,7 @@
     </div>
     <div class="min-w-0">
       <a href="{{ event.permalink }}"
-         class="block truncate text-[15px] font-semibold text-slate-900 hover:text-brand-700">{{ event.title }}</a>
+         class="block truncate text-sm font-semibold text-slate-900 hover:text-brand-700">{{ event.title }}</a>
       <p class="mt-0.5 text-sm text-slate-500">{{ starts }}{% if event.fields.get('location') %} · {{ event.fields.location }}{% endif %}</p>
     </div>
   </div>

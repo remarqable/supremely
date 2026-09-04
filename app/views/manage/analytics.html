@@ -2,7 +2,7 @@
 {% from 'partials/_ui.html' import page_header with context %}
 
 {% block manage_content %}
-<div class="mx-auto max-w-2xl">
+<div>
 {{ page_header(_('manage.analytics')) }}
 <div class="card">
   {% set analytics = org.analytics_config() %}
