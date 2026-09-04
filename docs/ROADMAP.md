@@ -24,7 +24,10 @@ The scope is defined in [the v1.0 release plan](releases/v1.0.md) and tracked
 in the GitHub v1.0.0 milestone. Against the four components, v1.0 delivers:
 
 - **CMS**: pages and posts. Done, with editor and Videos fixes open from
-  using the product in earnest (see section 4 of the release plan).
+  using the product in earnest. Structured content is open: rendered fields,
+  richer field types, per-organization type configuration, site entry points,
+  parent/child content and body directives, in six stages (see section 4 of
+  the release plan). Types stay code-declared.
 - **Discussions**: basic threading, replies, reactions, and moderation. Done.
 - **Newsletters**: sending through Gmail SMTP works today. The Mailgun
   integration (#104), a documented Gmail recipe (#105) and a proper HTML
