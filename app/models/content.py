@@ -128,6 +128,32 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     VISIBILITIES = VISIBILITY_LEVELS   # single source: app.platform.authz
     PRESENTATIONS = ('site', 'community')
 
+    @classmethod
+    def unsaved_draft(cls, type_slug: str, stored: 'Content | None' = None):
+        """A row built to be rendered once and thrown away.
+
+        Previewing an edit must not touch what is stored, so the editor's
+        form is read into one of these instead of into the live row. It is
+        never added to a session, which is what makes that safe rather than
+        merely careful. Columns the editor does not post are copied off the
+        stored row, because the page prints them.
+        """
+        draft = cls(type=type_slug)
+        if stored is not None:
+            draft.status, draft.published_at = stored.status, stored.published_at
+        return draft
+
+    def attach_featured_upload(self):
+        """Resolve featured_upload_id into the relationship by hand.
+
+        A row that was never written cannot lazy-load one from an id, so a
+        preview would otherwise show no picture at all.
+        """
+        from app.models import Upload
+        self.featured_upload = (
+            Upload.query.filter_by(id=self.featured_upload_id).first()
+            if self.featured_upload_id else None)
+
     def validate(self):
         from app.platform.content_types import CONTENT_TYPES
         self.title = (self.title or '').strip()

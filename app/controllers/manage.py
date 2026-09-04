@@ -29,7 +29,12 @@ from app.platform.authz import (
     org_required,
     require,
 )
-from app.platform.content_types import CONTENT_TYPES, active_types, get_content_type
+from app.platform.content_types import (
+    CONTENT_TYPES,
+    ContentType,
+    active_types,
+    get_content_type,
+)
 from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -124,7 +129,14 @@ def content_list(type_slug):
                            content_type=ct)
 
 
-def _content_from_form(content):
+def _content_from_form(content: Content, *, previewing: bool = False) -> Content:
+    """Fill `content` from the posted editor form.
+
+    previewing=True fills an object whose render is thrown away, so it must
+    leave nothing behind: an inline image upload is not stored, and a
+    template the rule refuses falls back instead of flashing or raising.
+    Saving reports both, so nothing is hidden, only deferred to the save.
+    """
     content.title = request.form.get('title', '')
     content.slug = request.form.get('slug', '')
     content.body = request.form.get('body', '')
@@ -138,11 +150,12 @@ def _content_from_form(content):
         # Types without a Template field in their editor have no other way to
         # clear a value stored before the rule existed.
         content.template = None
-        flash(t('manage.template_dropped', name=stored_template), 'warning')
+        if not previewing:
+            flash(t('manage.template_dropped', name=stored_template), 'warning')
     if content.content_type.is_page:
         template = request.form.get('template', '').strip() or None
         if template and not page_template_allowed(template):
-            if template == stored_template:
+            if template == stored_template or previewing:
                 template = None         # the form posting a legacy value back
             else:
                 raise ValidationError(
@@ -151,7 +164,9 @@ def _content_from_form(content):
                 and not page_template_exists(template)):
             # Only a value the author is actually choosing: a theme switch can
             # strand an older one, and render_site falls back to page.html.
-            raise ValidationError(t('manage.template_unknown', name=template))
+            if not previewing:
+                raise ValidationError(t('manage.template_unknown', name=template))
+            template = None
         content.template = template
         # Presentation is a page-only choice; model validation rejects
         # anything but the two known values.
@@ -159,8 +174,11 @@ def _content_from_form(content):
     # Featured image: an inline file wins over a library pick. The file
     # becomes a real media-library Upload (sanitized like any other), so
     # it shows up under Manage → Media and is reusable elsewhere.
+    # A preview stores nothing, so a file chosen but not yet saved has no
+    # Upload to point at: the preview shows the library pick instead, and
+    # the real image appears once the item is saved.
     new_image = request.files.get('featured_upload_file')
-    if new_image is not None and new_image.filename:
+    if new_image is not None and new_image.filename and not previewing:
         content.featured_upload_id = Upload.from_file(new_image).id
     else:
         content.featured_upload_id = _own_upload_id('featured_upload_id')
@@ -267,13 +285,8 @@ def delete_content(content_id):
     return redirect(url_for('manage.content_list', type_slug=type_slug))
 
 
-@bp.route('/content/<int:content_id>/preview')
-@org_required
-@require('content.write')
-def preview_content(content_id):
+def _render_preview(content: Content, ct: ContentType) -> str:
     from app.platform.theming import render_site
-    content = _active_content_or_404(content_id)
-    ct = content.content_type
     if ct.is_page:
         # Preview is the same sink as the public page; a stored value can
         # predate the rule.
@@ -284,6 +297,56 @@ def preview_content(content_id):
         names = [f'single-{ct.slug}.html', f'{ct.template}.html', 'single.html']
     return render_site(names, content=content, content_type=ct,
                        page=content, preview=True)
+
+
+def _preview_from_form(stored: Content | None, ct: ContentType) -> str:
+    """Render what is in the editor right now and store none of it.
+
+    Previewing an item that is already published must never push the edits
+    live, so the form is read into a throwaway row that is never added to
+    the session and the stored row is not touched at all. That is what makes
+    this safe; no_autoflush and the rollback only stop a half-finished
+    render leaving anything pending behind it.
+
+    The related rows a template reads are attached by hand, because a row
+    that was never written cannot lazy-load them from an id.
+    """
+    draft = Content.unsaved_draft(ct.slug, stored)
+    try:
+        with db.session.no_autoflush:
+            _content_from_form(draft, previewing=True)
+            draft.attach_featured_upload()
+            return _render_preview(draft, ct)
+    finally:
+        db.session.rollback()
+
+
+@bp.route('/content/<int:content_id>/preview', methods=['GET', 'POST'])
+@org_required
+@require('content.write')
+@rate_limit(limit=60, window=60)
+def preview_content(content_id: int) -> str:
+    """GET renders what is stored, for the link on the content list. POST
+    renders the unsaved editor, which is what the editor's own button
+    sends."""
+    content = _active_content_or_404(content_id)
+    ct = content.content_type
+    if request.method == 'POST':
+        return _preview_from_form(content, ct)
+    return _render_preview(content, ct)
+
+
+@bp.route('/content/<type_slug>/preview', methods=['POST'])
+@org_required
+@require('content.write')
+@rate_limit(limit=60, window=60)
+def preview_new_content(type_slug: str) -> str:
+    """A brand-new item has no id to preview by, so its type names the route
+    and the form carries everything else."""
+    if type_slug not in active_types():
+        abort(404)
+    ct = get_content_type(type_slug)
+    return _preview_from_form(None, ct)
 
 
 @bp.route('/content-types')

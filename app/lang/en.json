@@ -206,6 +206,7 @@
   "manage.featured_upload_new": "Or upload a new image",
   "manage.featured_image_hint": "Pick from your media library, or upload a new image — it lands in Media too.",
   "manage.preview": "Preview",
+  "manage.preview_new_tab": "opens in a new tab",
   "manage.preview_banner": "Preview \u2014 not published yet.",
   "manage.archived": "Archived",
   "manage.archive_content": "Archive",

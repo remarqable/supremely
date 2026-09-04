@@ -19,16 +19,17 @@
    it, so there is no string here to translate.
 
    Submitting clears the flag, so none of this form's buttons warn: Save,
-   Publish, Unpublish, Archive and Send by email. Every link out does warn,
-   Preview included, because preview renders the saved version and leaving
-   with edits in the box loses them.
+   Publish, Unpublish, Archive and Send by email. Preview is the exception,
+   and deliberately so: it opens a second tab, this one never unloads, and
+   the edits are still sitting here unsaved when the author comes back.
 
    returnValue has to be truthy as well as preventDefault(). Chrome and Edge
    before 119 ignore preventDefault() here, and an empty returnValue means
    "do not prompt", so the two together are what arm the dialog everywhere. #}
 <form method="POST" enctype="multipart/form-data" class="grid gap-5 lg:grid-cols-3"
       x-data="{ dirty: false }"
-      @input="dirty = true" @change="dirty = true" @submit="dirty = false"
+      @input="dirty = true" @change="dirty = true"
+      @submit="if ($event.submitter?.formTarget !== '_blank') dirty = false"
       @beforeunload.window="if (dirty) { $event.preventDefault(); $event.returnValue = true }">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -176,8 +177,17 @@
       <button type="submit" name="action" value="save" class="btn-secondary w-full">{{ _('manage.save_draft') }}</button>
       <button type="submit" name="action" value="publish" class="btn-primary w-full">{{ _('manage.publish') }}</button>
       {% endif %}
+      {# Preview posts the form rather than linking to the stored item, so it
+         shows the draft as it stands and works before the first save. It
+         saves nothing, and opens a second tab so the editor keeps the
+         unsaved work. #}
+      <button type="submit" formtarget="_blank"
+              formaction="{{ url_for('manage.preview_content', content_id=content.id)
+                             if content and content.id else
+                             url_for('manage.preview_new_content', type_slug=content_type.slug) }}"
+              class="btn-secondary w-full">{{ _('manage.preview') }}
+        <span class="sr-only">({{ _('manage.preview_new_tab') }})</span></button>
       {% if content and content.id %}
-      <a href="{{ url_for('manage.preview_content', content_id=content.id) }}" class="btn-secondary w-full">{{ _('manage.preview') }}</a>
       {% if not content_type.is_page %}
       <button type="submit" name="action" value="save"
               formaction="{{ url_for('manage.send_content_newsletter', content_id=content.id) }}"

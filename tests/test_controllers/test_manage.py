@@ -19,6 +19,12 @@ ACME = 'http://acme.example.test'
 BACK_ARROW = b'M16 10H4.5'
 
 
+def _content_count(app, org):
+    with app.test_request_context(base_url=ACME):
+        g.org = org
+        return Content.query.count()
+
+
 def test_manage_requires_permission(app, client, acme, globex):
     member = make_user(email='plain@example.com')
     Membership.add(member.id, acme.id, role='member')
@@ -824,12 +830,252 @@ def test_the_editor_warns_before_leaving_with_unsaved_changes(app, client,
         assert 'x-data="{ dirty: false }"' in html, path
         assert '@input="dirty = true"' in html, path
         assert '@change="dirty = true"' in html, path
-        assert '@submit="dirty = false"' in html, path
+        # Preview submits to a second tab, so it must leave the flag alone:
+        # this tab never unloads and the edits are still unsaved.
+        assert ('@submit="if ($event.submitter?.formTarget !== \'_blank\') '
+                'dirty = false"') in html, path
         # Pinned whole, because a truthy returnValue is not decoration:
         # without it Chrome and Edge before 119 drop the prompt and the
         # editor is back to losing work in silence.
         assert ('@beforeunload.window="if (dirty) { $event.preventDefault(); '
                 '$event.returnValue = true }"') in html, path
+
+
+
+def test_a_new_item_can_be_previewed_before_it_is_ever_saved(app, client,
+                                                             acme, user):
+    """The Preview button used to render only once the item had an id, so a
+    first draft could not be looked at without saving it first, and nothing
+    on the form said why. Preview now posts the form to a type-named route,
+    so there is something to render before there is anything to render it
+    from.
+    """
+    login_as(client, user)
+    form = client.get('/manage/content/article/new', base_url=ACME)
+    assert b'/manage/content/article/preview' in form.data
+
+    before = _content_count(app, acme)
+    preview = client.post('/manage/content/article/preview', base_url=ACME,
+                          data={'title': 'Not saved yet', 'slug': '',
+                                'body': 'Draft body.', 'visibility': 'public'})
+    assert preview.status_code == 200
+    assert b'Not saved yet' in preview.data
+    assert b'Draft body.' in preview.data
+    assert b'Preview' in preview.data          # the banner says what this is
+    assert _content_count(app, acme) == before
+
+
+def test_previewing_edits_does_not_publish_them(app, client, acme, user):
+    """The dangerous version of this feature saves a draft on the way to the
+    preview. On an item that is already published that is not a draft at all,
+    it is a live edit nobody asked for. Preview renders the posted form and
+    writes nothing, so the page the public sees is untouched until Save.
+    """
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Live post', 'slug': 'live-post', 'body': 'Published body.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item_id = Content.published_by_slug('article', 'live-post').id
+
+    preview = client.post(f'/manage/content/{item_id}/preview', base_url=ACME,
+                          data={'title': 'Rewritten title', 'slug': 'live-post',
+                                'body': 'Rewritten body.', 'visibility': 'public'})
+    assert preview.status_code == 200
+    assert b'Rewritten body.' in preview.data
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        stored = Content.published_by_slug('article', 'live-post')
+        assert stored.title == 'Live post'
+        assert stored.body == 'Published body.'
+    live = client.get('/blog/live-post', base_url=ACME)
+    assert b'Published body.' in live.data
+    assert b'Rewritten body.' not in live.data
+
+
+def _upload_count(app, org):
+    with app.test_request_context(base_url=ACME):
+        g.org = org
+        return Upload.query.count()
+
+
+def test_previewing_an_upload_pick_attaches_no_orphan_file(app, client, acme,
+                                                           user):
+    """A preview that stored the inline file would leave an Upload behind in
+    the media library every time the button was pressed, for a draft that may
+    never be saved. The inline file is skipped and the library pick renders
+    in its place.
+    """
+    login_as(client, user)
+    client.post('/manage/media', base_url=ACME, data={
+        'file': (io.BytesIO(make_png()), 'library.png')})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        picked = Upload.query.order_by(Upload.id.desc()).first()
+        # The variant the single templates ask for.
+        picked_url = picked.url('full' if picked.has_variants else 'original')
+        picked_id = picked.id
+
+    before = _upload_count(app, acme)
+    preview = client.post('/manage/content/article/preview', base_url=ACME, data={
+        'title': 'With a picture', 'slug': '', 'body': 'Body.',
+        'visibility': 'public', 'featured_upload_id': picked_id,
+        'featured_upload_file': (io.BytesIO(make_png()), 'inline.png')})
+    assert preview.status_code == 200
+    assert picked_url.encode() in preview.data      # the library pick renders
+    assert _upload_count(app, acme) == before
+
+
+def test_a_preview_cannot_be_posted_from_another_tenants_host(app, client,
+                                                              acme, globex,
+                                                              user):
+    """Preview takes an id, so it needs the same tenant check every other
+    route on an id does. Asserted with someone who owns the other
+    organization, so what fails is the tenant filter and not the permission
+    gate standing in front of it.
+
+    Nothing else in this test may touch the row first. The test client shares
+    one session across requests where a real server does not, and a row
+    already in that session's identity map is handed back by id without the
+    query the filter rides on. The happy path is covered by the tests above.
+    """
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Acme only', 'slug': 'acme-only', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item = Content.published_by_slug('article', 'acme-only')
+        item_id = item.id
+        db.session.expunge(item)
+
+    hank = globex.memberships[0].user
+    login_as(client, hank)
+    response = client.post(f'/manage/content/{item_id}/preview',
+                           base_url='http://globex.example.test',
+                           data={'title': 'X', 'slug': 'acme-only',
+                                 'body': 'X.', 'visibility': 'public'})
+    assert response.status_code == 404
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert Content.published_by_slug('article', 'acme-only').title == \
+            'Acme only'
+
+
+def test_previewing_a_page_survives_a_template_the_save_would_refuse(app,
+                                                                     client,
+                                                                     acme,
+                                                                     user):
+    """Pages carry a Template field, and saving refuses a name the rule will
+    not hand to render_site: one the application already owns, and one that
+    no theme provides. A preview refuses nothing and renders nothing unsafe
+    either. It drops the value and falls back, so a half-typed template does
+    not turn Preview into an error page. Saving still reports it.
+    """
+    login_as(client, user)
+    for template in ('single',            # a name the application owns
+                     'page-about',        # allowed, but no theme provides it
+                     '../etc/passwd'):    # not even shaped like a template
+        preview = client.post('/manage/content/page/preview', base_url=ACME,
+                              data={'title': 'About', 'slug': '',
+                                    'body': 'Who we are.', 'visibility': 'public',
+                                    'presentation': 'site', 'template': template})
+        assert preview.status_code == 200, template
+        assert b'Who we are.' in preview.data, template
+
+    # The same value on the way to storage is still an error, and still
+    # stores nothing. A slug of its own: provisioning an organization already
+    # seeds a page called about (app/platform/defaults.py).
+    saved = client.post('/manage/content/page/new', base_url=ACME, data={
+        'title': 'Our story', 'slug': 'our-story', 'body': 'Who we are.',
+        'visibility': 'public', 'presentation': 'site',
+        'template': 'page-about', 'action': 'save'})
+    assert b'No template called' in saved.data
+    # And a name the application owns is refused on the way in as well as
+    # being unusable at render.
+    owned = client.post('/manage/content/page/new', base_url=ACME, data={
+        'title': 'Our story', 'slug': 'our-story', 'body': 'Who we are.',
+        'visibility': 'public', 'presentation': 'site',
+        'template': 'single', 'action': 'save'})
+    assert b'No template called' in owned.data
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert Content.query.filter_by(slug='our-story').first() is None
+
+
+def test_a_member_cannot_preview_an_unsaved_draft(app, client, acme, user):
+    """Preview renders through the same sink as the public page, so both
+    routes stay behind content.write like the rest of the editor."""
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Owned', 'slug': 'owned', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item_id = Content.published_by_slug('article', 'owned').id
+
+    member = make_user(email='previewer@example.com')
+    Membership.add(member.id, acme.id, role='member')
+    login_as(client, member)
+    payload = {'title': 'Nope', 'slug': '', 'body': 'Nope.',
+               'visibility': 'public'}
+    for path in ('/manage/content/article/preview',
+                 f'/manage/content/{item_id}/preview'):
+        assert client.post(path, base_url=ACME,
+                           data=payload).status_code == 403, path
+        assert client.get(path, base_url=ACME).status_code in (403, 405), path
+
+
+def test_previewing_a_saved_item_stores_no_upload_either(app, client, acme,
+                                                         user):
+    """The id route reaches the same form reader as the new-item route, so
+    it has to skip the inline file for the same reason."""
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Has an image', 'slug': 'has-an-image', 'body': 'Body.',
+        'visibility': 'public', 'action': 'save'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item_id = Content.query.filter_by(slug='has-an-image').one().id
+
+    before = _upload_count(app, acme)
+    preview = client.post(f'/manage/content/{item_id}/preview', base_url=ACME,
+                          data={'title': 'Has an image', 'slug': 'has-an-image',
+                                'body': 'Body.', 'visibility': 'public',
+                                'featured_upload_file': (io.BytesIO(make_png()),
+                                                         'inline.png')})
+    assert preview.status_code == 200
+    assert _upload_count(app, acme) == before
+
+
+def test_a_numeric_id_reaches_the_saved_item_not_the_type_route(app, client,
+                                                                acme, user):
+    """The two preview routes differ only by converter, and `<type_slug>`
+    would match a number too. Werkzeug ranks the int rule first, and this
+    pins it: a change that reversed them would send an id to the new-item
+    route, which would 404 on it as an unknown type and lose the edits with
+    no explanation.
+    """
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'By id', 'slug': 'by-id', 'body': 'Body.',
+        'visibility': 'public', 'action': 'save'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item_id = Content.query.filter_by(slug='by-id').one().id
+        adapter = app.url_map.bind('acme.example.test')
+        assert adapter.match(f'/manage/content/{item_id}/preview',
+                             method='POST')[0] == 'manage.preview_content'
+        assert adapter.match('/manage/content/article/preview',
+                             method='POST')[0] == 'manage.preview_new_content'
+    # End to end: a number in that position is read as an id, so an id that
+    # is not ours is a 404 rather than a type named "2026".
+    assert client.post('/manage/content/2026/preview', base_url=ACME,
+                       data={'title': 'X', 'slug': '', 'body': 'X.',
+                             'visibility': 'public'}).status_code == 404
 
 
 def test_the_content_list_links_a_published_item_to_its_live_page(app, client,
