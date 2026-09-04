@@ -343,7 +343,7 @@ Eating our own dog food, and occasionally finding a bone in it.
 """
 
 
-def seed_getsupremely_org():
+def seed_supremely_org():
     from flask import g
 
     from app.models import (
@@ -356,13 +356,21 @@ def seed_getsupremely_org():
         User,
     )
 
-    org = Organization.get_by_slug('getsupremely')
+    org = Organization.get_by_slug('supremely')
+    if org is None:
+        # Installs seeded before the rename hold this org under its old
+        # slug; adopt it rather than provisioning a second organization,
+        # which would knock the bare domain out of default-org mode.
+        org = Organization.get_by_slug('getsupremely')
+        if org is not None:
+            org.slug = 'supremely'
+            org.save()
     if org is None:
         owner = (User.query.filter_by(is_platform_admin=True)
                  .order_by(User.id).first())
         if owner is None:
             raise RuntimeError('Run the setup wizard (or users create-admin) first')
-        org = Organization.provision(name='Supremely', slug='getsupremely',
+        org = Organization.provision(name='Supremely', slug='supremely',
                                      owner=owner, seed_defaults=False)
     # Branding/theme/copy are DEFAULTS, applied once: a re-run must heal
     # missing pieces, never clobber edits made under Manage — that's what
@@ -576,5 +584,5 @@ def seed_getsupremely_org():
     if not InstallationSetting.get_value('installation.name'):
         InstallationSetting.set('installation.name', 'Supremely')
 
-    log.info('seeded_getsupremely', org_id=org.id)
+    log.info('seeded_supremely', org_id=org.id)
     return org

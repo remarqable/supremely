@@ -42,7 +42,7 @@ make test      # pytest
 
 Useful commands: `flask users reset-password EMAIL` (recovery without
 email), `flask jobs run` (background worker), `flask setup reset`
-(re-enable the wizard), `flask seed getsupremely` (dogfood site).
+(re-enable the wizard), `flask seed supremely` (dogfood site).
 
 ## Documentation
 
@@ -92,7 +92,7 @@ See [LICENSE](LICENSE).
 
 ## Project
 
-- Website: https://getsupremely.com
+- Website: https://supremely.org
 - Organization: https://supremely.org
 
 ---

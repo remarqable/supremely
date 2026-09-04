@@ -94,17 +94,17 @@ curl -s -b "$OWNER" "$BASE/notifications/" | grep -q "Introductions" \
   && pass "comment notification received" || fail "notification"
 
 # --- dogfood: supremely.org seeded on the same install ----------------------------------
-uv run flask seed getsupremely >/dev/null 2>&1 && pass "getsupremely org seeded (dogfood)" || fail "seed"
+uv run flask seed supremely >/dev/null 2>&1 && pass "supremely org seeded (dogfood)" || fail "seed"
 # supremely.org runs on the Supremely marketing theme (dogfood)
-curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/" | grep -q "The open-source" \
+curl -s -H "Host: supremely.localhost:$PORT" "$BASE/" | grep -q "The open-source" \
   && pass "supremely.org homepage serves" || fail "dogfood home"
-curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/docs" | grep -q "docker compose up" \
+curl -s -H "Host: supremely.localhost:$PORT" "$BASE/docs" | grep -q "docker compose up" \
   && pass "docs page serves" || fail "docs"
-curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/blog" | grep -q "Supremely now runs on Supremely" \
+curl -s -H "Host: supremely.localhost:$PORT" "$BASE/blog" | grep -q "Supremely now runs on Supremely" \
   && pass "dogfood post listed" || fail "dogfood post"
-curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/subscribe" | grep -qi "subscribe" \
+curl -s -H "Host: supremely.localhost:$PORT" "$BASE/subscribe" | grep -qi "subscribe" \
   && pass "newsletter signup page serves" || fail "subscribe"
-curl -s -H "Host: getsupremely.localhost:$PORT" "$BASE/discussions/" | grep -q "Development" \
+curl -s -H "Host: supremely.localhost:$PORT" "$BASE/discussions/" | grep -q "Development" \
   && pass "community discussions visible" || fail "dogfood discussions"
 
 echo ""

@@ -1,31 +1,31 @@
-"""`flask seed getsupremely` must work on a fresh install: it bootstraps the
+"""`flask seed supremely` must work on a fresh install: it bootstraps the
 Platform Admin the wizard would have created, then seeds the dogfood org."""
 
 from app.models import Organization
 
 
 def test_seed_bootstraps_fresh_install(app, runner):
-    result = runner.invoke(args=['seed', 'getsupremely'])
+    result = runner.invoke(args=['seed', 'supremely'])
     assert result.exit_code == 0, result.output
     assert 'Platform Admin created: admin@supremely.org' in result.output
     assert 'One-time password:' in result.output
     assert 'Seeded organization "Supremely"' in result.output
-    assert Organization.get_by_slug('getsupremely') is not None
+    assert Organization.get_by_slug('supremely') is not None
 
 
 def test_seed_is_idempotent(app, runner):
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
-    result = runner.invoke(args=['seed', 'getsupremely'])
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
+    result = runner.invoke(args=['seed', 'supremely'])
     assert result.exit_code == 0, result.output
     assert 'Platform Admin created' not in result.output
     assert 'Seeded organization "Supremely"' in result.output
 
 
 def test_seed_uses_existing_admin(app, runner, platform_admin):
-    result = runner.invoke(args=['seed', 'getsupremely'])
+    result = runner.invoke(args=['seed', 'supremely'])
     assert result.exit_code == 0, result.output
     assert 'Platform Admin created' not in result.output
-    org = Organization.get_by_slug('getsupremely')
+    org = Organization.get_by_slug('supremely')
     assert org.memberships[0].user_id == platform_admin.id
 
 
@@ -34,9 +34,9 @@ def test_reseeding_never_clobbers_owner_edits(app, runner):
     from flask import g
 
     from app.models import Organization
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
     with app.test_request_context():
-        org = Organization.get_by_slug('getsupremely')
+        org = Organization.get_by_slug('supremely')
         g.org = org
         store = dict(org.setting('theme_content'))
         store['supremely'] = {**store['supremely'],
@@ -46,9 +46,9 @@ def test_reseeding_never_clobbers_owner_edits(app, runner):
         org.theme = 'midnight'
         org.save()
 
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
     with app.test_request_context():
-        org = Organization.get_by_slug('getsupremely')
+        org = Organization.get_by_slug('supremely')
         assert org.theme == 'midnight'
         assert org.description == 'Custom description'
         content = org.setting('theme_content')['supremely']
@@ -61,9 +61,9 @@ def test_seed_creates_the_get_page_and_ctas(app, runner):
     from flask import g
 
     from app.models import Content, NavigationItem, Organization
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
     with app.test_request_context():
-        org = Organization.get_by_slug('getsupremely')
+        org = Organization.get_by_slug('supremely')
         g.org = org
         get_page = Content.query.filter_by(type='page', slug='get').first()
         assert get_page is not None
@@ -102,9 +102,9 @@ def test_seed_creates_the_team_roster(app, runner):
     from flask import g
 
     from app.models import Content, NavigationItem, Organization, Upload
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
     with app.test_request_context():
-        g.org = Organization.get_by_slug('getsupremely')
+        g.org = Organization.get_by_slug('supremely')
         members = Content.query.filter_by(type='team_member').all()
         assert {m.title for m in members} == {
             'Asim Baig', 'Sara Rasch', 'Aidan Urbina', 'Claudius Coddington'}
@@ -117,9 +117,9 @@ def test_seed_creates_the_team_roster(app, runner):
         assert team_link.url == '/team' and team_link.content_id is None
         upload_count = Upload.query.count()
 
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
     with app.test_request_context():
-        g.org = Organization.get_by_slug('getsupremely')
+        g.org = Organization.get_by_slug('supremely')
         assert Content.query.filter_by(type='team_member').count() == 4
         assert Upload.query.count() == upload_count
 
@@ -128,9 +128,9 @@ def test_seed_creates_the_starter_forum(app, runner):
     from flask import g
 
     from app.models import DiscussionGroup, Organization, Post
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
     with app.test_request_context():
-        org = Organization.get_by_slug('getsupremely')
+        org = Organization.get_by_slug('supremely')
         g.org = org
         names = [grp.name for grp in DiscussionGroup.query
                  .order_by(DiscussionGroup.position).all()]
@@ -138,8 +138,23 @@ def test_seed_creates_the_starter_forum(app, runner):
                          'Development']
         assert Post.query.count() == 6
     # Re-seeding neither duplicates groups nor posts.
-    assert runner.invoke(args=['seed', 'getsupremely']).exit_code == 0
+    assert runner.invoke(args=['seed', 'supremely']).exit_code == 0
     with app.test_request_context():
-        g.org = Organization.get_by_slug('getsupremely')
+        g.org = Organization.get_by_slug('supremely')
         assert DiscussionGroup.query.count() == 4
         assert Post.query.count() == 6
+
+
+def test_seed_adopts_org_under_legacy_slug(app, runner, platform_admin):
+    """Installs seeded before the slug rename keep their organization: the
+    seed renames it in place instead of provisioning a second one."""
+    legacy = Organization.provision(name='Supremely', slug='getsupremely',
+                                    owner=platform_admin, seed_defaults=False)
+    legacy_id = legacy.id
+    before = Organization.query.count()
+    result = runner.invoke(args=['seed', 'supremely'])
+    assert result.exit_code == 0, result.output
+    assert Organization.get_by_slug('getsupremely') is None
+    org = Organization.get_by_slug('supremely')
+    assert org is not None and org.id == legacy_id
+    assert Organization.query.count() == before

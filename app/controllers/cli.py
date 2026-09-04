@@ -219,11 +219,11 @@ def seed_demo_command():
     click.echo('Fixed credentials: this seed refuses to run in production.')
 
 
-@seed_bp.cli.command('getsupremely')
+@seed_bp.cli.command('supremely')
 @click.option('--admin-email', default='admin@supremely.org',
               show_default=True,
               help='Platform Admin to create if none exists yet.')
-def seed_getsupremely(admin_email: str):
+def seed_supremely(admin_email: str):
     """Dogfood: build the Supremely project website as an Organization on
     this installation (spec Phase 9). Idempotent.
 
@@ -231,7 +231,7 @@ def seed_getsupremely(admin_email: str):
     wizard would have created: a Platform Admin (one-time password printed)
     and the installed marker — no wizard click-through needed."""
     from app.platform.config_store import installation_ready, mark_installed
-    from app.platform.seed import seed_getsupremely_org
+    from app.platform.seed import seed_supremely_org
 
     if User.query.filter_by(is_platform_admin=True).first() is None:
         email = admin_email.strip().lower()
@@ -252,6 +252,6 @@ def seed_getsupremely(admin_email: str):
         mark_installed(current_app)
         click.echo('Installation marked ready (setup wizard skipped).')
 
-    org = seed_getsupremely_org()
+    org = seed_supremely_org()
     click.echo(f'Seeded organization "{org.name}" ({org.slug}).')
     click.echo('Visit it on the bare domain (single org) or its subdomain.')

@@ -25,7 +25,7 @@ make deploy       # make image, then update the server over SSH (needs PROD_SSH 
 - Single test: `uv run pytest tests/test_platform/test_content_types.py -k test_name`
 - Tests run on in-memory SQLite by default; set `TEST_DATABASE_URL=postgresql://...` to run the same suite on PostgreSQL (CI runs both).
 - Everything goes through `uv run` — there is no requirements.txt and no venv activation.
-- Useful CLI: `flask users reset-password EMAIL`, `flask users create-admin EMAIL`, `flask jobs work-off` (drain queue once), `flask setup reset`, `flask seed getsupremely` (dogfood site).
+- Useful CLI: `flask users reset-password EMAIL`, `flask users create-admin EMAIL`, `flask jobs work-off` (drain queue once), `flask setup reset`, `flask seed supremely` (dogfood site).
 
 ## Internal documents
 
