@@ -25,7 +25,7 @@ from app.models import Content, Upload
 from app.models.content import Category
 from app.models.upload import VARIANTS
 from app.platform.authz import is_member_or_platform_admin, org_required
-from app.platform.content_types import type_for_base
+from app.platform.content_types import type_for_base, type_presentation
 from app.platform.theming import (
     AVAILABLE_THEMES,
     page_template_allowed,
@@ -63,9 +63,11 @@ def _render_page(content):
     ct = content.content_type
     if not Content.section_readable_by_current_visitor(ct.slug):
         # Section locked: gate the section, the way the archive does.
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     if not content.visible_to_current_visitor():
-        return render_gate(content.title, kind=ct.singular)
+        return render_gate(content.title, kind=ct.singular,
+                           type_slug=ct.slug,
+                           teaser=content.excerpt)
     # A row written before this rule existed can still hold anything.
     tmpl = (content.template
             if page_template_allowed(content.template) else None) or ct.template
@@ -87,14 +89,14 @@ def _render_archive(ct, title=None, category=None, query=None):
     """
     if not Content.section_readable_by_current_visitor(ct.slug):
         # The whole section is locked: one gate, no item titles teased.
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     page_number = request.args.get('page', 1, type=int)
     listing = Content.visible_query(ct.slug) if query is None else query
     pagination = listing.paginate(page=page_number, per_page=PER_PAGE,
                                   error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
-                       force_theme=(ct.presentation == 'site'),
+                       force_theme=(type_presentation(ct) == 'site'),
                        content_type=ct, items=pagination.items,
                        pagination=pagination,
                        categories=Category.for_type(ct.slug),
@@ -105,16 +107,18 @@ def _render_archive(ct, title=None, category=None, query=None):
 def _render_single(ct, content):
     if not Content.section_readable_by_current_visitor(ct.slug):
         # Section locked: gate the section, the way the archive does.
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     if not content.visible_to_current_visitor():
-        return render_gate(content.title, kind=ct.singular)
+        return render_gate(content.title, kind=ct.singular,
+                           type_slug=ct.slug,
+                           teaser=content.excerpt)
     # Specificity order, and symmetric with archives: this item, then this
     # type, then the generic single. A theme shipping single-recipe.html has
     # it used for recipes without registering anything.
     return render_site(
         [f'single-{content.slug}.html', f'single-{ct.slug}.html',
          f'{ct.template}.html', 'single.html'],
-        force_theme=(ct.presentation == 'site'),
+        force_theme=(type_presentation(ct) == 'site'),
         content_type=ct, content=content)
 
 
@@ -137,7 +141,7 @@ def archive_category(seg, cslug):
     if ct is None:
         abort(404)
     if not Content.section_readable_by_current_visitor(ct.slug):
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     category = Category.get_by_slug(cslug)
     if category is None:
         abort(404)
@@ -152,7 +156,9 @@ def archive_tag(seg, tag):
     if ct is None:
         abort(404)
     if not Content.section_readable_by_current_visitor(ct.slug):
-        return render_gate(ct.plural)
+        # type_slug, so a single type's own teasing switch decides how
+        # this refusal looks, not only the organization-wide one.
+        return render_gate(ct.plural, type_slug=ct.slug)
     return _render_archive(ct, title=f'#{tag}',
                            query=Content.with_tag(ct.slug, tag))
 

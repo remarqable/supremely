@@ -11,6 +11,8 @@ import json
 import re
 import secrets
 
+import sqlalchemy as sa
+
 from app.extensions import db
 from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
@@ -154,10 +156,11 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     title = db.Column(db.String(200), nullable=False)
     slug = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text, nullable=False, default='')
-    # Retained, not read. The editor offered a hand-written summary until
-    # every item was made to summarise from its body instead
-    # (excerpt_or_summary). Values organizations wrote before then are kept
-    # rather than destroyed, and nothing writes or renders this column now.
+    # The teaser a non-member sees in place of a gated item. It began as a
+    # hand-written summary, was dropped when every item was made to
+    # summarise from its own body (excerpt_or_summary), and is kept because
+    # what organizations had written was worth keeping. It has one clear
+    # job now: a body cut off mid-sentence is a poor argument for joining.
     excerpt = db.Column(db.String(500), nullable=True)
     featured_upload_id = db.Column(BigIntFK,
                                    db.ForeignKey('upload.id', ondelete='SET NULL'),
@@ -440,23 +443,27 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         return self.save()
 
     @classmethod
-    def section_visibility(cls, type_slug: str) -> str:
+    def type_visibility(cls, type_slug: str) -> str:
         """Org-wide lock for a whole content section (Manage → Content
-        types): org.settings['section_visibility'] maps type slug ->
-        'members'. Absent means public — items then decide individually."""
+        types). Absent means public: items then decide individually.
+
+        One map (Organization.TYPE_SETTINGS_KEY) holds everything an
+        organization has said about a type. There is no fallback to the
+        per-question map this replaced, deliberately: two places to read the
+        same answer from is how the two come to disagree.
+        """
         from flask import g
         org = getattr(g, 'org', None)
         if org is None:
             return 'public'
-        return (org.setting('section_visibility') or {}).get(type_slug,
-                                                             'public')
+        return org.type_visibility(type_slug)
 
     @classmethod
     def section_readable_by_current_visitor(cls, type_slug: str) -> bool:
         from app.platform.authz import is_member_or_platform_admin
         if is_member_or_platform_admin():
             return True
-        return cls.section_visibility(type_slug) == 'public'
+        return cls.type_visibility(type_slug) == 'public'
 
     def visible_to_current_visitor(self) -> bool:
         # A locked section gates every item in it, item settings
@@ -485,9 +492,28 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
     @classmethod
     def published_query(cls, type_slug: str | None = None):
+        """Published rows of a type this organization publishes.
+
+        The type gate belongs here rather than at each reader. Routes were
+        already gated by type_for_base, but a theme's front-page grid, the
+        community rail's announcement and event cards, and the navigation
+        editor's list of linkable pages all read content directly: a
+        section turned off went on publishing in every one of them, which
+        is not what turning it off means.
+
+        Not in count_by_type, deliberately: the console has to say how many
+        items are waiting inside a type that is off, or there is no way to
+        judge whether to turn it back on.
+        """
+        from app.platform.content_types import active_types
+        active = active_types()
         q = cls.query.filter_by(status='published')
         if type_slug:
+            if type_slug not in active:
+                return q.filter(sa.false())
             q = q.filter_by(type=type_slug)
+        else:
+            q = q.filter(cls.type.in_(list(active)))
         return q.order_by(cls.published_at.desc())
 
     @classmethod
@@ -504,7 +530,7 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         from app.platform.authz import is_member_or_platform_admin
         query = cls.published_query(type_slug)
         org = getattr(g, 'org', None)
-        if org and org.teases_gated_content():
+        if org and org.type_teases(type_slug):
             return query
         if is_member_or_platform_admin():
             return query
@@ -555,7 +581,7 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         Python."""
         from datetime import date
         today = date.today().isoformat()
-        if public_only and cls.section_visibility('event') != 'public':
+        if public_only and cls.type_visibility('event') != 'public':
             return None
         query = cls.published_query('event')
         if public_only:

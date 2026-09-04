@@ -222,7 +222,8 @@ class ContentType:
     # A 'site' type is also left out of the community sidebar and the
     # community home feed: its pages render themed, so sending a member
     # there from inside the shell would drop them onto the public site
-    # mid-browse (see in_community_nav).
+    # mid-browse. An organization may disagree, so the question is asked
+    # through type_presentation rather than read off this attribute.
     presentation: str = 'community'
     # The field a listing card leads with, in place of the author avatar.
     # An event card shows a date chip; that used to be a slug test in
@@ -235,23 +236,24 @@ class ContentType:
     # so a plugin's type is never iconless and no template has to know
     # which types exist.
     icon: str = ''
+    # Can an organization turn this off? Page and article are how anything
+    # gets published at all, so they are not a choice. Everything else is.
+    essential: bool = False
+    # Is it on for an organization that has never said either way?
+    #
+    # True for everything Supremely shipped before types became a choice,
+    # so nothing that worked stops working. False for everything added to
+    # the library since: a woodworking club should not have to remove a
+    # jobs board it never asked for.
+    #
+    # Declared here rather than written at provisioning, because a write at
+    # provisioning is skipped by every caller that does not seed defaults,
+    # and then two places disagree about what is on.
+    enabled_by_default: bool = False
 
     @property
     def is_page(self) -> bool:
         return not self.has_archive
-
-    @property
-    def in_community_nav(self) -> bool:
-        """Does this type belong in the community sidebar?
-
-        A type that presents as site furniture does not. Its archive renders
-        through the theme, so a row in the community sidebar would take a
-        member out of the shell they were browsing and into the public site,
-        which is a jarring thing for a sidebar to do. Team is the current
-        example: a roster is something a visitor reads on the website, not
-        something a member navigates to from inside the community.
-        """
-        return self.has_archive and self.presentation == 'community'
 
     def validate_definition(self):
         if not _SLUG_RE.fullmatch(self.slug):
@@ -407,20 +409,63 @@ def get_content_type(slug: str) -> ContentType:
 
 
 def type_is_active(content_type: ContentType) -> bool:
-    """Active for the current tenant. Registration is global (boot-time, no
-    restarts); visibility is per-request: a plugin's types surface only where
-    that plugin is enabled for the org. Core/library types are active
-    everywhere until per-org type enablement exists."""
-    if content_type.plugin is None:
-        return True
+    """Active for the current tenant.
+
+    Registration is global and happens once at boot; whether a type is
+    anything to this organization is per-request. Two gates, in order: a
+    plugin's types exist only where the plugin is installed, and every type
+    is then subject to the organization's own list.
+
+    Outside a request there is no tenant to ask. A plugin's types fail
+    closed there exactly as they always have, and a registered core type
+    stays active, which is what seeds and the command line rely on: a
+    caller that needs every type regardless should read CONTENT_TYPES.
+    """
     from flask import has_request_context
-    if not has_request_context():
-        # CLI/jobs/workers: there is no tenant, so the question has no
-        # answer. Fail closed -- a caller that legitimately needs every
-        # type outside a request should read CONTENT_TYPES directly.
-        return False
-    from app.platform.plugins import installed_version
-    return installed_version(content_type.plugin) is not None
+    if content_type.plugin is not None:
+        if not has_request_context():
+            # CLI/jobs/workers: there is no tenant, so the question has no
+            # answer. Fail closed -- a caller that legitimately needs every
+            # type outside a request should read CONTENT_TYPES directly.
+            return False
+        from app.platform.plugins import installed_version
+        if installed_version(content_type.plugin) is None:
+            return False
+    org = _current_org()
+    if org is None:
+        return content_type.plugin is None
+    return org.type_enabled(content_type)
+
+
+def _current_org():
+    """The organization in force, from a request or from org_scope().
+
+    Asked the same way the tenant filter asks it. Deciding on
+    has_request_context alone answers "no tenant" inside a job, which runs
+    under org_scope with the tenant perfectly well known, and a question
+    about what an organization publishes then defaults to permitting.
+    """
+    from app.platform.tenant import current_org_id
+    org_id = current_org_id()
+    if org_id is None:
+        return None
+    from app.models import Organization
+    from app.platform.tenant import unscoped
+    with unscoped():
+        return Organization.query.filter_by(id=org_id).first()
+
+
+def type_presentation(content_type: ContentType) -> str:
+    """Where this type renders for the current tenant.
+
+    The one place the question is asked, so a controller deciding what to
+    render and the sidebar deciding whether to link there cannot answer it
+    differently. Outside a request there is no organization to disagree, so
+    the type's own answer stands.
+    """
+    org = _current_org()
+    return (org.type_presentation(content_type) if org is not None
+            else content_type.presentation)
 
 
 def active_types() -> dict[str, ContentType]:
@@ -438,10 +483,12 @@ def community_types(group: str | None = None) -> list[ContentType]:
 
     The community's own answer to feed_types(): everything a member can be
     sent to from inside the shell, which excludes anything that presents on
-    the site (ContentType.in_community_nav).
+    the site (ContentType.presentation, which an organization may
+    override).
     """
     return [ct for ct in CONTENT_TYPES.values()
-            if ct.in_community_nav and type_is_active(ct)
+            if (ct.has_archive and type_presentation(ct) == 'community'
+                and type_is_active(ct))
             and (group is None or ct.group == group)]
 
 
@@ -461,18 +508,18 @@ def register_core_types() -> None:
     register_content_type(ContentType(
         slug='page', singular='Page', plural='Pages',
         description='A standalone page (Home, About, Contact).',
-        has_archive=False, base='', template='page',
+        has_archive=False, base='', template='page', essential=True,
     ))
     register_content_type(ContentType(
         slug='article', singular='Article', plural='Articles',
         description='The standard blog post.',
-        base='/blog', show_in_nav=True, icon='article',
+        base='/blog', show_in_nav=True, icon='article', essential=True,
     ))
     register_content_type(ContentType(
         slug='event', singular='Event', plural='Events',
         description='A vertical example: dated events with a location.',
         base='/events', show_in_nav=True, group='meet',
-        lead_field='starts_on', icon='calendar',
+        lead_field='starts_on', icon='calendar', enabled_by_default=True,
         fields=(
             FieldSpec(key='starts_on', type='date', label='Date',
                       required=True, in_summary=True),

@@ -1,13 +1,16 @@
 """Organization: the tenant. Represents the website/community being operated."""
 
 import re
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from app.extensions import db
 from app.platform.errors import ValidationError
 
 from .base import BaseModel, reject_control_characters, transaction
 from .types import JSONColumn, TZDateTime
+
+if TYPE_CHECKING:                       # circular at runtime, fine for hints
+    from app.platform.content_types import ContentType
 
 
 class Organization(BaseModel):
@@ -107,6 +110,75 @@ class Organization(BaseModel):
         content is invisible to non-members — hidden from lists, and direct
         URLs behave as before the gate existed (login redirect / 404)."""
         return bool(self.setting('gated_teasers', True))
+
+    # One map, not a setting per question. Before this there was a map for
+    # who may read a section, and a plan to add one for whether a type is
+    # published at all and another for whether it appears on the public
+    # site: three keys on the same slug, each read somewhere different.
+    TYPE_SETTINGS_KEY = 'content_types'
+
+    def type_settings(self, slug: str) -> dict:
+        """What this organization has said about one type. {} means nothing."""
+        stored = self.setting(self.TYPE_SETTINGS_KEY) or {}
+        return stored.get(slug) or {}
+
+    def set_type_settings(self, slug: str, **values) -> None:
+        """Record decisions about one type. None means "no opinion", which
+        is not the same as False: it is what makes a setting inheritable."""
+        store = dict(self.setting(self.TYPE_SETTINGS_KEY) or {})
+        entry = dict(store.get(slug) or {})
+        entry.update(values)
+        store[slug] = {key: value for key, value in entry.items()
+                       if value is not None}
+        self.update_settings(**{self.TYPE_SETTINGS_KEY: store})
+
+    def type_enabled(self, content_type: 'ContentType') -> bool:
+        """Does this organization publish this kind of thing?
+
+        Page and article are not a choice: without them there is nothing to
+        publish at all. Everything else answers from what was chosen, and
+        falls back to the type's own default when nothing was.
+        """
+        if content_type.essential:
+            return True
+        chosen = self.type_settings(content_type.slug).get('enabled')
+        if chosen is not None:
+            return bool(chosen)
+        # A plugin's types arrive already chosen: installing the plugin is
+        # the act of asking for them, and a second switch to find would be
+        # a puzzle rather than a control.
+        return True if content_type.plugin else content_type.enabled_by_default
+
+    def type_presentation(self, content_type: 'ContentType') -> str:
+        """Where this type renders: through the theme, or in the shell.
+
+        The type declares what it is for, and an organization can disagree:
+        a roster is site furniture for most communities and a members-only
+        directory for some. Absent means the type's own answer, so this is
+        an override rather than a copy made on the day it was saved.
+        """
+        chosen = self.type_settings(content_type.slug).get('presentation')
+        return (chosen if chosen in ('site', 'community')
+                else content_type.presentation)
+
+    def type_visibility(self, slug: str) -> str:
+        """Who may read this whole section. Absent means public, and items
+        then decide for themselves."""
+        from app.platform.authz import VISIBILITY_LEVELS
+        chosen = self.type_settings(slug).get('visibility')
+        return chosen if chosen in VISIBILITY_LEVELS else VISIBILITY_LEVELS[0]
+
+    def type_teases(self, slug: str) -> bool:
+        """Does a gated item of this type show as a locked title, or vanish?
+
+        Who may read and how a refusal looks are two questions, deliberately
+        kept apart: one is about access and the other about presentation,
+        and folding them into a single three-valued setting leaves nowhere
+        for membership tiers to add values later. None here inherits the
+        organization's own answer.
+        """
+        chosen = self.type_settings(slug).get('tease')
+        return self.teases_gated_content() if chosen is None else bool(chosen)
 
     def analytics_config(self) -> dict:
         """The org's tracker config (Manage → Settings → Analytics):

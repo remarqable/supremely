@@ -109,3 +109,111 @@ def test_sync_db_adds_a_column_the_table_is_missing(app, runner):
 
     columns = {c['name'] for c in sa.inspect(db.engine).get_columns('content')}
     assert 'presentation' in columns
+
+
+def test_an_organization_keeps_the_sections_it_was_already_using(migrated_app):
+    """Grandfathering, which is the part of this migration that matters.
+
+    Library types are off for an organization that has not asked for one.
+    An organization that has been publishing episodes for a year has asked,
+    by publishing them, and must not lose the section on upgrade. Written
+    against the database rather than the models, because that is what a real
+    upgrade has in front of it.
+    """
+    import json
+
+    import sqlalchemy as sa
+    from alembic.command import downgrade as alembic_downgrade
+    from alembic.command import upgrade as alembic_upgrade
+    from flask_migrate import Migrate  # noqa: F401
+
+    from app.extensions import db as _db
+
+    bind = _db.engine
+    with bind.begin() as connection:
+        connection.execute(sa.text(
+            "INSERT INTO organization (id, name, slug, is_active, theme, "
+            "settings, created_at, updated_at) VALUES "
+            "(9001, 'Old', 'old', true, 'origin', :settings, :now, :now)"),
+            {'settings': json.dumps({'section_visibility':
+                                     {'article': 'members'}}),
+             'now': '2026-01-01 00:00:00'})
+        for row_id, slug, kind in ((9101, 'ep-one', 'episode'),
+                                   (9102, 'a-post', 'article')):
+            connection.execute(sa.text(
+                "INSERT INTO content (id, org_id, type, title, slug, body, "
+                "fields, tags, status, visibility, presentation, created_at, "
+                "updated_at) VALUES (:id, 9001, :kind, 'T', :slug, '', "
+                "'{}', '[]', 'published', 'public', 'site', :now, :now)"),
+                {'id': row_id, 'slug': slug, 'kind': kind,
+                 'now': '2026-01-01 00:00:00'})
+
+    from alembic.config import Config as AlembicConfig
+    config = AlembicConfig('migrations/alembic.ini')
+    config.set_main_option('script_location', 'migrations')
+
+    def settings_now():
+        with bind.connect() as connection:
+            raw = connection.execute(sa.text(
+                'SELECT settings FROM organization WHERE id = 9001')).scalar()
+        return json.loads(raw) if isinstance(raw, str) else (raw or {})
+
+    alembic_downgrade(config, 'a13451eb2b44')
+    alembic_upgrade(config, 'head')
+
+    settings = settings_now()
+    types = settings.get('content_types') or {}
+    # The podcast it was using survives the upgrade.
+    assert types.get('episode', {}).get('enabled') is True
+    # The lock it had set moves across rather than being lost.
+    assert types.get('article', {}).get('visibility') == 'members'
+    # Article is essential, so it is never written as a choice to make.
+    assert 'enabled' not in types.get('article', {})
+    # A type it never used stays off.
+    assert 'recipe' not in types
+    # And the key this replaces is gone, so there is one place to look.
+    assert 'section_visibility' not in settings
+
+
+def test_the_downgrade_does_not_republish_what_was_turned_off(migrated_app):
+    """A round trip must not resurrect a section somebody switched off.
+
+    The downgrade rebuilds the key the old code reads and leaves the new
+    map alone, because the old code ignores what it does not know. Deleting
+    it would throw away every "off" and rolling forward would republish the
+    lot.
+    """
+    import json
+
+    import sqlalchemy as sa
+    from alembic.command import downgrade as alembic_downgrade
+    from alembic.command import upgrade as alembic_upgrade
+    from alembic.config import Config as AlembicConfig
+
+    from app.extensions import db as _db
+
+    bind = _db.engine
+    decided = {'episode': {'enabled': False, 'tease': False},
+               'article': {'visibility': 'members'}}
+    with bind.begin() as connection:
+        connection.execute(sa.text(
+            "INSERT INTO organization (id, name, slug, is_active, theme, "
+            "settings, created_at, updated_at) VALUES "
+            "(9002, 'Decided', 'decided', true, 'origin', :settings, "
+            ":now, :now)"),
+            {'settings': json.dumps({'content_types': decided}),
+             'now': '2026-01-01 00:00:00'})
+
+    config = AlembicConfig('migrations/alembic.ini')
+    config.set_main_option('script_location', 'migrations')
+    alembic_downgrade(config, 'a13451eb2b44')
+    alembic_upgrade(config, 'head')
+
+    with bind.connect() as connection:
+        raw = connection.execute(sa.text(
+            'SELECT settings FROM organization WHERE id = 9002')).scalar()
+    settings = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    types = settings.get('content_types') or {}
+    assert types.get('episode', {}).get('enabled') is False   # still off
+    assert types.get('episode', {}).get('tease') is False     # still kept
+    assert types.get('article', {}).get('visibility') == 'members'

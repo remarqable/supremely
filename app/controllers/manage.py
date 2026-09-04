@@ -144,6 +144,7 @@ def _content_from_form(content: Content, *, previewing: bool = False) -> Content
     content.slug = request.form.get('slug', '')
     content.body = request.form.get('body', '')
     content.visibility = request.form.get('visibility', 'public')
+    content.excerpt = request.form.get('excerpt', '').strip() or None
     content.seo_title = request.form.get('seo_title', '').strip() or None
     content.seo_description = request.form.get('seo_description', '').strip() or None
     # `template` reaches render_site()'s candidate list, so a value the rule
@@ -427,28 +428,66 @@ def content_types_page():
     """The content-type library: what this organization can publish today,
     and the premade types that are on the way."""
     from app.platform.content_library import COMING_SOON
+    # count_by_type groups every row this organization has, whatever its
+    # type is doing, so a disabled type still reports what is waiting in it.
     counts = dict(Content.count_by_type())
+    # A plugin's types belong to the plugin: installing it is the act of
+    # choosing them, so a type whose plugin is not installed here has no
+    # switch to offer and no row to draw.
+    types = [ct for ct in CONTENT_TYPES.values()
+             if ct.plugin is None or ct.slug in active_types()]
+    from app.platform.authz import VISIBILITY_LEVELS
     return render_device_template('manage/content_types.html',
-                           types=CONTENT_TYPES.values(), counts=counts,
-                           coming_soon=COMING_SOON,
-                           section_visibility=Content.section_visibility)
+                           types=types, counts=counts,
+                           coming_soon=COMING_SOON, org=g.org,
+                           visibility_levels=VISIBILITY_LEVELS)
 
 
-@bp.route('/content-types/<type_slug>/visibility', methods=['POST'])
+@bp.route('/content-types/<type_slug>', methods=['POST'])
 @org_required
 @require('org.settings')
-def toggle_section_visibility(type_slug):
-    """Lock/unlock a whole content section: locked sections gate every item
-    in them for non-members, item settings notwithstanding."""
+def update_content_type(type_slug):
+    """What this organization does with one type: whether it publishes it
+    at all, who may read the section, and whether a gated item of this kind
+    shows as a locked title or not at all.
+
+    Turning a type off never deletes anything. The rows stay, the routes
+    stop answering, and the row here says how many are waiting, so turning
+    it back on restores exactly what was there. The same stance a plugin
+    takes when it is uninstalled.
+    """
+    from app.platform.authz import VISIBILITY_LEVELS
     ct = CONTENT_TYPES.get(type_slug)
-    if ct is None or not ct.base:              # only nav sections lock
+    if ct is None or (ct.plugin is not None
+                      and type_slug not in active_types()):
         abort(404)
-    store = dict(g.org.setting('section_visibility') or {})
-    if store.get(type_slug) == 'members':
-        store.pop(type_slug)
-    else:
-        store[type_slug] = 'members'
-    g.org.update_settings(section_visibility=store)
+    if not ct.has_archive and ct.essential:
+        # Nothing to decide: pages are how a site has an About page at all,
+        # and a type with no archive has no section to gate.
+        abort(404)
+    enabled = True if ct.essential else request.form.get('enabled') == 'on'
+    settings = {'enabled': enabled}
+    # Only a type with an archive has a section to lock or a surface to
+    # move, which is what the form offers. And only what the form actually
+    # carried: a POST missing a field is not a request to clear it, and an
+    # absent value stored as None reads as "no opinion", which would quietly
+    # unlock a locked section.
+    if ct.has_archive:
+        if 'visibility' in request.form:
+            visibility = request.form['visibility']
+            settings['visibility'] = (
+                visibility if visibility in VISIBILITY_LEVELS
+                and visibility != VISIBILITY_LEVELS[0] else None)
+        if 'tease' in request.form:
+            settings['tease'] = {'yes': True, 'no': False}.get(
+                request.form['tease'])
+        if 'presentation' in request.form:
+            # Empty means "whatever the type says", a real answer and not
+            # the same as copying today's answer into storage.
+            presentation = request.form['presentation']
+            settings['presentation'] = (
+                presentation if presentation in ('site', 'community') else None)
+    g.org.set_type_settings(type_slug, **settings)
     flash(t('common.saved'), 'success')
     return redirect(url_for('manage.content_types_page'))
 
@@ -546,6 +585,8 @@ def navigation():
 
     menus = {menu: NavigationItem.items_for(menu) for menu in MENUS}
     # Any published content can be a nav target (pages most commonly).
+    # published_query lists only types this organization publishes, so a
+    # disabled section cannot be offered as a link that would 404.
     linkable = (Content.published_query()
                 .order_by(Content.type, Content.title).all())
     return render_device_template('manage/navigation.html', menus=menus,

@@ -9,7 +9,7 @@ from flask import g
 
 from app.models import Content
 from app.platform.errors import ValidationError
-from tests.conftest import login_as
+from tests.conftest import enable_types, login_as
 
 ACME = 'http://acme.example.test'
 COMMUNITY_MARKER = b'aria-label="Community navigation"'
@@ -79,6 +79,7 @@ def test_presentation_value_is_validated(app, acme):
 def test_a_site_presented_type_archive_renders_themed(app, client, acme):
     """team_member declares presentation='site': its archive and singles get
     the theme, not the shell — same seam as pages, declared on the type."""
+    enable_types(acme, 'team_member')
     with app.test_request_context(base_url=ACME):
         g.org = acme
         member = Content(type='team_member', title='Jo Doe', slug='jo-doe',

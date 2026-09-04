@@ -208,7 +208,7 @@ def _init_context(app):
                 return None
             from .models import Content
             if (not _member_view()
-                    and Content.section_visibility('announcement') != 'public'):
+                    and Content.type_visibility('announcement') != 'public'):
                 return None
             query = Content.published_query('announcement')
             if not _member_view():

@@ -24,7 +24,7 @@ from app.platform.theming import (
     scan_themes,
     validate_manifest,
 )
-from tests.conftest import login_as, make_png, make_user
+from tests.conftest import enable_types, login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
 
@@ -216,6 +216,7 @@ def test_the_memo_does_not_outlive_its_request(app, client, acme, globex):
 
 def test_a_type_specific_single_is_used(app, client, acme, globex):
     """Acceptance 3, and the symmetry archives already had."""
+    enable_types(acme, 'team_member')
     with app.test_request_context(base_url=ACME):
         g.org = acme
         publish(acme, 'Meet Ada', type_slug='team_member')

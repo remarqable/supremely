@@ -31,15 +31,26 @@ def test_videos_are_labelled_videos_but_still_live_at_recordings(app):
     assert ct.base == '/recordings'
 
 
-def test_site_presented_types_stay_out_of_the_community_nav(app):
+def test_site_presented_types_stay_out_of_the_community_nav(app, acme):
     """The sidebar asks each type whether it belongs there rather than
     naming one, so a type that presents as site furniture drops out by
-    declaring what it is, and a type added later needs no nav change."""
-    assert not CONTENT_TYPES['team_member'].in_community_nav
-    assert CONTENT_TYPES['recording'].in_community_nav
-    assert CONTENT_TYPES['event'].in_community_nav
+    declaring what it is, and a type added later needs no nav change.
+
+    Asked through community_types rather than off the type, because an
+    organization can disagree with the type: reading the declaration alone
+    would be a second answer, and the one that is wrong for that
+    organization.
+    """
+    from flask import g
+
+    from app.platform.content_types import community_types
+    with app.test_request_context(base_url='http://acme.example.test'):
+        g.org = acme
+        listed = {ct.slug for ct in community_types()}
+    assert 'team_member' not in listed          # site furniture
+    assert {'recording', 'event'} <= listed
     # A page has no archive to link to, so it is not a nav destination.
-    assert not CONTENT_TYPES['page'].in_community_nav
+    assert 'page' not in listed
 
 
 def test_no_base_collisions(app):

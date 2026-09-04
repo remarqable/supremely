@@ -121,6 +121,8 @@ def test_the_sidebar_leaves_out_types_that_present_on_the_site(app, client,
 
     The type, its data and /team are untouched: only the link is gone.
     """
+    from tests.conftest import enable_types
+    enable_types(acme, 'team_member')
     login_as(client, user)
     with app.test_request_context(base_url=ACME):
         g.org = acme

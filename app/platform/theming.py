@@ -442,7 +442,8 @@ def shell_layout() -> str:
     return 'layouts/community.html'
 
 
-def render_gate(title: str, kind: str | None = None):
+def render_gate(title: str, kind: str | None = None,
+                type_slug: str | None = None, teaser: str | None = None):
     """The members-only gate: a friendly 200 page for an object the visitor
     may know exists but cannot read. Tease-don't-hide is the default stance —
     gated items appear in public lists as locked titles, and clicking one
@@ -450,18 +451,26 @@ def render_gate(title: str, kind: str | None = None):
     body never reaches this template; access was already denied by the
     object's own visibility policy (authz.can_view) before rendering.
 
-    Orgs can turn teasing off (Manage → Settings → Privacy). Then this is
-    the single point where the gate degrades to hiding: anonymous visitors
-    are sent to login (members reach the content after signing in) and
-    signed-in non-members get a 404 — the title never renders."""
+    Orgs can turn teasing off (Manage → Settings → Privacy), and a single
+    type can answer differently (Manage → Content types): a community may
+    advertise its articles and say nothing at all about its jobs board.
+    Then this is the single point where the gate degrades to hiding:
+    anonymous visitors are sent to login (members reach the content after
+    signing in) and signed-in non-members get a 404 — the title never
+    renders."""
     from flask import abort, g, redirect, request, url_for
     from flask_login import current_user
-    if not g.org.teases_gated_content():
+    teases = (g.org.type_teases(type_slug) if type_slug
+              else g.org.teases_gated_content())
+    if not teases:
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login', next=request.path))
         abort(404)
+    # The teaser is author-written and offered on purpose. Truncating the
+    # gated body instead would advertise membership with the first two
+    # sentences of something, cut mid-word.
     return render_site(['gate.html'], gate_title=title, gate_kind=kind,
-                       login_next=request.path)
+                       gate_teaser=teaser, login_next=request.path)
 
 
 # Surfaces that are not part of an organization's site at all. They render

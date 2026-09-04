@@ -173,10 +173,13 @@ def test_section_lock_gates_the_whole_section(app, client, acme, globex, user):
                                 'Everyone reads this.')       # public item
     owner = app.test_client()
     login_as(owner, user)
-    response = owner.post('/manage/content-types/article/visibility',
-                          base_url=ACME)
+    # One form per type now, carrying everything this organization has
+    # decided about it, rather than a lock button of its own.
+    response = owner.post('/manage/content-types/article', base_url=ACME,
+                          data={'enabled': 'on', 'visibility': 'members',
+                                'tease': 'inherit'})
     assert response.status_code == 302
-    assert acme.setting('section_visibility') == {'article': 'members'}
+    assert acme.type_visibility('article') == 'members'
 
     listing = client.get('/blog', base_url=ACME)
     assert listing.status_code == 200                 # one gate for the area
@@ -189,17 +192,23 @@ def test_section_lock_gates_the_whole_section(app, client, acme, globex, user):
     member_view = owner.get('/blog', base_url=ACME)
     assert b'Open Article' in member_view.data
 
-    # Toggle back: public again.
-    owner.post('/manage/content-types/article/visibility', base_url=ACME)
-    assert acme.setting('section_visibility') == {}
+    # Back to public.
+    owner.post('/manage/content-types/article', base_url=ACME,
+               data={'enabled': 'on', 'visibility': 'public',
+                     'tease': 'inherit'})
+    assert acme.type_visibility('article') == 'public'
     assert b'Everyone reads this.' in client.get(permalink,
                                                  base_url=ACME).data
 
 
-def test_section_lock_rejects_standalone_types(app, client, acme, globex, user):
+def test_a_type_with_nothing_to_decide_has_no_form(app, client, acme, globex,
+                                                   user):
+    """Pages cannot be turned off and have no archive to gate, so the
+    console offers no controls for them and the route accepts none."""
     login_as(client, user)
-    assert client.post('/manage/content-types/page/visibility',
-                       base_url=ACME).status_code == 404
+    assert client.post('/manage/content-types/page', base_url=ACME,
+                       data={'visibility': 'members'}).status_code == 404
+    assert acme.type_visibility('page') == 'public'
 
 
 def test_gated_single_readable_by_member(app, client, acme, globex, user):

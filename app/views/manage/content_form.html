@@ -250,6 +250,15 @@
       </div>
       {% endif %}
 
+      {# Shown on the members-only gate in place of the body. The column
+         was kept when the editor stopped offering it as a summary; this is
+         the one clear job it has. #}
+      <div>
+        <label for="excerpt" class="label">{{ _('manage.gate_teaser') }}</label>
+        <textarea id="excerpt" name="excerpt" class="textarea mt-1"
+                  maxlength="500" aria-describedby="excerpt-hint">{{ content.excerpt or '' if content else '' }}</textarea>
+        <p id="excerpt-hint" class="mt-1 text-xs text-slate-500">{{ _('manage.gate_teaser_hint') }}</p>
+      </div>
       <div>
         <label for="seo_title" class="label">{{ _('manage.seo_title') }}</label>
         <input type="text" id="seo_title" name="seo_title" class="input mt-1"

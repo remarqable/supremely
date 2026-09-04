@@ -13,7 +13,7 @@ from app.models import (
     User,
 )
 from app.platform.content import VIDEO_FRAME_HOSTS
-from tests.conftest import login_as, make_png, make_user
+from tests.conftest import enable_types, login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
 # The back arrow's path, rendered only by the back_link macro.
@@ -952,57 +952,62 @@ def test_uploading_a_featured_image_inline_creates_a_media_upload(
         f'value="{upload.id}"'.encode() in form.data
 
 
-def test_the_editor_no_longer_offers_an_excerpt(app, client, acme, globex,
+def test_the_editor_offers_a_teaser_for_the_gate(app, client, acme, globex,
                                                 user):
-    """Every item summarises the same way now, from its own body. Checked
-    on a new form, on an edit form, and on a second content type, since the
-    field was universal and could return to any of them."""
+    """The excerpt column is back in the editor with one clear job.
+
+    It was removed as a summary, because every item summarises the same way
+    now, from its own body. This is not that: it is what a non-member sees
+    in place of a gated item, where a body truncated mid-sentence is a poor
+    argument for joining.
+    """
     login_as(client, user)
-    for path in ('/manage/content/article/new', '/manage/content/recording/new',
-                 '/manage/content/page/new'):
+    for path in ('/manage/content/article/new', '/manage/content/page/new'):
         form = client.get(path, base_url=ACME)
         assert form.status_code == 200, path
-        assert b'name="excerpt"' not in form.data, path
+        assert b'name="excerpt"' in form.data, path
 
     client.post('/manage/content/article/new', base_url=ACME, data={
         'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
-        'visibility': 'public', 'action': 'publish'})
+        'visibility': 'public', 'action': 'publish',
+        'excerpt': 'Why this is worth reading.'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        item_id = Content.published_by_slug('article', 'a-post').id
-    edit = client.get(f'/manage/content/{item_id}/edit', base_url=ACME)
-    assert edit.status_code == 200
-    assert b'name="excerpt"' not in edit.data
+        item = Content.published_by_slug('article', 'a-post')
+        assert item.excerpt == 'Why this is worth reading.'
+        # And still not what a listing shows: summaries come from the body.
+        assert item.excerpt_or_summary().startswith('Body.')
 
 
-def test_an_excerpt_written_before_the_field_was_removed_survives(app, client,
-                                                                  acme, globex,
-                                                                  user):
-    """The form no longer posts the field, and a form that does not post a
-    field is not asking for it to be cleared. The column keeps what an
-    organization wrote; listings simply stop using it."""
+def test_a_gated_item_shows_its_teaser_and_never_its_body(app, client, acme,
+                                                          globex, user):
+    """What the teaser is for. The gate has to make membership worth having
+    without giving away the thing behind it."""
     login_as(client, user)
     client.post('/manage/content/article/new', base_url=ACME, data={
-        'title': 'Old post', 'slug': 'old-post', 'body': 'The body text.',
-        'visibility': 'public', 'action': 'publish'})
-    with app.test_request_context(base_url=ACME):
-        g.org = acme
-        item = Content.published_by_slug('article', 'old-post')
-        item.excerpt = 'A hand-written summary.'
-        item.save()
-        item_id = item.id
+        'title': 'The inner circle', 'slug': 'inner', 'body': 'The secret.',
+        'visibility': 'members', 'action': 'publish',
+        'excerpt': 'Six months of numbers, in full.'})
 
-    client.post(f'/manage/content/{item_id}/edit', base_url=ACME, data={
-        'title': 'Old post edited', 'slug': 'old-post',
-        'body': 'The body text.', 'visibility': 'public', 'action': 'save'})
+    visitor = app.test_client()
+    gate = visitor.get('/blog/inner', base_url=ACME)
+    assert gate.status_code == 200
+    assert b'Six months of numbers, in full.' in gate.data
+    assert b'The secret.' not in gate.data
 
-    with app.test_request_context(base_url=ACME):
-        g.org = acme
-        saved = db.session.get(Content, item_id)
-        assert saved.title == 'Old post edited'
-        assert saved.excerpt == 'A hand-written summary.'   # not wiped
-        # but no longer what a listing shows
-        assert saved.excerpt_or_summary().startswith('The body text.')
+
+def test_an_item_with_no_teaser_shows_its_title_alone(app, client, acme,
+                                                      globex, user):
+    """Blank is a real answer: the gate falls back to the title rather than
+    advertising with the first sentence of something."""
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Quiet one', 'slug': 'quiet', 'body': 'The body text.',
+        'visibility': 'members', 'action': 'publish'})
+    gate = app.test_client().get('/blog/quiet', base_url=ACME)
+    assert gate.status_code == 200
+    assert b'Quiet one' in gate.data
+    assert b'The body text.' not in gate.data
 
 
 def test_the_editor_offers_one_way_out_at_the_top(app, client, acme, user):
@@ -1651,6 +1656,8 @@ def test_a_file_that_is_not_an_image_is_not_offered_a_description(app, client,
 # --- the widened field vocabulary, through the editor -------------------------
 
 def publish_recipe(client, **overrides):
+    """Recipes are off until an organization asks for them, so anything
+    publishing one turns it on first."""
     data = {
         'title': 'Garlic soup', 'slug': 'garlic-soup',
         'body': 'A good one.', 'visibility': 'public', 'action': 'publish',
@@ -1672,6 +1679,7 @@ def publish_recipe(client, **overrides):
 def test_a_repeating_field_saves_its_rows_in_order(app, client, acme, user):
     """The editor posts one list per sub-field and the rows are zipped back
     out, so what the author saw top to bottom is what is stored."""
+    enable_types(acme, 'recipe')
     login_as(client, user)
     assert publish_recipe(client).status_code == 302
 
@@ -1690,6 +1698,7 @@ def test_a_repeating_field_saves_its_rows_in_order(app, client, acme, user):
 def test_the_blank_row_an_editor_offers_is_not_saved(app, client, acme, user):
     """The row nobody filled in comes back on every post. Refusing the save
     for it would make the field unusable."""
+    enable_types(acme, 'recipe')
     login_as(client, user)
     publish_recipe(client, **{'field_ingredients__1__amount': '',
                               'field_ingredients__1__item': '',
@@ -1705,6 +1714,7 @@ def test_the_blank_row_an_editor_offers_is_not_saved(app, client, acme, user):
 def test_a_bad_row_is_refused_and_the_rows_come_back(app, client, acme, user):
     """The case that is easy to get wrong: a save refused for one row must
     hand the author back everything they typed, not an empty table."""
+    enable_types(acme, 'recipe')
     login_as(client, user)
     response = publish_recipe(client, **{
         'field_ingredients__1__item': '',        # required, missing
@@ -1727,6 +1737,7 @@ def test_a_row_keeps_its_own_values_when_a_column_is_short(app, client, acme,
     the author's data is quietly rearranged. Here the middle amount is
     absent, and the items must stay with the rows they were typed into.
     """
+    enable_types(acme, 'recipe')
     login_as(client, user)
     # Posted whole rather than layered over the helper, so the middle row
     # genuinely has no amount posted for it at all.
@@ -1755,6 +1766,7 @@ def test_an_older_picture_is_still_offered_by_the_chooser(app, client, acme,
     re-saving for an unrelated reason would clear the field, or fail its
     required check. Whatever is referenced is put back into the list.
     """
+    enable_types(acme, 'gallery')
     login_as(client, user)
     client.post('/manage/media', base_url=ACME,
                 data={'file': (io.BytesIO(make_png()), 'first.png')})
@@ -1781,6 +1793,7 @@ def test_an_older_picture_is_still_offered_by_the_chooser(app, client, acme,
 
 
 def test_a_select_only_accepts_what_it_offers(app, client, acme, user):
+    enable_types(acme, 'job')
     login_as(client, user)
     response = client.post('/manage/content/job/new', base_url=ACME, data={
         'title': 'Cook', 'slug': 'cook', 'body': 'Come and cook.',
@@ -1806,6 +1819,7 @@ def test_a_recipe_renders_its_ingredients_on_the_page_and_in_email(app, client,
                                                                    acme, user):
     """The stage's acceptance: a real repeating list, editable, rendering on
     web and in a newsletter."""
+    enable_types(acme, 'recipe')
     login_as(client, user)
     publish_recipe(client)
 
@@ -1829,6 +1843,7 @@ def test_deleting_a_picture_does_not_take_the_page_with_it(app, client, acme,
                                                            user):
     """An image field holds an id, and the file behind it can be deleted
     from the media library at any time."""
+    enable_types(acme, 'gallery')
     login_as(client, user)
     client.post('/manage/media', base_url=ACME,
                 data={'file': (io.BytesIO(make_png()), 'shot.png')})

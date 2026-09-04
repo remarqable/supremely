@@ -33,7 +33,7 @@ def register_library_types() -> None:
         slug='recording', singular='Video', plural='Videos',
         description='Talks, webinars and member deep dives, linked from '
                     'wherever the video is hosted.',
-        base='/recordings', group='learn', icon='video',
+        base='/recordings', group='learn', icon='video', enabled_by_default=True,
         # One field. Duration, speakers and a recorded-on date were three
         # more things to type for something the video page already shows,
         # and nothing rendered them.
@@ -47,7 +47,7 @@ def register_library_types() -> None:
         slug='episode', singular='Episode', plural='Podcast',
         description='Podcast episodes, linked from wherever the audio is '
                     'hosted.',
-        base='/podcast', group='learn', icon='podcast',
+        base='/podcast', group='learn', icon='podcast', enabled_by_default=True,
         fields=(
             FieldSpec(key='audio_url', type='url', label='Audio URL',
                       required=True),
@@ -56,13 +56,13 @@ def register_library_types() -> None:
     register_content_type(ContentType(
         slug='announcement', singular='Announcement', plural='Announcements',
         description='Official updates from the team.',
-        base='/announcements', icon='announcement',
+        base='/announcements', icon='announcement', enabled_by_default=True,
     ))
     register_content_type(ContentType(
         slug='team_member', singular='Team member', plural='Team',
         description='The people behind the organization: name, role, photo, '
                     'and a short bio.',
-        base='/team', group='meet',
+        base='/team', group='meet', enabled_by_default=True,
         # A roster is site furniture, not community activity: the archive
         # presents through the theme like a brochure page.
         presentation='site',
@@ -74,7 +74,7 @@ def register_library_types() -> None:
     register_content_type(ContentType(
         slug='resource', singular='Resource', plural='Resources',
         description='Reports, guides, and documents members can download.',
-        base='/resources', group='learn',
+        base='/resources', group='learn', enabled_by_default=True,
         fields=(
             FieldSpec(key='resource_url', type='url', label='Resource URL',
                       required=True,
