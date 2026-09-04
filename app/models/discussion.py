@@ -192,6 +192,19 @@ class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
         self.last_activity_at = utcnow()
         return self
 
+    @classmethod
+    def recent_by_author(cls, user_id: int, limit: int = 10,
+                         include_hidden: bool = False):
+        """A member's newest posts in this tenant (the profile page).
+
+        Hidden posts stay out unless the viewer moderates; the tenant filter
+        keeps another organization's posts by the same user out.
+        """
+        query = cls.query.filter(cls.created_by_id == user_id)
+        if not include_hidden:
+            query = query.filter(cls.is_hidden.is_(False))
+        return query.order_by(cls.created_at.desc()).limit(limit).all()
+
     def recount_replies(self):
         """Refresh the denormalized reply count from the reply table."""
         self.reply_count = Reply.query.filter_by(post_id=self.id).count()

@@ -1,5 +1,5 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import lock_badge with context %}
+{% from 'partials/_ui.html' import lock_badge, member_name with context %}
 
 {% block title %}{{ archive_title or content_type.plural }} — {{ g.org.name }}{% endblock %}
 
@@ -25,7 +25,7 @@
       </h2>
       <p class="mt-1 text-sm text-slate-500">
         {% if item.published_at %}{{ item.published_at|localdate }}{% endif %}
-        {% if item.author %} · {{ item.author.name }}{% endif %}
+        {% if item.author %} · {{ member_name(item.author) }}{% endif %}
         {% for category in item.categories %}
         · <a href="{{ content_type.base }}/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
         {% endfor %}

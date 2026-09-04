@@ -19,10 +19,10 @@ from flask_login import current_user, login_required, login_user
 
 from app.extensions import db
 from app.middleware.ratelimit import rate_limit
-from app.models import Membership, User
+from app.models import Membership, Post, User
 from app.models.invitation import Invitation
 from app.models.upload import open_bounded, sniff
-from app.platform.authz import is_member_or_platform_admin, org_required
+from app.platform.authz import can, is_member_or_platform_admin, org_required
 from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
@@ -112,6 +112,27 @@ def directory():
                    .filter(User.is_active.is_(True))
                    .order_by(Membership.created_at).all())
     return render_site(['members.html'], context_name='application', members=member_list)
+
+
+@bp.route('/members/<int:user_id>')
+@org_required
+def member(user_id):
+    """One member's profile: name, avatar, bio, and their recent posts.
+
+    Independent of the directory switch, because names already appear on
+    every post; what the page adds is the bio and the post list, which are
+    member data and so stay behind the same gate as the directory."""
+    if not is_member_or_platform_admin():
+        from app.platform.theming import render_gate
+        return render_gate(t('members.profile_gate'))
+    membership = Membership.get(user_id, g.org.id)
+    if (membership is None or not membership.is_active
+            or not membership.user.is_active):
+        abort(404)
+    posts = Post.recent_by_author(user_id, include_hidden=can('content.moderate'))
+    return render_site(['member.html'], context_name='application',
+                       member=membership.user, membership=membership,
+                       posts=posts)
 
 
 # --- Profile ------------------------------------------------------------------------

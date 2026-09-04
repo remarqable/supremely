@@ -1,6 +1,6 @@
 {% extends site_layout %}
 {% from 'community/_macros.html' import area_header, new_post_modal, search_box with context %}
-{% from 'partials/_ui.html' import avatar with context %}
+{% from 'partials/_ui.html' import avatar, member_name with context %}
 {% from 'partials/_community_rail.html' import community_rail with context %}
 
 {% block title %}{{ post.title }} — {{ g.org.name }}{% endblock %}
@@ -36,7 +36,7 @@
     {{ avatar(reply.author.name if reply.author else '?',
               reply.author.avatar_url if reply.author else None,
               size='h-7 w-7', text='text-[10px]') }}
-    <span class="text-sm font-semibold text-slate-900">{{ reply.author.name if reply.author else g.org.name }}</span>
+    {{ member_name(reply.author, 'text-sm font-semibold text-slate-900') }}
     <span class="text-xs text-slate-400">{{ reply.created_at|timeago }}</span>
   </div>
   <div class="prose-supremely mt-2 text-sm">{{ reply.html | safe }}</div>
@@ -112,7 +112,7 @@
               size='h-9 w-9', text='text-xs') }}
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2">
-        <span class="text-sm font-semibold text-slate-900">{{ post.author.name if post.author else g.org.name }}</span>
+        {{ member_name(post.author, 'text-sm font-semibold text-slate-900') }}
         <span class="text-xs text-slate-400">{{ post.created_at|timeago }}</span>
         {% if post.is_pinned %}<span class="badge-brand">{{ _('discussions.pinned') }}</span>{% endif %}
         {% if post.is_seeded and g.membership and g.membership.role == 'owner' %}<span class="badge-slate shrink-0" title="{{ _('discussions.seeded_hint') }}">{{ _('discussions.seeded') }}</span>{% endif %}

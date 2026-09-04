@@ -1,0 +1,57 @@
+{% extends site_layout %}
+{% from 'community/_macros.html' import area_header with context %}
+{% from 'partials/_ui.html' import avatar, empty_state with context %}
+
+{% block title %}{{ member.name }} — {{ g.org.name }}{% endblock %}
+
+{% block content %}
+{# The directory is the level up, but only when the org has it switched on. #}
+{% set directory_on = g.org.setting('member_directory') %}
+{% call area_header(_('members.directory_title'), '/members' if directory_on else None,
+                    [(member.name, None)], tag='div',
+                    back='/members' if directory_on else None) %}
+  {% if current_user.is_authenticated and current_user.id == member.id %}
+  <a href="{{ url_for('members.profile') }}" class="btn-secondary">{{ _('members.edit_profile') }}</a>
+  {% endif %}
+{% endcall %}
+
+<div class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
+  <div class="flex items-start gap-4">
+    {{ avatar(member.name, member.avatar_url, size='h-16 w-16', text='text-xl') }}
+    <div class="min-w-0 flex-1">
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ member.name }}</h1>
+        {% if membership.role != 'member' %}
+        <span class="badge-brand">{{ _('roles.' ~ membership.role) }}</span>
+        {% endif %}
+      </div>
+      <div class="mt-0.5 text-sm text-slate-400">{{ _('members.joined') }} {{ membership.created_at|localdate }}</div>
+      {% if member.bio %}
+      <p class="mt-3 whitespace-pre-line text-sm leading-relaxed text-slate-600">{{ member.bio }}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<h2 class="mb-3 mt-7 text-sm font-semibold tracking-tight text-slate-900">{{ _('members.recent_posts') }}</h2>
+<div class="rounded-xl bg-white ring-1 ring-slate-200">
+  {% if posts %}
+  <div class="divide-y divide-slate-100">
+    {% for post in posts %}
+    <a href="{{ post.url }}" class="block px-5 py-3.5 transition-colors hover:bg-slate-50/60 {{ 'opacity-60' if post.is_hidden }}">
+      <div class="flex items-center gap-2">
+        <span class="min-w-0 truncate font-medium text-slate-900">{{ post.title }}</span>
+        {% if post.is_hidden %}<span class="badge-red shrink-0">{{ _('discussions.hidden') }}</span>{% endif %}
+        <span class="ms-auto shrink-0 text-sm tabular-nums text-slate-500">{{ _('community.replies_count', n=post.reply_count) }}</span>
+      </div>
+      <div class="mt-1 text-xs text-slate-400">
+        {{ post.group.name }} · {{ _('discussions.posted_ago', when=post.created_at|timeago) }}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  {{ empty_state(_('members.no_posts')) }}
+  {% endif %}
+</div>
+{% endblock %}

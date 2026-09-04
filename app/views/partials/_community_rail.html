@@ -52,8 +52,10 @@
   {% if recent %}
   <div class="mt-3.5 flex items-center">
     {% for member in recent %}
-    <span class="{{ '-ms-2.5' if not loop.first }} rounded-full ring-[2.5px] ring-white">
-      {{ avatar(member.name, member.avatar_url, size='h-9 w-9', text='text-[11px]') }}</span>
+    <a href="{{ member.profile_url }}" title="{{ member.name }}"
+       aria-label="{{ _('members.view_profile') }}: {{ member.name }}"
+       class="{{ '-ms-2.5' if not loop.first }} rounded-full ring-[2.5px] ring-white transition hover:z-10 hover:scale-105">
+      {{ avatar(member.name, member.avatar_url, size='h-9 w-9', text='text-[11px]') }}</a>
     {% endfor %}
     {% if total > recent|length %}
     <span class="-ms-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-700 ring-[2.5px] ring-white">+{{ total - recent|length }}</span>

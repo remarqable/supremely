@@ -1,7 +1,7 @@
 {# Building blocks for the community surface (app-owned; never
    theme-resolvable). Feed cards and the composer keep every community page
    in one visual language. #}
-{% from 'partials/_ui.html' import avatar, back_arrow with context %}
+{% from 'partials/_ui.html' import avatar, back_arrow, member_name with context %}
 {% from 'partials/_community_nav.html' import type_icon %}
 
 {% macro new_post_modal(groups) %}
@@ -66,7 +66,7 @@
               post.author.avatar_url if post.author else None,
               size='h-8.5 w-8.5', text='text-xs') }}
     <div class="min-w-0">
-      <div class="truncate text-sm font-semibold text-slate-900">{{ post.author.name if post.author else g.org.name }}</div>
+      <div class="truncate text-sm font-semibold text-slate-900">{{ member_name(post.author) }}</div>
       <div class="text-xs text-slate-400">{{ post.last_activity_at|timeago }}</div>
     </div>
     {% if show_group %}
@@ -140,9 +140,9 @@
 
 {% macro post_row(post, show_group=false) %}
 {# Dense list row: title-first, scannable at volume (the Long Angle shape). #}
-<a href="{{ post.url }}" class="block px-5 py-3.5 transition-colors hover:bg-slate-50/60 {{ 'opacity-60' if post.is_hidden }}">
+<div class="relative px-5 py-3.5 transition-colors hover:bg-slate-50/60 {{ 'opacity-60' if post.is_hidden }}">
   <div class="flex items-center gap-2">
-    <span class="min-w-0 truncate font-medium text-slate-900">{{ post.title }}</span>
+    <a href="{{ post.url }}" class="min-w-0 truncate font-medium text-slate-900 after:absolute after:inset-0">{{ post.title }}</a>
     {% if post.is_pinned %}<span class="badge-brand shrink-0">{{ _('discussions.pinned') }}</span>{% endif %}
     {% if post.is_seeded and g.membership and g.membership.role == 'owner' %}<span class="badge-slate shrink-0" title="{{ _('discussions.seeded_hint') }}">{{ _('discussions.seeded') }}</span>{% endif %}
     {% if post.is_locked %}<span class="badge-slate shrink-0">{{ _('discussions.locked_badge') }}</span>{% endif %}
@@ -153,12 +153,12 @@
     {{ avatar(post.author.name if post.author else '?',
               post.author.avatar_url if post.author else None,
               size='h-4.5 w-4.5', text='text-[8px]') }}
-    <span class="text-slate-500">{{ post.author.name if post.author else g.org.name }}</span>
+    {{ member_name(post.author, 'relative z-10 text-slate-500') }}
     <span>{{ _('discussions.posted_ago', when=post.created_at|timeago) }}</span>
     {% if show_group %}<span>· {{ post.group.name }}</span>{% endif %}
     {% if post.reply_count %}<span>· {{ _('discussions.active_ago', when=post.last_activity_at|timeago) }}</span>{% endif %}
   </div>
-</a>
+</div>
 {% endmacro %}
 
 {% macro publish_menu() %}

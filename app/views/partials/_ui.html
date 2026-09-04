@@ -101,6 +101,16 @@
    served only where its owner is a member, so a post by someone who has
    since left resolves to nothing, and an empty alt collapses the image to
    reveal the letter rather than a broken-image icon. #}
+{% macro member_name(user, class='') %}
+{#- A member's name as a link to their profile. Content authored by nobody
+   (seeded, or by a deleted account) is credited to the organization. -#}
+{%- if user -%}
+<a href="{{ user.profile_url }}" class="{{ class }} hover:text-brand-700 hover:underline">{{ user.name }}</a>
+{%- else -%}
+<span class="{{ class }}">{{ g.org.name }}</span>
+{%- endif -%}
+{% endmacro %}
+
 {% macro avatar(name, url=None, size='h-6 w-6', text='text-[10px]') %}
 {%- set circle = size ~ ' ' ~ text ~ ' flex shrink-0 select-none items-center
     justify-center rounded-full bg-slate-200 font-semibold uppercase

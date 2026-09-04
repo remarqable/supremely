@@ -1,6 +1,6 @@
 {% extends site_layout %}
 {% from 'community/_macros.html' import area_header with context %}
-{% from 'partials/_ui.html' import avatar, empty_state, lock_badge with context %}
+{% from 'partials/_ui.html' import avatar, empty_state, lock_badge, member_name with context %}
 
 {% block title %}{{ archive_title }} — {{ g.org.name }}{% endblock %}
 
@@ -43,7 +43,7 @@
       {% endif %}
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-semibold text-slate-900">{{ item.author.name if item.author else g.org.name }}</span>
+          {{ member_name(item.author, 'text-sm font-semibold text-slate-900') }}
           <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
           {# No type badge here: every card on this page is the same type,
              and the page heading already says which. The mixed feed on the

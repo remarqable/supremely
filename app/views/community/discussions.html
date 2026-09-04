@@ -1,6 +1,6 @@
 {% extends site_layout %}
 {% from 'community/_macros.html' import area_header, new_post_modal, post_row, search_box with context %}
-{% from 'partials/_ui.html' import avatar, empty_state, lock_badge with context %}
+{% from 'partials/_ui.html' import avatar, empty_state, lock_badge, member_name with context %}
 
 {% block title %}{{ _('discussions.title') }} — {{ g.org.name }}{% endblock %}
 
@@ -45,7 +45,7 @@
                     latest.author.avatar_url if latest.author else None,
                     size='h-4.5 w-4.5', text='text-[8px]') }}
           <span class="truncate">
-            <span class="text-slate-500">{{ latest.author.name if latest.author else g.org.name }}</span>
+            {{ member_name(latest.author, 'text-slate-500') }}
             · {{ latest.title }} · {{ latest.last_activity_at|timeago }}</span>
         </span>
         {% elif group.description %}

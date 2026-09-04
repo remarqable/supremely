@@ -1,5 +1,5 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import back_link with context %}
+{% from 'partials/_ui.html' import back_link, member_name with context %}
 
 {% block title %}{{ content.seo_title or content.title }} — {{ g.org.name }}{% endblock %}
 
@@ -24,7 +24,7 @@
     <h1 class="text-3xl font-bold">{{ content.title }}</h1>
     <p class="mt-2 text-sm text-slate-500">
       {% if content.published_at %}{{ content.published_at|localdate }}{% endif %}
-      {% if content.author %} · {{ content.author.name }}{% endif %}
+      {% if content.author %} · {{ member_name(content.author) }}{% endif %}
       {% for category in content.categories %}
       · <a href="{{ content_type.base }}/category/{{ category.slug }}" class="hover:text-brand-600">{{ category.name }}</a>
       {% endfor %}

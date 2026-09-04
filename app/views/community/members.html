@@ -1,5 +1,5 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import avatar, empty_state with context %}
+{% from 'partials/_ui.html' import avatar, empty_state, member_name with context %}
 
 {% block title %}{{ _('members.directory_title') }} — {{ g.org.name }}{% endblock %}
 
@@ -12,7 +12,7 @@
   <div class="flex items-start gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200">
     {{ avatar(membership.user.name, membership.user.avatar_url, size='h-11 w-11', text='text-sm') }}
     <div class="min-w-0">
-      <div class="truncate font-semibold text-slate-900">{{ membership.user.name }}</div>
+      <div class="truncate font-semibold text-slate-900">{{ member_name(membership.user) }}</div>
       <div class="text-xs text-slate-400">{{ _('members.joined') }} {{ membership.created_at|localdate }}</div>
       {% if membership.user.bio %}
       <p class="mt-1.5 line-clamp-3 text-sm leading-relaxed text-slate-600">{{ membership.user.bio }}</p>

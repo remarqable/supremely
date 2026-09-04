@@ -205,6 +205,15 @@ class User(BaseModel, UserMixin):
     def avatar_url(self):
         return f'/avatars/{self.id}' if self.avatar_key else None
 
+    @property
+    def profile_url(self):
+        """The member's profile page on the current organization's site.
+
+        Host-relative: a user is global, but a profile is only ever shown
+        inside one organization, and members.member checks the membership.
+        """
+        return f'/members/{self.id}'
+
     @classmethod
     def get_by_email(cls, email: str) -> Optional['User']:
         email = email.strip().lower() if email else ''

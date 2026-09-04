@@ -1,4 +1,5 @@
 {% extends site_layout %}
+{% from 'partials/_ui.html' import member_name with context %}
 
 {% block title %}{{ _('members.directory_title') }} — {{ g.org.name }}{% endblock %}
 
@@ -16,7 +17,7 @@
     </div>
     {% endif %}
     <div class="min-w-0">
-      <div class="font-semibold">{{ membership.user.name }}</div>
+      <div class="font-semibold">{{ member_name(membership.user) }}</div>
       <div class="text-xs text-slate-500">{{ _('members.joined') }} {{ membership.created_at|localdate }}</div>
       {% if membership.user.bio %}
       <p class="mt-1 line-clamp-3 text-sm text-slate-600">{{ membership.user.bio }}</p>
