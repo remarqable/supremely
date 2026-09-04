@@ -223,7 +223,7 @@ def test_settings_ships_no_inline_event_handlers(app, client, acme, globex, user
     is checkable server-side even though the enforcement is the browser's."""
     login_as(client, user)
     for path in ('/manage/branding', '/manage/theme', '/manage/analytics',
-                 '/manage/settings/privacy'):
+                 '/manage/settings/privacy', '/manage/content/article/new'):
         html = client.get(path, base_url=ACME).get_data(as_text=True)
         assert re.search(r'\son[a-z]+\s*=', html) is None, \
             f'inline handler on {path}'
@@ -796,6 +796,40 @@ def test_the_editor_offers_one_way_out_at_the_top(app, client, acme, user):
                            base_url=ACME).data
     assert b'View page' not in published
     assert b'Cancel' not in published
+
+
+def test_the_editor_warns_before_leaving_with_unsaved_changes(app, client,
+                                                              acme, user):
+    """Typing in the editor and then clicking away used to lose the work with
+    no prompt at all. The form now tracks whether anything has been touched
+    and asks the browser to confirm before unloading.
+
+    The prompt itself is the browser's, so what is checkable here is the
+    markup that arms it: the flag, the events that set it, the submit that
+    clears it, and the beforeunload handler that reads it. Asserted on a new
+    item and on a saved one, which render the same form with different
+    buttons.
+    """
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        saved_id = Content.published_by_slug('article', 'a-post').id
+
+    for path in ('/manage/content/article/new',
+                 f'/manage/content/{saved_id}/edit'):
+        html = client.get(path, base_url=ACME).get_data(as_text=True)
+        assert 'x-data="{ dirty: false }"' in html, path
+        assert '@input="dirty = true"' in html, path
+        assert '@change="dirty = true"' in html, path
+        assert '@submit="dirty = false"' in html, path
+        # Pinned whole, because a truthy returnValue is not decoration:
+        # without it Chrome and Edge before 119 drop the prompt and the
+        # editor is back to losing work in silence.
+        assert ('@beforeunload.window="if (dirty) { $event.preventDefault(); '
+                '$event.returnValue = true }"') in html, path
 
 
 def test_the_content_list_links_a_published_item_to_its_live_page(app, client,

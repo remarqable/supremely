@@ -14,7 +14,22 @@
   {% if content and content.id %}{{ status_badge(content.status) }}{% endif %}
 </div>
 
-<form method="POST" enctype="multipart/form-data" class="grid gap-5 lg:grid-cols-3">
+{# Editing something and then leaving used to lose the work in silence. The
+   browser writes this prompt's wording itself and ignores any text we hand
+   it, so there is no string here to translate.
+
+   Submitting clears the flag, so none of this form's buttons warn: Save,
+   Publish, Unpublish, Archive and Send by email. Every link out does warn,
+   Preview included, because preview renders the saved version and leaving
+   with edits in the box loses them.
+
+   returnValue has to be truthy as well as preventDefault(). Chrome and Edge
+   before 119 ignore preventDefault() here, and an empty returnValue means
+   "do not prompt", so the two together are what arm the dialog everywhere. #}
+<form method="POST" enctype="multipart/form-data" class="grid gap-5 lg:grid-cols-3"
+      x-data="{ dirty: false }"
+      @input="dirty = true" @change="dirty = true" @submit="dirty = false"
+      @beforeunload.window="if (dirty) { $event.preventDefault(); $event.returnValue = true }">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   {# The slug field stays empty while a new item is being written and
