@@ -31,12 +31,14 @@
        (the controller never queries gated ones). #}
     {% set locked = not can_view(group) %}
     {% set latest = latest_by_group.get(group.id) %}
-    <a href="/discussions/{{ group.slug }}"
-       class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/60">
+    {# A row is a container with the name link stretched across it, not one
+       big link: the latest author's name is its own link and anchors cannot
+       nest. Same pattern as post_row in _macros.html. #}
+    <div class="relative flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/60">
       <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-base font-bold text-slate-500">{{ group.name[:1]|upper }}</span>
       <span class="min-w-0 flex-1">
         <span class="flex items-center gap-2">
-          <span class="truncate font-semibold text-slate-900">{{ group.name }}</span>
+          <a href="/discussions/{{ group.slug }}" class="truncate font-semibold text-slate-900 after:absolute after:inset-0">{{ group.name }}</a>
           {% if locked %}{{ lock_badge() }}{% endif %}
         </span>
         {% if latest %}
@@ -45,7 +47,7 @@
                     latest.author.avatar_url if latest.author else None,
                     size='h-4.5 w-4.5', text='text-[8px]') }}
           <span class="truncate">
-            {{ member_name(latest.author, 'text-slate-500') }}
+            {{ member_name(latest.author, 'relative z-10 text-slate-500') }}
             · {{ latest.title }} · {{ latest.last_activity_at|timeago }}</span>
         </span>
         {% elif group.description %}
@@ -55,7 +57,7 @@
         {% endif %}
       </span>
       <span class="shrink-0 text-sm tabular-nums text-slate-400">{{ _('discussions.post_count', n=group.post_count()) }}</span>
-    </a>
+    </div>
     {% endfor %}
   </div>
   {% else %}
