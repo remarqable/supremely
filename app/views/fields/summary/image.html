@@ -1,0 +1,4 @@
+{# A card is a strip of text: an image field says its label, not its picture. #}
+{% from 'fields/summary/_macros.html' import chip with context %}
+{% set upload = upload_for(value) %}
+{% if upload %}{% call chip() %}{{ upload.alt or label }}{% endcall %}{% endif %}

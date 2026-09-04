@@ -28,7 +28,7 @@ from markupsafe import Markup
 from app.platform.logger import get_logger
 
 if TYPE_CHECKING:                       # circular at runtime, fine for hints
-    from app.models import Content
+    from app.models import Content, Upload
     from app.platform.content_types import FieldSpec
 
 log = get_logger()
@@ -53,6 +53,10 @@ _ROOTS = {
     'lead': ('fields/lead/',),
 }
 _DEFAULTING = ('web', 'summary', 'email')
+
+# A field drawn inside a field drawn inside a field is a partial
+# calling itself; the model cannot express it.
+_MAX_FIELD_DEPTH = 2
 
 # The only origins a field may frame or play from. Read by the CSP builder
 # in app/__init__.py, so the policy that permits an embed and the code that
@@ -208,15 +212,32 @@ def render_field(spec: 'FieldSpec', value: object, surface: str = 'web',
     caller withholds a locked row's fields, so a partial reaching for
     `content.visibility` would be answering a question already answered.
     """
+    from flask import g
+
     from app.platform.i18n import t
     if surface not in _ROOTS:
         raise ValueError(f'Unknown field surface: {surface!r}')
+    # A list draws its rows through this, and a theme's partial may call it
+    # too. Two levels is everything the field model can express (a list
+    # cannot contain a list), so anything deeper is a partial calling
+    # itself.
+    depth = getattr(g, '_field_depth', 0) if has_request_context() else 0
+    if depth >= _MAX_FIELD_DEPTH:
+        log.warning('field_render_too_deep', field=spec.key, surface=surface)
+        return Markup('')
     context = {'spec': spec, 'value': value, 'content': content,
                'label': spec.label or spec.key,
                '_': t, 't': t, 'video_embed': video_embed,
-               'safe_url': safe_url}
+               'safe_url': safe_url, 'upload_for': upload_for,
+               'choice_label': choice_label, 'absolute_url': absolute_url,
+               # So a repeating field can draw its rows through the same
+               # machinery rather than reimplementing it. A list cannot
+               # contain a list, so this does not recurse without end.
+               'render_field': render_field}
     template = _resolved(spec.type, spec.key, surface)
     if template is not None:
+        if has_request_context():
+            g._field_depth = depth + 1
         try:
             return Markup(template.render(context))
         except Exception:
@@ -227,9 +248,55 @@ def render_field(spec: 'FieldSpec', value: object, surface: str = 'web',
             log.exception('field_render_failed', field=spec.key,
                           type=spec.type, surface=surface)
             return Markup('')
+        finally:
+            if has_request_context():
+                g._field_depth = depth
     log.warning('field_partial_missing', field=spec.key, type=spec.type,
                 surface=surface)
     return Markup('')
+
+
+def upload_for(value: object) -> 'Upload | None':
+    """The Upload a stored id points at, or None.
+
+    Read through a query so the tenant filter answers, and None rather than
+    an exception when the file has been deleted: a picture removed from the
+    media library must not take a page down with it.
+    """
+    from app.models import Upload
+    try:
+        upload_id = int(value)
+    except (TypeError, ValueError):
+        return None
+    return Upload.query.filter_by(id=upload_id).first()
+
+
+def absolute_url(path: str) -> str:
+    """A path made absolute against the organization's own address.
+
+    An email carries no origin to resolve a relative src against, so a
+    picture in a newsletter needs the whole address. Offered as a helper
+    rather than handing partials `g`, which is what they would otherwise
+    reach for and is a short step from reading `content.visibility`.
+    """
+    from flask import g
+
+    from app.platform.tenant import org_url
+    org = getattr(g, 'org', None)
+    return org_url(org, path) if org is not None else path
+
+
+def choice_label(spec: 'FieldSpec', value: object) -> str:
+    """The label a select's stored key stands for.
+
+    The key is what is stored, so a label can be reworded without rewriting
+    every row that chose it. A key no longer offered shows itself rather
+    than vanishing, so an author can see what is there.
+    """
+    for key, label in getattr(spec, 'choices', ()) or ():
+        if key == value:
+            return label
+    return str(value)
 
 
 def _has_value(value: object) -> bool:
@@ -271,7 +338,6 @@ def render_fields_text(content: 'Content') -> str:
     Kept in this module so a type's fields still have one place that knows
     how to render them.
     """
-    from app.platform.i18n import t
     content_type = content.content_type
     if content_type is None:
         return ''
@@ -281,10 +347,44 @@ def render_fields_text(content: 'Content') -> str:
         value = stored.get(spec.key)
         if not _has_value(value):
             continue
-        if isinstance(value, bool):
-            value = t('common.yes') if value else t('common.no')
-        lines.append(f'{spec.label or spec.key}: {value}')
+        if spec.type == 'list':
+            lines.append(f'{spec.label or spec.key}:')
+            # One line per row, not per sub-field: an ingredient is "2
+            # onions", and splitting it puts the amount and the thing on
+            # separate lines where neither means anything.
+            for row in value:
+                parts = [_as_text(sub, row.get(sub.key)) for sub in spec.of
+                         if _has_value(row.get(sub.key))]
+                if parts:
+                    lines.append('  - ' + ' '.join(parts))
+            continue
+        lines.append(f'{spec.label or spec.key}: {_as_text(spec, value)}')
     return ('\n'.join(lines) + '\n') if lines else ''
+
+
+def _as_text(spec: 'FieldSpec', value) -> str:
+    """One value as a person would read it.
+
+    A text email has no partial to draw it, so the formatting the HTML
+    partials do has to happen here too: without it a select prints its
+    stored key, an image prints a row id, and a repeating field prints a
+    Python dictionary at the reader.
+    """
+    from app.platform.i18n import t
+    if isinstance(value, bool):
+        return t('common.yes') if value else t('common.no')
+    if spec.type == 'select':
+        return choice_label(spec, value)
+    if spec.type in ('image', 'file'):
+        upload = upload_for(value)
+        return (upload.alt or upload.filename) if upload else ''
+    if spec.type == 'datetime':
+        from datetime import datetime as _dt
+        try:
+            return _dt.fromisoformat(str(value)).strftime('%Y-%m-%d %H:%M')
+        except ValueError:
+            return str(value)
+    return str(value)
 
 
 def render_lead_field(content: 'Content') -> Markup:

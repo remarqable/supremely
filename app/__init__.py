@@ -341,8 +341,20 @@ def _init_context(app):
 
     @app.template_filter('localdatetime')
     def localdatetime(value, fmt='%Y-%m-%d %H:%M'):
+        """A datetime column, or a `datetime` field's stored ISO string.
+
+        Same reasoning as localdate: field values live in JSON, so they
+        arrive as text, and anything unparseable is handed back rather than
+        raising.
+        """
         if value is None:
             return ''
+        if isinstance(value, str):
+            from datetime import datetime as _dt
+            try:
+                value = _dt.fromisoformat(value)
+            except ValueError:
+                return value
         return value.strftime(fmt)
 
     @app.template_filter('month_abbr')

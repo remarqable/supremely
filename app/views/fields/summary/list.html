@@ -1,0 +1,2 @@
+{% from 'fields/summary/_macros.html' import chip with context %}
+{% call chip() %}{{ _('content.n_items', n=value|length) }}{% endcall %}

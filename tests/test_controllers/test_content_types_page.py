@@ -21,10 +21,13 @@ def test_page_lists_active_and_coming_soon(app, client, acme, user):
     assert b'Podcast' in response.data
     assert b'Resources' in response.data
     assert b'Coming soon' in response.data
-    assert b'Jobs' in response.data
     assert b'Courses' in response.data
-    # Planned types are placeholders: no manage list behind them.
-    assert client.get('/manage/content/job', base_url=ACME).status_code == 404
+    # Jobs used to sit in the waiting room for want of a select field. It is
+    # a real type now, with a list behind it.
+    assert b'Jobs' in response.data
+    assert client.get('/manage/content/job', base_url=ACME).status_code == 200
+    # A planned type is still a placeholder: no manage list behind it.
+    assert client.get('/manage/content/course', base_url=ACME).status_code == 404
 
 
 def test_publish_and_view_recording(app, client, acme, globex, user):

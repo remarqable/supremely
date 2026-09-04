@@ -1,0 +1,5 @@
+{% from 'fields/_macros.html' import field_row, link_out with context %}
+{% set upload = upload_for(value) %}
+{% if upload %}
+{% call field_row(label) %}{{ link_out(upload.url('original'), upload.filename) }}{% endcall %}
+{% endif %}

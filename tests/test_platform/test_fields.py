@@ -327,6 +327,41 @@ def test_a_named_lead_field_with_no_value_leads_with_nothing(app, acme):
         assert str(render_lead_field(event)) == ''
 
 
+def test_a_repeating_field_reads_as_rows_in_a_text_email(app, acme):
+    """One line per row, not per value. Split by sub-field it reads
+
+        - 2
+        - onions
+
+    which is an amount and a thing on separate lines, neither meaning
+    anything on its own.
+    """
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        recipe = publish(acme, 'Soup', 'recipe', {
+            'servings': 4,
+            'ingredients': [{'amount': '2', 'item': 'onions'},
+                            {'amount': '1 tsp', 'item': 'salt'}]})
+        text = render_fields_text(recipe)
+    assert '  - 2 onions' in text
+    assert '  - 1 tsp salt' in text
+    assert "{'amount'" not in text          # never a Python repr at a reader
+
+
+def test_a_select_and_a_picture_read_as_words_in_a_text_email(app, acme):
+    """A text email has no partial to draw it, so the formatting has to
+    happen anyway: raw, a select prints its stored key and an image prints
+    a row id."""
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        job = publish(acme, 'Cook', 'job', {
+            'employment': 'full_time',
+            'apply_url': 'https://example.com/a'})
+        text = render_fields_text(job)
+    assert 'Full time' in text
+    assert 'full_time' not in text
+
+
 def test_text_email_carries_the_fields_too(app, acme):
     """Some clients show the text half. A podcast email without the episode
     link is a title and a paragraph."""
@@ -358,6 +393,38 @@ def test_fields_render_with_no_request_at_all(app, acme):
         stored = db.session.get(Content, item_id)
         html = str(render_fields(stored, surface='email'))
     assert 'cdn.example.com/ep6.mp3' in html
+
+
+def test_a_partial_that_calls_itself_stops(app, client, acme, globex):
+    """A list draws its rows through render_field, and a theme's own partial
+    can call it too. The model cannot express a field inside a field inside
+    a field, so anything that deep is a partial calling itself."""
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        publish(acme, 'Loop', 'resource',
+                {'resource_url': 'https://cdn.example.com/l.pdf'})
+    install(app, acme, **{
+        'fields__url.html': "{{ render_field(spec, value, 'web') }}",
+        'single.html': ("{% extends site_layout %}{% block content %}"
+                        "{{ render_fields(content) }}{% endblock %}"),
+    })
+    # Renders at all rather than recursing until the stack gives out.
+    assert client.get('/resources/loop', base_url=ACME).status_code == 200
+
+
+def test_an_upload_id_too_long_to_parse_is_refused(app, acme):
+    """isdigit() is happy with five thousand digits and int() is not, so the
+    guard has to bound the length as well as the alphabet."""
+    from app.platform.content_types import FieldSpec as Spec
+    from app.platform.errors import ValidationError as Invalid
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        spec = Spec(key='photo', type='image', label='Photo')
+        for refused in ('9' * 5000, '9' * 20, '-1', '1.5', 'null'):
+            with pytest.raises(Invalid):
+                spec.clean(refused)
+        # An optional picture left unchosen is not an error, it is no value.
+        assert spec.clean('') is None
 
 
 def test_an_unknown_surface_is_refused(app, acme):

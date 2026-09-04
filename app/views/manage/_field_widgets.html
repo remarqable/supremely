@@ -1,0 +1,61 @@
+{# The editor's input for one declared field.
+
+   Called twice: once for a scalar field, and once per sub-field inside a
+   repeating row. A row is built in the browser, so its inputs bind through
+   Alpine instead of carrying a server-rendered value: pass `model` (the
+   x-model expression) and `name_expr` (the :name expression) and the same
+   widget draws itself bound. Without that the row editor had its own
+   reduced switch, and a select sub-field rendered as a text box that
+   `clean` then refused on every save.
+
+   `id` is passed so the field's label can point at it. #}
+{% from 'partials/_ui.html' import image_chooser with context %}
+
+{% macro widget(spec, value, name, uploads=none, id=none, model=none,
+                name_expr=none) %}
+{%- set bind = model is not none -%}
+{%- set attrs -%}
+{%- if bind %} :name="{{ name_expr }}" x-model="{{ model }}"
+{%- else %} name="{{ name }}"{% if id %} id="{{ id }}"{% endif %}
+{%- endif -%}
+{%- endset -%}
+{% if spec.type == 'text' %}
+<textarea {{ attrs }} class="textarea mt-1" rows="2">{{ '' if bind else (value or '') }}</textarea>
+{% elif spec.type == 'boolean' %}
+<input type="checkbox" {{ attrs }} class="mt-1" {{ 'checked' if value and not bind }}>
+{% elif spec.type == 'number' %}
+<input type="number" step="any" {{ attrs }} class="input mt-1"
+       {% if not bind %}value="{{ value if value is not none else '' }}"{% endif %}>
+{% elif spec.type == 'date' %}
+<input type="date" {{ attrs }} class="input mt-1" {% if not bind %}value="{{ value or '' }}"{% endif %}>
+{% elif spec.type == 'datetime' %}
+{# datetime-local wants minutes and no zone; the stored value is ISO UTC. #}
+<input type="datetime-local" {{ attrs }} class="input mt-1"
+       {% if not bind %}value="{{ (value or '')[:16] }}"{% endif %}>
+{% elif spec.type == 'select' %}
+<select {{ attrs }} class="select mt-1">
+  <option value="">{{ _('manage.field_choose') }}</option>
+  {% for choice_key, choice_label in spec.choices %}
+  <option value="{{ choice_key }}" {{ 'selected' if value == choice_key and not bind }}>{{ choice_label }}</option>
+  {% endfor %}
+</select>
+{% elif spec.type in ('image', 'file') %}
+{# A thumbnail grid is right for picking one picture and wrong inside a
+   repeating row, where it would be a grid per row. Both are the same list
+   of the organization's own uploads either way. #}
+{% if spec.type == 'image' and not bind %}
+{{ image_chooser(name, uploads or [], value|int if value else none, spec.label or spec.key) }}
+{% else %}
+<select {{ attrs }} class="select mt-1">
+  <option value="">{{ _('manage.field_choose') }}</option>
+  {% for upload in uploads or [] %}
+  <option value="{{ upload.id }}" {{ 'selected' if value and not bind and value|int == upload.id }}>{{ upload.filename }}</option>
+  {% endfor %}
+</select>
+{% endif %}
+{% else %}
+<input type="text" {{ attrs }} class="input mt-1"
+       {% if not bind %}value="{{ value or '' }}"{% endif %}
+       {% if spec.type == 'url' %}placeholder="https://"{% endif %}>
+{% endif %}
+{% endmacro %}

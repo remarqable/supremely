@@ -1,0 +1,10 @@
+{# A file deleted from the media library leaves the id behind, so nothing
+   here assumes the lookup found anything. #}
+{% set upload = upload_for(value) %}
+{% if upload %}
+<figure class="mt-4">
+  <img src="{{ upload.url('full' if upload.has_variants else 'original') }}"
+       alt="{{ upload.alt or '' }}" class="w-full rounded-lg object-cover">
+  {% if upload.alt %}<figcaption class="mt-1.5 text-sm text-slate-500">{{ upload.alt }}</figcaption>{% endif %}
+</figure>
+{% endif %}

@@ -1,5 +1,6 @@
 {% extends 'manage/_layout.html' %}
 {% from 'partials/_ui.html' import back_link, image_chooser, status_badge with context %}
+{% from 'manage/_field_widgets.html' import widget with context %}
 
 {% block manage_content %}
 {# The only way out used to be Cancel, at the foot of the sidebar under the
@@ -92,23 +93,73 @@
     </div>
 
     {% for spec in content_type.fields %}
-    <div>
-      <label for="field_{{ spec.key }}" class="label">{{ spec.label or spec.key }}{% if spec.required %} *{% endif %}</label>
-      {% set value = content.fields.get(spec.key, '') if content and content.fields else '' %}
-      {% if spec.type == 'text' %}
-      <textarea id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="textarea mt-1">{{ value }}</textarea>
-      {% elif spec.type == 'boolean' %}
-      <input type="checkbox" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="mt-1" {{ 'checked' if value }}>
-      {% elif spec.type == 'number' %}
-      <input type="number" step="any" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}">
-      {% elif spec.type == 'date' %}
-      <input type="date" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}">
-      {% else %}
-      <input type="text" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}"
-             {% if spec.type == 'url' %}placeholder="https://"{% endif %}>
-      {% endif %}
+    {# A refused save hands back what was posted, not what is stored: the
+       values are the author's and losing them is losing their work. #}
+    {% set value = submitted.get(spec.key) if submitted is not none
+                   else (content.fields.get(spec.key) if content and content.fields else none) %}
+    {% if spec.type == 'list' %}
+    {# A repeating field. Each row names its own index, so a row is a row
+       rather than a position in three parallel lists: an unticked checkbox
+       posts nothing, and by position that slides every later value onto the
+       wrong row. `rows` is seeded from what was submitted, so a save refused
+       for an unrelated reason gives the author their rows back. #}
+    <div x-data="{ rows: {{ (value or [])|tojson|forceescape }},
+                   cap: {{ list_row_cap }},
+                   blank() { return { {% for sub in spec.of %}'{{ sub.key }}': ''{{ ',' if not loop.last }}{% endfor %} }; },
+                   move(from, to) {
+                     if (to < 0 || to >= this.rows.length) return;
+                     this.rows.splice(to, 0, this.rows.splice(from, 1)[0]);
+                   } }">
+      <span class="label">{{ spec.label or spec.key }}{% if spec.required %} *{% endif %}</span>
+      <template x-for="(row, index) in rows" :key="index">
+        <div class="mt-1.5 flex items-end gap-2 rounded-md bg-slate-50 p-2">
+          {# flex-wrap, not a constructed grid-cols class: Tailwind cannot
+             scan a class name built at render time, so it would ship
+             uncompiled. #}
+          <div class="flex flex-1 flex-wrap gap-2">
+            {% for sub in spec.of %}
+            <label class="block min-w-[8rem] flex-1">
+              <span class="text-xs text-slate-500">{{ sub.label or sub.key }}</span>
+              {{ widget(sub, none, none,
+                        file_uploads if sub.type == 'file' else image_uploads,
+                        model="row['" ~ sub.key ~ "']",
+                        name_expr="'field_" ~ spec.key ~ "__' + index + '__" ~ sub.key ~ "'") }}
+            </label>
+            {% endfor %}
+          </div>
+          <div class="flex shrink-0 gap-1">
+            <button type="button" class="btn-secondary px-2 py-1"
+                    @click="move(index, index - 1)" :disabled="index === 0">
+              <span aria-hidden="true">&uarr;</span>
+              <span class="sr-only">{{ _('manage.field_row_up') }}</span></button>
+            <button type="button" class="btn-secondary px-2 py-1"
+                    @click="move(index, index + 1)"
+                    :disabled="index === rows.length - 1">
+              <span aria-hidden="true">&darr;</span>
+              <span class="sr-only">{{ _('manage.field_row_down') }}</span></button>
+            <button type="button" class="btn-danger px-2 py-1"
+                    @click="rows.splice(index, 1)">
+              <span aria-hidden="true">&times;</span>
+              <span class="sr-only">{{ _('manage.field_row_remove') }}</span></button>
+          </div>
+        </div>
+      </template>
+      <button type="button" class="btn-secondary mt-2"
+              @click="rows.push(blank())" x-show="rows.length < cap">
+        {{ _('manage.field_row_add') }}</button>
+      <p class="mt-1 text-xs text-slate-500" x-show="rows.length >= cap" x-cloak>
+        {{ _('manage.field_row_cap', n=list_row_cap) }}</p>
       {% if spec.help %}<p class="mt-1 text-xs text-slate-500">{{ spec.help }}</p>{% endif %}
     </div>
+    {% else %}
+    <div>
+      <label for="field_{{ spec.key }}" class="label">{{ spec.label or spec.key }}{% if spec.required %} *{% endif %}</label>
+      {{ widget(spec, value, 'field_' ~ spec.key,
+                file_uploads if spec.type == 'file' else image_uploads,
+                id='field_' ~ spec.key) }}
+      {% if spec.help %}<p class="mt-1 text-xs text-slate-500">{{ spec.help }}</p>{% endif %}
+    </div>
+    {% endif %}
     {% endfor %}
 
     <div>

@@ -1,0 +1,14 @@
+{% from 'fields/email/_macros.html' import field_row with context %}
+{# Pictures, not the ids behind them. One per row: an email client that
+   disagrees about grids will still stack these. #}
+{% call field_row(label) %}
+{% for row in value %}
+{% set upload = upload_for(row.get('image')) %}
+{% if upload %}
+<img src="{{ absolute_url(upload.url('medium' if upload.has_variants else 'original')) }}"
+     alt="{{ upload.alt or row.get('caption') or '' }}"
+     width="320" style="max-width:100%;height:auto;display:block;margin-bottom:8px">
+{% if row.get('caption') %}<div style="font-family:sans-serif;font-size:13px;color:#64748b;margin-bottom:12px">{{ row.caption }}</div>{% endif %}
+{% endif %}
+{% endfor %}
+{% endcall %}

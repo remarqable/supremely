@@ -1,0 +1,15 @@
+{# One row per line, each drawn through the same renderer the row's own
+   field types would get on their own. A type wanting something else ships
+   fields/list-ingredients.html and gets it for that key alone. #}
+<div class="mt-4">
+  <h3 class="text-sm font-semibold text-slate-500">{{ label }}</h3>
+  <ul class="mt-1.5 space-y-1">
+    {% for row in value %}
+    <li class="flex flex-wrap items-baseline gap-x-2 text-[15px] text-slate-900">
+      {% for sub in spec.of %}{% if row.get(sub.key) is not none %}
+      <span>{{ render_field(sub, row[sub.key], 'summary', content=content) }}</span>
+      {% endif %}{% endfor %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>

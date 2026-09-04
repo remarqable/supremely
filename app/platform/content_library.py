@@ -86,6 +86,81 @@ def register_library_types() -> None:
     ))
 
 
+    register_content_type(ContentType(
+        slug='recipe', singular='Recipe', plural='Recipes',
+        description='The classic vertical: ingredients, steps and times.',
+        base='/recipes', group='learn', icon='document',
+        fields=(
+            FieldSpec(key='servings', type='number', label='Servings',
+                      in_summary=True),
+            FieldSpec(key='prep_time', type='datetime', label='Prep starts',
+                      help='Optional. Useful for a class or a cook-along.'),
+            FieldSpec(key='cook_time', type='datetime', label='Cook starts'),
+            # One row per ingredient rather than a block of text, so a theme
+            # can lay them out and a reader can tick them off.
+            FieldSpec(key='ingredients', type='list', label='Ingredients',
+                      of=(FieldSpec(key='amount', type='string',
+                                    label='Amount'),
+                          FieldSpec(key='item', type='string', label='Item',
+                                    required=True))),
+            FieldSpec(key='steps', type='list', label='Method',
+                      of=(FieldSpec(key='step', type='text', label='Step',
+                                    required=True),)),
+        ),
+    ))
+    register_content_type(ContentType(
+        slug='job', singular='Job', plural='Jobs',
+        description='A job board: openings with company, location and an '
+                    'application link.',
+        base='/jobs', group='community', icon='document',
+        fields=(
+            FieldSpec(key='company', type='string', label='Company',
+                      in_summary=True),
+            FieldSpec(key='location', type='string', label='Location',
+                      in_summary=True),
+            FieldSpec(key='employment', type='select', label='Employment',
+                      in_summary=True,
+                      choices=(('full_time', 'Full time'),
+                               ('part_time', 'Part time'),
+                               ('contract', 'Contract'),
+                               ('internship', 'Internship'))),
+            FieldSpec(key='workplace', type='select', label='Workplace',
+                      choices=(('on_site', 'On site'),
+                               ('hybrid', 'Hybrid'),
+                               ('remote', 'Remote'))),
+            FieldSpec(key='apply_url', type='url', label='Application link',
+                      required=True),
+        ),
+    ))
+    register_content_type(ContentType(
+        slug='opportunity', singular='Opportunity', plural='Opportunities',
+        description='Deals and offers with a status and a deadline.',
+        base='/opportunities', group='community', icon='document',
+        fields=(
+            FieldSpec(key='status', type='select', label='Status',
+                      in_summary=True,
+                      choices=(('open', 'Open'),
+                               ('closing_soon', 'Closing soon'),
+                               ('closed', 'Closed'))),
+            FieldSpec(key='deadline', type='datetime', label='Deadline',
+                      in_summary=True),
+            FieldSpec(key='claim_url', type='url', label='How to claim'),
+        ),
+    ))
+    register_content_type(ContentType(
+        slug='gallery', singular='Gallery', plural='Galleries',
+        description='Photo sets from events and meetups.',
+        base='/galleries', group='meet', icon='document',
+        fields=(
+            FieldSpec(key='photos', type='list', label='Photos',
+                      of=(FieldSpec(key='image', type='image', label='Photo',
+                                    required=True),
+                          FieldSpec(key='caption', type='string',
+                                    label='Caption'))),
+        ),
+    ))
+
+
 @dataclass(frozen=True)
 class PlannedType:
     """A library entry we intend to ship but cannot build well yet. Shown in
@@ -99,27 +174,9 @@ class PlannedType:
 
 COMING_SOON: tuple[PlannedType, ...] = (
     PlannedType(
-        slug='job', singular='Job', plural='Jobs',
-        description='A job board: openings with company, location, and '
-                    'an application link.',
-        needs='select field type (employment type, remote/on-site)'),
-    PlannedType(
         slug='course', singular='Course', plural='Courses',
         description='Structured learning: a course made of ordered lessons.',
         needs='child content (lessons that belong to a course)'),
-    PlannedType(
-        slug='opportunity', singular='Opportunity', plural='Opportunities',
-        description='Member-only deals and offers with a status and a '
-                    'deadline.',
-        needs='select field type (status) and deadline-driven visibility'),
-    PlannedType(
-        slug='gallery', singular='Gallery', plural='Galleries',
-        description='Photo sets from events and meetups.',
-        needs='multi-image field type'),
-    PlannedType(
-        slug='recipe', singular='Recipe', plural='Recipes',
-        description='The classic vertical: ingredients, steps, and times.',
-        needs='repeating list field type (ingredients)'),
 )
 
 

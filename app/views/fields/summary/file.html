@@ -1,0 +1,4 @@
+{# Without this a file field in a card printed its stored upload id. #}
+{% from 'fields/summary/_macros.html' import chip with context %}
+{% set upload = upload_for(value) %}
+{% if upload %}{% call chip() %}{{ upload.filename }}{% endcall %}{% endif %}

@@ -32,9 +32,11 @@ from app.platform.authz import (
 )
 from app.platform.content_types import (
     CONTENT_TYPES,
+    LIST_ROW_CAP,
     ContentType,
     active_types,
     get_content_type,
+    submitted_fields,
 )
 from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
@@ -197,13 +199,51 @@ def _content_from_form(content: Content, *, previewing: bool = False) -> Content
     category = (Category.query.filter_by(id=category_id).first()
                 if category_id else None)
     content.categories = [category] if category else []
-    content.set_structured_fields({
-        key[len('field_'):]: value for key, value in request.form.items()
-        if key.startswith('field_')})
+    # Not a comprehension over request.form any more: a repeating field
+    # arrives as one list per sub-field and has to be zipped back into rows.
+    content.set_structured_fields(
+        submitted_fields(content.content_type, request.form))
     return content
 
 
-def _render_content_form(content, ct):
+def _referenced_upload_ids(content, ct) -> set:
+    """Upload ids the stored fields point at, top level and inside rows."""
+    stored = (content.fields or {}) if content is not None else {}
+    ids = set()
+    for spec in ct.fields:
+        value = stored.get(spec.key)
+        if spec.type in ('image', 'file'):
+            ids.add(value)
+        elif spec.type == 'list' and isinstance(value, list):
+            ids.update(row.get(sub.key) for row in value
+                       for sub in spec.of if sub.type in ('image', 'file'))
+    return {value for value in ids if isinstance(value, int)}
+
+
+def _keep_referenced(content, ct, image_uploads, file_uploads) -> None:
+    """Put back any referenced upload the recency window left out."""
+    wanted = _referenced_upload_ids(content, ct)
+    if not wanted:
+        return
+    listed = {upload.id for upload in image_uploads} | {
+        upload.id for upload in file_uploads}
+    missing = wanted - listed
+    if not missing:
+        return
+    for upload in Upload.query.filter(Upload.id.in_(missing)).all():
+        (image_uploads if upload.is_image else file_uploads).insert(0, upload)
+
+
+def _render_content_form(content, ct, submitted=None):
+    """The editor. `submitted` is the form as it was posted, passed only
+    when a save was refused.
+
+    Without it the form re-renders from what is stored, and what is stored
+    is whatever the save did not change: an author whose fifth ingredient
+    was missing its name would get their whole table back empty, having
+    typed the other four. The refused values are theirs and they should get
+    them back.
+    """
     # The featured-image chooser: recent library images, with the currently
     # attached one always present — otherwise re-saving an old item whose
     # image fell off the recency window would silently clear it.
@@ -212,8 +252,24 @@ def _render_content_form(content, ct):
     if (content is not None and content.featured_upload is not None
             and content.featured_upload not in image_uploads):
         image_uploads.insert(0, content.featured_upload)
+    # A file field offers everything in the library, not only pictures, and
+    # only when the type has one: otherwise every editor page paid for a
+    # query nothing rendered.
+    wants_files = any(spec.type == 'file' or
+                      any(sub.type == 'file' for sub in spec.of)
+                      for spec in ct.fields)
+    file_uploads = ((Upload.query.order_by(Upload.created_at.desc())
+                     .limit(48).all()) if wants_files else [])
+    # Anything an image or file field already points at, whether or not it
+    # is still recent enough to be in the list. Without this the chooser
+    # offers no option matching the stored value, so re-saving an older
+    # picture either clears the field or fails its required check. The
+    # featured image has carried the same rule for the same reason.
+    _keep_referenced(content, ct, image_uploads, file_uploads)
     return render_device_template('manage/content_form.html', content=content,
                            content_type=ct, image_uploads=image_uploads,
+                           file_uploads=file_uploads,
+                           list_row_cap=LIST_ROW_CAP, submitted=submitted,
                            categories=Category.query.order_by(Category.name).all())
 
 
@@ -241,7 +297,8 @@ def new_content(type_slug):
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
-            return _render_content_form(content, ct)
+            return _render_content_form(content, ct,
+                                        submitted_fields(ct, request.form))
         except IntegrityError:
             # The friendly duplicate check in Content.validate races: two
             # authors publishing the same title at once, or one impatient
@@ -250,7 +307,8 @@ def new_content(type_slug):
             # constraint said rather than serving a 500.
             db.session.rollback()
             flash(t('manage.slug_taken'), 'error')
-            return _render_content_form(content, ct)
+            return _render_content_form(content, ct,
+                                        submitted_fields(ct, request.form))
     return _render_content_form(None, ct)
 
 
@@ -260,6 +318,7 @@ def new_content(type_slug):
 def edit_content(content_id):
     content = _active_content_or_404(content_id)
     ct = content.content_type
+    posted = None
     if request.method == 'POST':
         try:
             _content_from_form(content)
@@ -278,10 +337,12 @@ def edit_content(content_id):
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
+            posted = submitted_fields(ct, request.form)
         except IntegrityError:
             db.session.rollback()
             flash(t('manage.slug_taken'), 'error')
-    return _render_content_form(content, ct)
+            posted = submitted_fields(ct, request.form)
+    return _render_content_form(content, ct, posted)
 
 
 @bp.route('/content/<int:content_id>/delete', methods=['POST'])

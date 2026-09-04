@@ -48,8 +48,15 @@ def test_no_base_collisions(app):
 
 
 def test_planned_types_are_valid_and_unregistered(app):
+    """What is left in the library's waiting room, and why.
+
+    Everything that only needed a richer field type has shipped. Course is
+    the one entry that does not: a course is an ordered set of lessons, and
+    a lesson is content that belongs to another item rather than standing at
+    its own address, which nothing in the model can express yet.
+    """
     validate_planned_types()
-    assert len(COMING_SOON) >= 3
+    assert [planned.slug for planned in COMING_SOON] == ['course']
 
 
 def test_a_video_asks_for_a_url_and_nothing_else(app):

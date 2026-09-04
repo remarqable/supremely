@@ -10,11 +10,18 @@ when a vertical is added -- you register one ContentType.
 """
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from app.platform.errors import ValidationError
 
-FIELD_TYPES = ('string', 'text', 'url', 'number', 'boolean', 'date')
+FIELD_TYPES = ('string', 'text', 'url', 'number', 'boolean', 'date',
+               'select', 'image', 'file', 'datetime', 'list')
+
+# A repeating field holds rows, not a spreadsheet. Fifty is past what anyone
+# types into a recipe and well short of what would make the editor unusable
+# or the JSON column unwieldy.
+LIST_ROW_CAP = 50
 
 # Sidebar sections of the community surface. Feed types declare where they
 # live; empty groups are hidden.
@@ -22,6 +29,19 @@ NAV_GROUPS = ('community', 'meet', 'learn')
 
 _SLUG_RE = re.compile(r'[a-z][a-z0-9_]{0,49}')
 _BASE_RE = re.compile(r'/[a-z0-9]([a-z0-9-]{0,48})?')
+
+
+def _is_filled(value: object) -> bool:
+    """Did somebody put something in this box?
+
+    An unticked checkbox and an empty string are both nothing, which is what
+    makes a row of them a row to drop rather than a row to complain about.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return bool(value.strip())
+    return value is not None and value != []
 
 
 @dataclass(frozen=True)
@@ -37,10 +57,21 @@ class FieldSpec:
     # than decided by each template, so a theme cannot disagree with the
     # next one about what an event card says.
     in_summary: bool = False
+    # For 'select': the offered options as (stored key, label) pairs. The key
+    # is what lands in the JSON, so a label can be reworded without
+    # rewriting every row that chose it.
+    choices: tuple[tuple[str, str], ...] = ()
+    # For 'list': the fields one row holds. One level only. A row of rows
+    # would need an editor that nests, and the value of a repeating field is
+    # that it stays a table somebody can read.
+    of: tuple['FieldSpec', ...] = ()
 
     def clean(self, raw):
         """Validate and coerce one submitted value. Returns the stored value."""
         value = (raw or '').strip() if isinstance(raw, str) else raw
+
+        if self.type == 'list':
+            return self._clean_rows(value)
 
         if value in (None, '', False) and self.type != 'boolean':
             if self.required:
@@ -70,7 +101,98 @@ class FieldSpec:
                 raise ValidationError(
                     f'{self.label or self.key} must be YYYY-MM-DD')
             return str(value)
+        if self.type == 'datetime':
+            return self._clean_datetime(value)
+        if self.type == 'select':
+            if str(value) not in {key for key, _label in self.choices}:
+                raise ValidationError(
+                    f'{self.label or self.key}: {value} is not one of the '
+                    f'choices')
+            return str(value)
+        if self.type in ('image', 'file'):
+            return self._clean_upload(value)
         raise ValidationError(f'Unknown field type: {self.type}')
+
+    def _clean_datetime(self, value: object) -> str:
+        """An instant, stored as ISO 8601 in UTC.
+
+        A browser's datetime-local sends no zone, so a bare value is read as
+        UTC. That is a real limitation and the honest one: the alternative
+        is guessing at a zone the form never asked for.
+        """
+        from datetime import UTC, datetime
+        try:
+            moment = datetime.fromisoformat(str(value))
+        except ValueError as exc:
+            raise ValidationError(
+                f'{self.label or self.key} must be a date and time') from exc
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        return moment.astimezone(UTC).isoformat()
+
+    def _clean_upload(self, value: object) -> int:
+        """An upload id, resolved rather than trusted.
+
+        Read back through a query so the tenant filter answers, exactly as
+        _own_upload_id does in the controller: an id belonging to another
+        organization is not storable by typing it into a form.
+
+        Inside a request, which is where the editor runs. The filter has
+        nothing to scope by outside one, so a seed or a command line can
+        still write any id -- the same latitude every other query has there,
+        and the reason those callers are trusted.
+        """
+        from app.models import Upload
+        text = str(value).strip()
+        # Length before int(): CPython refuses to parse an integer literal
+        # past 4300 digits, so isdigit() alone lets a long enough string
+        # through to raise where nothing is catching.
+        if not text.isdigit() or len(text) > 19:
+            raise ValidationError(
+                f'{self.label or self.key} must be a file from your library')
+        if Upload.query.filter_by(id=int(text)).first() is None:
+            raise ValidationError(
+                f'{self.label or self.key}: that file is not in your library')
+        return int(text)
+
+    def _clean_rows(self, raw: object) -> list | None:
+        """Rows for a repeating field.
+
+        Empty rows are dropped rather than refused: an editor that offers a
+        blank row to type into will always post the one nobody filled in.
+        """
+        if raw in (None, '', [], ()):
+            if self.required:
+                raise ValidationError(f'{self.label or self.key} is required')
+            return None
+        if not isinstance(raw, (list, tuple)):
+            raise ValidationError(f'{self.label or self.key} must be a list')
+        if len(raw) > LIST_ROW_CAP:
+            raise ValidationError(
+                f'{self.label or self.key}: at most {LIST_ROW_CAP} rows')
+        rows = []
+        for row in raw:
+            if not isinstance(row, dict):
+                raise ValidationError(
+                    f'{self.label or self.key} rows must be groups of fields')
+            # Emptiness is decided before the row is cleaned, not after. The
+            # other way round, a blank row fails its own required sub-field,
+            # so an editor offering a row to type into refuses every save
+            # until somebody fills in the one nobody wanted.
+            if not any(_is_filled(row.get(sub.key)) for sub in self.of):
+                continue
+            cleaned = {}
+            for sub in self.of:
+                cleaned_value = sub.clean(row.get(sub.key))
+                if cleaned_value is not None:
+                    cleaned[sub.key] = cleaned_value
+            if cleaned:
+                rows.append(cleaned)
+        if not rows:
+            if self.required:
+                raise ValidationError(f'{self.label or self.key} is required')
+            return None
+        return rows
 
 
 @dataclass(frozen=True)
@@ -161,6 +283,7 @@ class ContentType:
             if spec.key in seen:
                 raise ValueError(f'Duplicate field key: {spec.key}')
             seen.add(spec.key)
+            _validate_field(self.slug, spec)
 
     @property
     def field_keys(self) -> set:
@@ -179,6 +302,86 @@ class ContentType:
             if value is not None:
                 cleaned[spec.key] = value
         return cleaned
+
+
+def _validate_field(type_slug: str, spec: FieldSpec,
+                    nested: bool = False) -> None:
+    """What a field type needs declared with it, checked at registration.
+
+    A select with no choices and a list with no row fields are both editors
+    that render nothing, and both are the kind of mistake that only shows up
+    when somebody opens the form.
+    """
+    where = f'{type_slug}.{spec.key}'
+    if spec.type == 'select' and not spec.choices:
+        raise ValueError(f'{where}: a select needs choices')
+    if spec.choices:
+        for choice in spec.choices:
+            if not (isinstance(choice, (tuple, list)) and len(choice) == 2):
+                raise ValueError(
+                    f'{where}: choices are (key, label) pairs')
+    if spec.type == 'list':
+        if nested:
+            # One level. A row of rows needs an editor that nests, and the
+            # value of a repeating field is that it stays a table.
+            raise ValueError(f'{where}: a list cannot contain a list')
+        if not spec.of:
+            raise ValueError(f'{where}: a list needs `of` sub-fields')
+        sub_seen = set()
+        for sub in spec.of:
+            if not isinstance(sub, FieldSpec):
+                raise ValueError(f'{where}: `of` takes FieldSpec instances')
+            if sub.type not in FIELD_TYPES:
+                raise ValueError(f'{where}: unknown field type: {sub.type}')
+            if not _SLUG_RE.fullmatch(sub.key):
+                raise ValueError(f'{where}: invalid sub-field key: {sub.key!r}')
+            if sub.key in sub_seen:
+                raise ValueError(f'{where}: duplicate sub-field: {sub.key}')
+            sub_seen.add(sub.key)
+            _validate_field(where, sub, nested=True)
+    elif spec.of:
+        raise ValueError(f'{where}: only a list takes `of`')
+
+
+_ROW_NAME_RE = re.compile(r'field_(?P<key>[a-z][a-z0-9_]*)__'
+                          r'(?P<index>\d{1,4})__(?P<sub>[a-z][a-z0-9_]*)$')
+
+
+def submitted_fields(content_type: ContentType,
+                     form: 'Mapping[str, str]') -> dict:
+    """The type's fields as the editor posted them, ready for clean_fields.
+
+    Scalars arrive one per name. A row of a repeating field names its own
+    index (field_photos__0__caption), so a value belongs to a row rather
+    than to a position in a list.
+
+    That is not decoration. Zipping parallel lists by position looks
+    simpler, and it is wrong the moment one column is shorter than another:
+    an unticked checkbox posts nothing at all, so every value after it slides
+    onto the row above and the author's data is quietly rearranged.
+
+    Indexes only order the rows; gaps and reordering are both fine, and the
+    stored list is renumbered from zero.
+    """
+    data = {}
+    rows: dict[str, dict[int, dict]] = {}
+    for name in form:
+        match = _ROW_NAME_RE.fullmatch(name)
+        if match:
+            key, index = match['key'], int(match['index'])
+            rows.setdefault(key, {}).setdefault(index, {})
+            rows[key][index][match['sub']] = form.get(name)
+
+    for spec in content_type.fields:
+        if spec.type != 'list':
+            data[spec.key] = form.get(f'field_{spec.key}')
+            continue
+        by_index = rows.get(spec.key, {})
+        # Sliced one past the cap so an over-long post is still refused with
+        # a message, without building every row somebody chose to send.
+        data[spec.key] = [by_index[index]
+                          for index in sorted(by_index)][:LIST_ROW_CAP + 1]
+    return data
 
 
 CONTENT_TYPES: dict[str, ContentType] = {}

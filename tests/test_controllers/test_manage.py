@@ -1647,3 +1647,225 @@ def test_a_file_that_is_not_an_image_is_not_offered_a_description(app, client,
     assert b'Edit description' not in page
     assert b'Make members only' in page
     assert b'/delete"' in page
+
+# --- the widened field vocabulary, through the editor -------------------------
+
+def publish_recipe(client, **overrides):
+    data = {
+        'title': 'Garlic soup', 'slug': 'garlic-soup',
+        'body': 'A good one.', 'visibility': 'public', 'action': 'publish',
+        'field_servings': '4',
+        # Each row names its own index, as the editor posts it.
+        'field_ingredients__0__amount': '2',
+        'field_ingredients__0__item': 'onions',
+        'field_ingredients__1__amount': '1 tsp',
+        'field_ingredients__1__item': 'salt',
+        'field_ingredients__2__amount': '',      # the blank row on offer
+        'field_ingredients__2__item': '',
+        'field_steps__0__step': 'Chop.',
+        'field_steps__1__step': 'Simmer.',
+    }
+    data.update(overrides)
+    return client.post('/manage/content/recipe/new', base_url=ACME, data=data)
+
+
+def test_a_repeating_field_saves_its_rows_in_order(app, client, acme, user):
+    """The editor posts one list per sub-field and the rows are zipped back
+    out, so what the author saw top to bottom is what is stored."""
+    login_as(client, user)
+    assert publish_recipe(client).status_code == 302
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        recipe = Content.published_by_slug('recipe', 'garlic-soup')
+        assert recipe.fields['servings'] == 4
+        assert recipe.fields['ingredients'] == [
+            {'amount': '2', 'item': 'onions'},
+            {'amount': '1 tsp', 'item': 'salt'},
+        ]
+        assert recipe.fields['steps'] == [{'step': 'Chop.'},
+                                          {'step': 'Simmer.'}]
+
+
+def test_the_blank_row_an_editor_offers_is_not_saved(app, client, acme, user):
+    """The row nobody filled in comes back on every post. Refusing the save
+    for it would make the field unusable."""
+    login_as(client, user)
+    publish_recipe(client, **{'field_ingredients__1__amount': '',
+                              'field_ingredients__1__item': '',
+                              'field_ingredients__2__amount': '',
+                              'field_ingredients__2__item': ''})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        recipe = Content.published_by_slug('recipe', 'garlic-soup')
+        assert recipe.fields['ingredients'] == [{'amount': '2',
+                                                 'item': 'onions'}]
+
+
+def test_a_bad_row_is_refused_and_the_rows_come_back(app, client, acme, user):
+    """The case that is easy to get wrong: a save refused for one row must
+    hand the author back everything they typed, not an empty table."""
+    login_as(client, user)
+    response = publish_recipe(client, **{
+        'field_ingredients__1__item': '',        # required, missing
+    }, follow_redirects=True)
+    assert b'Item is required' in response.data
+    page = response.get_data(as_text=True)
+    assert 'onions' in page          # the rows are re-rendered, not lost
+    assert '1 tsp' in page
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert Content.query.filter_by(slug='garlic-soup').first() is None
+
+
+def test_a_row_keeps_its_own_values_when_a_column_is_short(app, client, acme,
+                                                           user):
+    """The reason a row names its index rather than taking a position.
+
+    An unticked checkbox posts nothing at all. Zipped by position, that
+    shifts every later value up a row: the tick lands on the wrong row and
+    the author's data is quietly rearranged. Here the middle amount is
+    absent, and the items must stay with the rows they were typed into.
+    """
+    login_as(client, user)
+    # Posted whole rather than layered over the helper, so the middle row
+    # genuinely has no amount posted for it at all.
+    client.post('/manage/content/recipe/new', base_url=ACME, data={
+        'title': 'Garlic soup', 'slug': 'garlic-soup', 'body': 'A good one.',
+        'visibility': 'public', 'action': 'publish',
+        'field_ingredients__0__amount': '2',
+        'field_ingredients__0__item': 'onions',
+        'field_ingredients__1__item': 'garlic',      # no amount at all
+        'field_ingredients__2__amount': '1 tsp',
+        'field_ingredients__2__item': 'salt',
+    })
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        rows = Content.published_by_slug('recipe', 'garlic-soup') \
+            .fields['ingredients']
+    assert rows == [{'amount': '2', 'item': 'onions'},
+                    {'item': 'garlic'},
+                    {'amount': '1 tsp', 'item': 'salt'}]
+
+
+def test_an_older_picture_is_still_offered_by_the_chooser(app, client, acme,
+                                                          user):
+    """The chooser shows recent uploads. A picture chosen long ago falls off
+    that window, and with no option matching it the browser posts nothing:
+    re-saving for an unrelated reason would clear the field, or fail its
+    required check. Whatever is referenced is put back into the list.
+    """
+    login_as(client, user)
+    client.post('/manage/media', base_url=ACME,
+                data={'file': (io.BytesIO(make_png()), 'first.png')})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        old_id = Upload.query.order_by(Upload.id.desc()).first().id
+
+    client.post('/manage/content/gallery/new', base_url=ACME, data={
+        'title': 'Old shots', 'slug': 'old-shots', 'body': 'Photos.',
+        'visibility': 'public', 'action': 'save',
+        'field_photos__0__image': str(old_id)})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        gallery_id = Content.query.filter_by(slug='old-shots').one().id
+
+    # Push it well past the chooser's window.
+    for n in range(30):
+        client.post('/manage/media', base_url=ACME,
+                    data={'file': (io.BytesIO(make_png()), f'later{n}.png')})
+
+    form = client.get(f'/manage/content/{gallery_id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert f'value="{old_id}"' in form
+
+
+def test_a_select_only_accepts_what_it_offers(app, client, acme, user):
+    login_as(client, user)
+    response = client.post('/manage/content/job/new', base_url=ACME, data={
+        'title': 'Cook', 'slug': 'cook', 'body': 'Come and cook.',
+        'visibility': 'public', 'action': 'publish',
+        'field_apply_url': 'https://example.com/apply',
+        'field_employment': 'moonlighting',
+    }, follow_redirects=True)
+    assert b'is not one of the choices' in response.data
+
+    client.post('/manage/content/job/new', base_url=ACME, data={
+        'title': 'Cook', 'slug': 'cook', 'body': 'Come and cook.',
+        'visibility': 'public', 'action': 'publish',
+        'field_apply_url': 'https://example.com/apply',
+        'field_employment': 'contract',
+    })
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert Content.published_by_slug('job', 'cook').fields['employment'] \
+            == 'contract'
+
+
+def test_a_recipe_renders_its_ingredients_on_the_page_and_in_email(app, client,
+                                                                   acme, user):
+    """The stage's acceptance: a real repeating list, editable, rendering on
+    web and in a newsletter."""
+    login_as(client, user)
+    publish_recipe(client)
+
+    page = client.get('/recipes/garlic-soup', base_url=ACME).data
+    assert b'onions' in page
+    assert b'1 tsp' in page
+    assert b'Simmer.' in page
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        from app.platform.newsletter import compose_email
+        recipe = Content.published_by_slug('recipe', 'garlic-soup')
+        subscriber = type('S', (), {'email': 'r@example.com', 'token': 't'})()
+        _, text, html = compose_email(recipe, acme, subscriber)
+    assert 'onions' in html
+    assert '<ul' in html
+    assert 'onions' in text
+
+
+def test_deleting_a_picture_does_not_take_the_page_with_it(app, client, acme,
+                                                           user):
+    """An image field holds an id, and the file behind it can be deleted
+    from the media library at any time."""
+    login_as(client, user)
+    client.post('/manage/media', base_url=ACME,
+                data={'file': (io.BytesIO(make_png()), 'shot.png')})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        upload_id = Upload.query.order_by(Upload.id.desc()).first().id
+
+    client.post('/manage/content/gallery/new', base_url=ACME, data={
+        'title': 'Meetup shots', 'slug': 'meetup-shots', 'body': 'Photos.',
+        'visibility': 'public', 'action': 'publish',
+        'field_photos__0__image': str(upload_id),
+        'field_photos__0__caption': 'On the night',
+    })
+    shown = client.get('/galleries/meetup-shots', base_url=ACME)
+    assert shown.status_code == 200
+    assert b'On the night' in shown.data
+    assert b'<img' in shown.data              # a gallery shows photographs
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        gallery_id = Content.published_by_slug('gallery', 'meetup-shots').id
+
+    client.post(f'/manage/media/{upload_id}/delete', base_url=ACME)
+    # The page still renders. The row itself drops out: a gallery is
+    # photographs, and a caption with no photograph above it is a caption
+    # for nothing.
+    after = client.get('/galleries/meetup-shots', base_url=ACME)
+    assert after.status_code == 200
+    assert b'Meetup shots' in after.data
+    assert client.get('/galleries', base_url=ACME).status_code == 200
+    assert client.get(f'/manage/content/{gallery_id}/edit',
+                      base_url=ACME).status_code == 200
+
+    # Asserted on the lookup itself, not only on the page: render_field
+    # swallows a partial that raises, so a page that merely returns 200
+    # proves the swallow rather than the guard.
+    from app.platform.fields import upload_for
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert upload_for(upload_id) is None
+        assert upload_for('not-a-number') is None

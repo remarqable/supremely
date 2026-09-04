@@ -1,0 +1,10 @@
+{% from 'fields/email/_macros.html' import field_row with context %}
+{# A relative src is nothing an email client can fetch, so this needs the
+   organization's absolute address. #}
+{% set upload = upload_for(value) %}
+{% if upload %}
+{% call field_row(label) %}
+<img src="{{ absolute_url(upload.url('medium' if upload.has_variants else 'original')) }}"
+     alt="{{ upload.alt or '' }}" width="480" style="max-width:100%;height:auto;display:block">
+{% endcall %}
+{% endif %}
