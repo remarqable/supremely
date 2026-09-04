@@ -472,7 +472,9 @@ def test_email_job_enqueued_only_when_configured(app, client, acme, globex, user
     assert Job.query.filter_by(name='notifications.email').count() == 0
 
     InstallationSetting.set('email.smtp_host', 'smtp.test')
-    InstallationSetting.set('email.from_address', 'noreply@test')
+    # A dotted domain: the from address is held to the same EMAIL_RE as
+    # every other address in the application, so "noreply@test" is not one.
+    InstallationSetting.set('email.from_address', 'noreply@test.example')
     bob_client.post(f'/discussions/general/{post.id}/reply', base_url=ACME,
                     data={'body': 'now with email'})
     assert Job.query.filter_by(name='notifications.email').count() >= 1

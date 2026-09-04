@@ -21,6 +21,10 @@ script sets up on your behalf, which is worth reading either way.
 For trying Supremely on your own machine rather than deploying it, the
 [quick start](../../README.md#quick-start) is faster than both.
 
+Once it is running, [Email](email.md) covers connecting a provider, which is
+optional and needed only for newsletters, notification email and
+self-service password resets.
+
 ## What you are deploying
 
 Two containers from one image:

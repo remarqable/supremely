@@ -1,7 +1,7 @@
 {% extends 'admin/_layout.html' %}
 
 {% block admin_content %}
-<div class="grid gap-6 lg:grid-cols-2">
+<div class="max-w-xl">
   <div class="card">
     <h3 class="mb-4 text-lg font-semibold">{{ _('admin.general_settings') }}</h3>
     <form method="POST" class="space-y-4">
@@ -34,63 +34,5 @@
     </form>
   </div>
 
-  <div class="card">
-    <h3 class="mb-1 text-lg font-semibold">{{ _('admin.email_settings') }}</h3>
-    <p class="mb-4 text-sm {{ 'text-green-700' if email_configured else 'text-slate-600' }}">
-      {{ _('admin.email_configured') if email_configured else _('admin.email_not_configured') }}
-    </p>
-    <form method="POST" class="space-y-4">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <input type="hidden" name="section" value="email">
-      <div class="grid grid-cols-3 gap-3">
-        <div class="col-span-2">
-          <label for="smtp_host" class="label">{{ _('admin.smtp_host') }}</label>
-          <input type="text" id="smtp_host" name="smtp_host" class="input mt-1"
-                 value="{{ values.get('email.smtp_host', '') }}">
-        </div>
-        <div>
-          <label for="smtp_port" class="label">{{ _('admin.smtp_port') }}</label>
-          <input type="text" id="smtp_port" name="smtp_port" class="input mt-1"
-                 value="{{ values.get('email.smtp_port', '587') }}">
-        </div>
-      </div>
-      <div>
-        <label for="smtp_username" class="label">{{ _('admin.smtp_username') }}</label>
-        <input type="text" id="smtp_username" name="smtp_username" class="input mt-1"
-               value="{{ values.get('email.smtp_username', '') }}">
-      </div>
-      <div>
-        <label for="smtp_password" class="label">{{ _('admin.smtp_password') }}</label>
-        {# Never echo the stored secret back into HTML. Blank = keep existing. #}
-        <input type="password" id="smtp_password" name="smtp_password" class="input mt-1"
-               autocomplete="new-password"
-               placeholder="{{ '••••••••' if values.get('email.smtp_password') else '' }}">
-      </div>
-      <div>
-        <label for="from_address" class="label">{{ _('admin.from_address') }}</label>
-        <input type="email" id="from_address" name="from_address" class="input mt-1"
-               value="{{ values.get('email.from_address', '') }}">
-      </div>
-      <label class="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="use_tls"
-               {{ 'checked' if values.get('email.use_tls', 'true') != 'false' }}>
-        {{ _('admin.use_tls') }}
-      </label>
-      <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
-    </form>
-
-    {% if email_configured %}
-    <form method="POST" action="{{ url_for('admin.test_email') }}"
-          class="mt-4 flex items-end gap-3 border-t border-slate-100 pt-4">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="flex-1">
-        <label for="to" class="label">{{ _('common.email') }}</label>
-        <input type="email" id="to" name="to" class="input mt-1"
-               value="{{ current_user.email if current_user.is_emailable else '' }}">
-      </div>
-      <button type="submit" class="btn-secondary">{{ _('admin.send_test_email') }}</button>
-    </form>
-    {% endif %}
-  </div>
 </div>
 {% endblock %}

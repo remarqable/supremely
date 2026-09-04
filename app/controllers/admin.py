@@ -6,7 +6,8 @@ import platform as _platform
 import sys
 
 import sqlalchemy as sa
-from flask import Blueprint, flash, redirect, request, url_for
+from flask import Blueprint, abort, flash, redirect, request, url_for
+from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_user
 
 from app.extensions import db
@@ -323,29 +324,58 @@ def settings():
                                     request.form.get('timezone', 'UTC').strip())
             InstallationSetting.set('installation.language',
                                     request.form.get('language', 'en').strip())
-        elif section == 'email':
-            for field in ('smtp_host', 'smtp_port', 'smtp_username',
-                          'from_address'):
-                InstallationSetting.set(f'email.{field}',
-                                        request.form.get(field, '').strip())
-            # Blank password field = keep the stored one (it is never echoed
-            # back into the form), so admins can edit other fields safely.
-            smtp_password = request.form.get('smtp_password', '')
-            if smtp_password:
-                InstallationSetting.set('email.smtp_password', smtp_password)
-            InstallationSetting.set('email.use_tls',
-                                    'true' if request.form.get('use_tls') == 'on'
-                                    else 'false')
         flash(t('common.saved'), 'success')
         return redirect(url_for('admin.settings'))
 
     values = InstallationSetting.get_map()
-    return render_device_template('admin/settings.html', values=values,
-                           email_configured=is_email_configured())
+    return render_device_template('admin/settings.html', values=values)
+
+
+@bp.route('/email')
+def email() -> ResponseReturnValue:
+    """Email has no page of its own: it opens on whichever provider is in
+    use, or on Custom SMTP when none is."""
+    from app.platform.mailer import email_provider
+    return redirect(url_for('admin.email_provider_settings',
+                            provider=email_provider()))
+
+
+@bp.route('/email/<provider>', methods=['GET', 'POST'])
+def email_provider_settings(provider: str) -> ResponseReturnValue:
+    """One provider, and only the fields that provider needs.
+
+    Saving here is also what selects the provider, so there is no separate
+    choice to make and then remember to save.
+    """
+    from app.platform.mailer import (
+        EMAIL_PROVIDERS,
+        apply_settings,
+        email_provider,
+    )
+    if provider not in EMAIL_PROVIDERS:
+        abort(404)
+    if request.method == 'POST':
+        try:
+            apply_settings(provider, request.form)
+            flash(t('common.saved'), 'success')
+        except ValidationError as e:
+            db.session.rollback()
+            flash(e.message, 'error')
+        return redirect(url_for('admin.email_provider_settings',
+                                provider=provider))
+    return render_device_template(
+        'admin/email.html',
+        values=InstallationSetting.get_map(),
+        provider=provider,
+        provider_label=t(f'admin.email_provider_{provider}'),
+        provider_hint=t(f'admin.email_provider_hint_{provider}'),
+        is_active=email_provider() == provider,
+        email_configured=is_email_configured())
 
 
 @bp.route('/settings/test-email', methods=['POST'])
 def test_email():
+    from app.platform.mailer import email_provider
     # The installation administrator signs in with a username, so
     # current_user.email is not always an address worth defaulting to.
     to = request.form.get('to', '').strip()
@@ -353,7 +383,8 @@ def test_email():
         to = current_user.email
     if not to:
         flash(t('admin.test_email_needs_address'), 'error')
-        return redirect(url_for('admin.settings'))
+        return redirect(url_for('admin.email_provider_settings',
+                                provider=email_provider()))
     try:
         # No attribution: this is a diagnostic the operator sent to
         # themselves, not published output, and the exact body is the point.
@@ -361,9 +392,10 @@ def test_email():
                    'Email delivery from your Supremely installation works.',
                    attribution=False)
         flash(t('admin.test_email_sent', to=to), 'success')
-    except Exception as e:      # noqa: BLE001 -- report any SMTP failure to the admin
+    except Exception as e:      # noqa: BLE001 -- report any send failure to the admin
         flash(t('admin.test_email_failed', error=str(e)), 'error')
-    return redirect(url_for('admin.settings'))
+    return redirect(url_for('admin.email_provider_settings',
+                            provider=email_provider()))
 
 
 # --- Themes ------------------------------------------------------------------

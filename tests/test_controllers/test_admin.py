@@ -75,6 +75,191 @@ def test_settings_signup_toggle(admin_client):
     assert InstallationSetting.get_value('installation.name') == 'My Install'
 
 
+def test_email_opens_on_the_provider_in_use(admin_client):
+    assert admin_client.get('/admin/email').headers['Location'].endswith(
+        '/admin/email/custom')
+    admin_client.post('/admin/email/gmail', data={
+        'smtp_username': 'someone@gmail.com', 'smtp_password': 'app-password',
+        'from_address': 'someone@gmail.com'})
+    assert admin_client.get('/admin/email').headers['Location'].endswith(
+        '/admin/email/gmail')
+
+
+def test_each_provider_has_a_page_asking_only_for_its_own_fields(admin_client):
+    """The point of the split: no page shows a field belonging to a provider
+    the operator is not setting up."""
+    custom = admin_client.get('/admin/email/custom').get_data(as_text=True)
+    assert 'name="smtp_host"' in custom
+    assert 'name="mailgun_api_key"' not in custom
+
+    gmail = admin_client.get('/admin/email/gmail').get_data(as_text=True)
+    assert 'name="smtp_username"' in gmail
+    assert 'name="smtp_host"' not in gmail       # the preset knows the host
+    assert 'name="mailgun_api_key"' not in gmail
+
+    mailgun = admin_client.get('/admin/email/mailgun').get_data(as_text=True)
+    assert 'name="mailgun_api_key"' in mailgun
+    assert 'name="mailgun_domain"' in mailgun
+    assert 'name="smtp_host"' not in mailgun
+    assert 'name="smtp_password"' not in mailgun
+
+
+def test_every_provider_is_reachable_from_the_nav(admin_client):
+    page = admin_client.get('/admin/email/custom').get_data(as_text=True)
+    for path in ('/admin/email/custom', '/admin/email/gmail',
+                 '/admin/email/mailgun'):
+        assert path in page, path
+
+
+def test_a_provider_nobody_wrote_is_not_a_page(admin_client):
+    assert admin_client.get('/admin/email/sendgrid').status_code == 404
+    assert admin_client.post('/admin/email/sendgrid', data={
+        'from_address': 'news@example.com'}).status_code == 404
+    assert InstallationSetting.query.filter_by(key='email.provider').first() is None
+
+
+def test_the_email_section_left_the_settings_page(admin_client):
+    """It used to be a second card there, which is where the duplicate came
+    from. Settings keeps the general section only."""
+    page = admin_client.get('/admin/settings').get_data(as_text=True)
+    assert 'name="smtp_host"' not in page
+    assert 'name="mailgun_api_key"' not in page
+    assert page.count('name="name"') == 1
+
+
+def test_choosing_gmail_asks_for_no_host(admin_client):
+    """Naming a provider is worth nothing if the operator still has to know
+    the host name. Gmail stores credentials and nothing else."""
+    admin_client.post('/admin/email/gmail', data={
+        'smtp_username': 'someone@gmail.com', 'smtp_password': 'app-password',
+        'from_address': 'someone@gmail.com',
+    })
+    assert InstallationSetting.get_value('email.provider') == 'gmail'
+    from app.platform.mailer import email_settings, is_email_configured, smtp_target
+    assert is_email_configured()
+    assert smtp_target(email_settings()) == ('smtp.gmail.com', 587, True)
+
+
+def test_switching_provider_keeps_what_the_other_one_had(admin_client):
+    """Trying Gmail and going back must not cost the SMTP host somebody
+    typed, so only the chosen provider's own fields are written."""
+    admin_client.post('/admin/email/custom', data={
+        'smtp_host': 'smtp.example.com', 'smtp_port': '2525',
+        'smtp_username': 'postmaster', 'smtp_password': 'secret',
+        'from_address': 'news@example.com', 'use_tls': 'on',
+    })
+    admin_client.post('/admin/email/mailgun', data={
+        'mailgun_api_key': 'key-abc', 'mailgun_domain': 'mg.example.com',
+        'mailgun_region': 'us', 'from_address': 'news@example.com',
+    })
+    assert InstallationSetting.get_value('email.smtp_host') == 'smtp.example.com'
+    assert InstallationSetting.get_value('email.smtp_port') == '2525'
+
+
+def test_a_secret_left_blank_is_kept_not_cleared(admin_client):
+    """The stored key is never echoed into the form, so blank means the
+    admin did not retype it."""
+    admin_client.post('/admin/email/mailgun', data={
+        'mailgun_api_key': 'key-abc', 'mailgun_domain': 'mg.example.com',
+        'mailgun_region': 'us', 'from_address': 'news@example.com',
+    })
+    admin_client.post('/admin/email/mailgun', data={
+        'mailgun_api_key': '', 'mailgun_domain': 'mg2.example.com',
+        'mailgun_region': 'eu', 'from_address': 'news@example.com',
+    })
+    assert InstallationSetting.get_value('email.mailgun_api_key') == 'key-abc'
+    assert InstallationSetting.get_value('email.mailgun_domain') == 'mg2.example.com'
+
+
+def test_a_secret_is_never_written_into_the_page(admin_client):
+    admin_client.post('/admin/email/mailgun', data={
+        'mailgun_api_key': 'key-super-secret',
+        'mailgun_domain': 'mg.example.com', 'mailgun_region': 'us',
+        'from_address': 'news@example.com',
+    })
+    page = admin_client.get('/admin/email/mailgun').get_data(as_text=True)
+    assert 'key-super-secret' not in page
+
+
+def test_an_unusable_sending_domain_is_refused_at_the_form(admin_client):
+    """Said now, rather than discovered by a newsletter that will not send."""
+    response = admin_client.post('/admin/email/mailgun', data={
+        'mailgun_api_key': 'key-abc',
+        'mailgun_domain': 'https://evil.test', 'mailgun_region': 'us',
+        'from_address': 'news@example.com',
+    }, follow_redirects=True)
+    assert b'is not a sending domain' in response.data
+    # Nothing at all was written: each setting commits as it is set, so a
+    # refusal part way would leave a provider selected that cannot send.
+    assert InstallationSetting.query.filter_by(key='email.provider').first() is None
+    assert InstallationSetting.query.filter_by(
+        key='email.mailgun_domain').first() is None
+
+
+def test_a_port_that_is_not_one_is_refused(admin_client):
+    """Caught at the form, rather than by the first newsletter that will not
+    go out. Nothing is written, so the installation is not left selecting a
+    provider it cannot send through."""
+    response = admin_client.post('/admin/email/custom', data={
+        'smtp_host': 'smtp.example.com', 'smtp_port': 'not-a-port',
+        'from_address': 'news@example.com'}, follow_redirects=True)
+    assert b'is not a port number' in response.data
+    assert InstallationSetting.query.filter_by(key='email.provider').first() is None
+
+    from app.platform.mailer import is_email_configured
+    assert not is_email_configured()
+
+
+def test_a_from_address_that_is_not_one_is_refused(admin_client):
+    """is_email_configured treats a non-empty from address as enough, so a
+    value that is not an address would read as configured and fail on every
+    send. A newline in it is header injection."""
+    from app.platform.mailer import is_email_configured
+    for bad in ('not-an-address', 'news@example.com\nBcc: x@y.test', ''):
+        response = admin_client.post('/admin/email/custom', data={
+            'smtp_host': 'smtp.example.com', 'from_address': bad},
+            follow_redirects=True)
+        assert b'is not an email address' in response.data, bad
+        assert InstallationSetting.query.filter_by(
+            key='email.provider').first() is None, bad
+    assert not is_email_configured()
+
+
+def test_custom_and_gmail_share_the_smtp_login(admin_client):
+    """They are the same field: an SMTP username and password. Saving one
+    overwrites the other, and the documentation says so rather than
+    promising an isolation that is not there. Mailgun's own credentials are
+    untouched either way."""
+    admin_client.post('/admin/email/mailgun', data={
+        'mailgun_api_key': 'key-abc', 'mailgun_domain': 'mg.example.com',
+        'mailgun_region': 'us', 'from_address': 'news@example.com'})
+    admin_client.post('/admin/email/custom', data={
+        'smtp_host': 'smtp.example.com', 'smtp_username': 'postmaster',
+        'smtp_password': 'smtp-secret', 'from_address': 'news@example.com'})
+    admin_client.post('/admin/email/gmail', data={
+        'smtp_username': 'someone@gmail.com', 'smtp_password': 'gmail-app-pw',
+        'from_address': 'someone@gmail.com'})
+
+    assert InstallationSetting.get_value('email.smtp_username') == 'someone@gmail.com'
+    assert InstallationSetting.get_value('email.smtp_host') == 'smtp.example.com'
+    assert InstallationSetting.get_value('email.mailgun_api_key') == 'key-abc'
+
+
+def test_the_test_send_returns_to_the_provider_it_tested(admin_client):
+    """It used to land on the general Settings page, which has no email on
+    it at all, so the result of the test appeared somewhere unrelated."""
+    admin_client.post('/admin/email/gmail', data={
+        'smtp_username': 'someone@gmail.com', 'smtp_password': 'app-password',
+        'from_address': 'someone@gmail.com'})
+    response = admin_client.post('/admin/settings/test-email',
+                                 data={'to': 'someone@example.com'})
+    assert response.headers['Location'].endswith('/admin/email/gmail')
+
+    # And with no address to send to, which is the other way out.
+    assert admin_client.post('/admin/settings/test-email', data={'to': ''}) \
+        .headers['Location'].endswith('/admin/email/gmail')
+
+
 def test_cannot_demote_self(admin_client, platform_admin):
     admin_client.post(f'/admin/users/{platform_admin.id}/toggle-admin')
     assert User.get_by_id(platform_admin.id).is_platform_admin

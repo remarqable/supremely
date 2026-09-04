@@ -171,6 +171,13 @@ def _init_context(app):
     from .platform.theming import shell_layout
 
     @app.context_processor
+    def inject_email_providers():
+        # The admin nav builds its provider list from the registry rather
+        # than repeating it, so a provider is added in one place.
+        from .platform.mailer import EMAIL_PROVIDERS
+        return {'email_providers': list(EMAIL_PROVIDERS)}
+
+    @app.context_processor
     def inject_globals():
         installation_name = 'Supremely'
         if app.config.get('SETUP_COMPLETE'):

@@ -1,9 +1,21 @@
 {% extends 'layouts/base.html' %}
-{% from 'partials/_sidenav.html' import sidenav with context %}
+{% from 'partials/_sidenav.html' import sidenav, subnav with context %}
 
 {% block title %}{{ _('admin.title') }} — {{ installation_name }}{% endblock %}
 
 {% block main_class %}mx-auto max-w-7xl px-4 py-8{% endblock %}
+
+{# Email is one entry with a provider apiece behind it: a page each,
+   asking only for what that provider needs, rather than one form with a
+   select and every provider's fields in it. Built from the registry in
+   app/platform/mailer.py, so adding a provider there adds it here. #}
+{% set email_items = [] %}
+{% for slug in email_providers %}
+  {% do email_items.append({
+      'endpoint': 'admin.email_provider_settings',
+      'label': _('admin.email_provider_' ~ slug),
+      'args': {'provider': slug}, 'match': 'provider'}) %}
+{% endfor %}
 
 {% set admin_groups = [
   ('', [
@@ -18,14 +30,30 @@
   (_('admin.group_platform'), [
     {'endpoint': 'admin.themes', 'label': _('admin.themes')},
     {'endpoint': 'admin.settings', 'label': _('admin.settings')},
+    {'endpoint': email_items[0].endpoint, 'args': email_items[0].args,
+     'label': _('admin.email'), 'subnav': email_items,
+     'also': ['admin.email_provider_settings']},
     {'endpoint': 'admin.jobs', 'label': _('admin.jobs')},
     {'endpoint': 'admin.system', 'label': _('admin.system')},
   ]),
 ] %}
 
+{# A page that belongs to a 'subnav' parent gets a second nav column. #}
+{% set active_subnav = namespace(item=none) %}
+{% for group_label, items in admin_groups %}
+  {% for item in items if item.get('subnav') %}
+    {% if request.endpoint in item.subnav|map(attribute='endpoint')|list %}
+      {% set active_subnav.item = item %}
+    {% endif %}
+  {% endfor %}
+{% endfor %}
+
 {% block content %}
 <div class="flex flex-col gap-6 md:flex-row md:gap-10">
   {{ sidenav(_('admin.title'), admin_groups) }}
+  {% if active_subnav.item %}
+  {{ subnav(active_subnav.item.label, active_subnav.item.subnav) }}
+  {% endif %}
   <div class="min-w-0 flex-1">
     {% block admin_content %}{% endblock %}
   </div>

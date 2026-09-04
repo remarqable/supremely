@@ -48,3 +48,17 @@ class EmailNotConfiguredError(AppError):
 
     def __init__(self, message: str = 'No email service is configured'):
         super().__init__(message)
+
+
+class EmailSendError(AppError):
+    """The provider was asked to send and refused.
+
+    Distinct from EmailNotConfiguredError, which means nothing was asked:
+    this one carries the provider's own words, so the operator reads what
+    Mailgun or the SMTP server actually said rather than a guess.
+    """
+
+    code, http_status = 'E_EMAIL_SEND_FAILED', 502
+
+    def __init__(self, message: str = 'The email provider refused the message'):
+        super().__init__(message)
