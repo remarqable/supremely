@@ -12,6 +12,7 @@ from flask import (
     request,
     url_for,
 )
+from flask.typing import ResponseReturnValue
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
 
@@ -1088,8 +1089,56 @@ def theme_settings():
             db.session.rollback()
             flash(e.message, 'error')
         return redirect(url_for('manage.theme_settings'))
+    from app.platform.theming import saved_theme, theme_setting_values
+    # active, not org.theme: a legacy alias or an uninstalled theme would
+    # otherwise leave the picker with nothing selected and point the
+    # preview at a theme that no longer resolves.
     return render_device_template('manage/theme.html', org=org,
-                           themes=AVAILABLE_THEMES)
+                           themes=AVAILABLE_THEMES,
+                           active=saved_theme(org),
+                           theme_values=theme_setting_values(org))
+
+
+@bp.route('/theme/preview')
+@org_required
+@require('org.settings')
+def theme_preview() -> ResponseReturnValue:
+    """The home page as a given theme would render it, for the iframe beside
+    the picker.
+
+    The real front page through the real pipeline, so what is shown is what
+    will ship: the org's own copy, branding and colour, in a theme it has
+    not chosen yet. g.preview_theme is read by theming.current_theme and
+    honoured only on this endpoint, so a stale value cannot reach a
+    visitor. This is also the one response the console may frame, which
+    _init_security_headers decides by endpoint rather than by a flag.
+    """
+    from app.controllers.site import render_org_home
+    theme = request.args.get('theme', '')
+    if theme not in AVAILABLE_THEMES:
+        abort(404)
+    g.preview_theme = theme
+    # The picker sends its settings along, so the colour in the preview is
+    # the one in the form rather than the one last saved. Validated exactly
+    # as the save path validates it: these land in a <style> block. A value
+    # half typed is simply not applied yet, which is better than an error
+    # page appearing inside the frame.
+    from app.platform.theming import (
+        PREVIEWABLE_SETTING_TYPES,
+        clean_theme_config,
+    )
+    submitted = {
+        key: request.args.get(f'theme_{key}', '')
+        for key, spec in AVAILABLE_THEMES[theme].get('settings', {}).items()
+        if spec.get('type') in PREVIEWABLE_SETTING_TYPES}
+    try:
+        g.preview_config = clean_theme_config(theme, submitted)
+    except ValidationError:
+        # Set either way rather than left alone: a value being typed is not
+        # an error page, and the theme's own default is the honest thing to
+        # show until the value is a colour again.
+        g.preview_config = {}
+    return render_org_home()
 
 
 @bp.route('/analytics', methods=['GET', 'POST'])

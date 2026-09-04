@@ -357,6 +357,7 @@ def _init_context(app):
 
 def _init_security_headers(app):
     from .platform.analytics import analytics_csp_sources
+    from .platform.theming import PREVIEW_ENDPOINT
 
     @app.after_request
     def add_security_headers(response):
@@ -366,6 +367,12 @@ def _init_security_headers(app):
         if response.mimetype == 'text/html':
             response.vary.add('User-Agent')
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        # Nothing may frame this application, with one exception: the theme
+        # preview, which Manage -> Theme shows in an iframe on the same
+        # origin. Read off the endpoint rather than a flag a view sets,
+        # so no other response can opt itself in and nothing can leak.
+        frameable = (request.endpoint == PREVIEW_ENDPOINT
+                     and response.status_code == 200)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         # The org's configured analytics tracker (app/platform/analytics.py)
@@ -381,7 +388,8 @@ def _init_security_headers(app):
             + (f"connect-src 'self' {' '.join(connect_hosts)}; "
                if connect_hosts else '')
             + "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
-            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+            "object-src 'none'; base-uri 'self'; "
+            f"frame-ancestors {"'self'" if frameable else "'none'"}"
         )
         if not app.debug and not app.testing:
             response.headers['Strict-Transport-Security'] = \

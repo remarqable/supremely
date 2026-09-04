@@ -389,6 +389,234 @@ def test_theme_switch(app, client, acme, globex, user):
     assert b'#22ccff' in home.data          # theme setting reaches the page
 
 
+def test_the_theme_page_shows_a_preview_beside_the_picker(app, client, acme,
+                                                          user):
+    """The picker used to be the whole page: a list of names, with no way to
+    see what any of them looked like short of saving one and visiting the
+    site. The page now carries the home page beside it."""
+    login_as(client, user)
+    page = client.get('/manage/theme', base_url=ACME).get_data(as_text=True)
+    assert '<iframe' in page
+    assert '/manage/theme/preview' in page
+    # The starting settings ride in the same attribute as the rest of the
+    # component, so their quotes have to be escaped. Unescaped they close
+    # x-data early and the remainder of it renders as text on the page.
+    assert '&#34;accent&#34;' in page
+    assert 'config: {"' not in page
+
+
+def test_a_theme_can_be_previewed_without_saving_it(app, client, acme, globex,
+                                                    user):
+    """Selecting is not saving. The preview renders the org's real home page
+    through the real pipeline in a theme it has not chosen, and leaves both
+    the stored choice and what visitors see exactly as they were.
+    """
+    login_as(client, user)
+    assert db.session.get(Organization, acme.id).theme != 'midnight'
+
+    preview = client.get('/manage/theme/preview?theme=midnight', base_url=ACME)
+    assert preview.status_code == 200
+    assert b'class="midnight' in preview.data
+    assert b'Acme' in preview.data          # the org's own copy, not a mock-up
+
+    assert db.session.get(Organization, acme.id).theme != 'midnight'
+    live = client.get('/', base_url=ACME)
+    assert b'class="midnight' not in live.data
+
+
+def test_the_preview_follows_unsaved_theme_settings(app, client, acme,
+                                                    globex, user):
+    """The accent colour is picked in the same column, so the preview shows
+    the colour in the form rather than the one last saved. The value reaches
+    a <style> block, so it goes through the same validator the save uses: a
+    value that is not a colour is simply not applied, and never reaches the
+    page.
+    """
+    login_as(client, user)
+    live = client.get(
+        '/manage/theme/preview?theme=midnight&theme_accent=%2322ccff',
+        base_url=ACME)
+    assert live.status_code == 200
+    # Distinct from midnight's own default (#8b5cf6), so this proves the
+    # submitted value is what reached the page.
+    assert b'#22ccff' in live.data
+    assert b'#8b5cf6' not in live.data
+
+    # Nothing was saved on the way through.
+    org = db.session.get(Organization, acme.id)
+    assert org.theme != 'midnight'
+    assert '#22ccff' not in str(org.setting('theme_config', {}))
+
+    # Asserted by what the page falls back to rather than by the absence of
+    # the string: "#22c" is a substring of the default and "</style>" is
+    # already on any themed page, so either would pass whatever the code did.
+    for bad in ('red; }', '#22ccfg', 'url(javascript:alert(1))',
+                '</style><script>alert(1)</script>'):
+        response = client.get('/manage/theme/preview', base_url=ACME,
+                              query_string={'theme': 'midnight',
+                                            'theme_accent': bad})
+        assert response.status_code == 200, bad
+        assert b'#8b5cf6' in response.data, bad     # the theme's own default
+        assert b'javascript:alert' not in response.data, bad
+        assert b'<script>alert' not in response.data, bad
+
+
+def test_a_theme_shows_its_own_defaults_not_another_themes_colour(app, client,
+                                                                  acme, globex,
+                                                                  user):
+    """Saved settings belong to the theme they were saved against. Browsing
+    a different one must not borrow them, or the preview shows a combination
+    that saving would never produce."""
+    login_as(client, user)
+    client.post('/manage/theme', base_url=ACME,
+                data={'theme': 'supremely', 'theme_accent': '#22ccff'})
+    assert b'#22ccff' in client.get('/', base_url=ACME).data
+
+    other = client.get('/manage/theme/preview?theme=midnight', base_url=ACME)
+    assert other.status_code == 200
+    assert b'#22ccff' not in other.data
+
+
+def test_the_previewed_theme_does_not_outlive_its_request(app, client, acme,
+                                                          globex, user):
+    """A previewed theme must not render anywhere but the preview.
+
+    What this pins is the endpoint guard in current_theme, not g's lifetime:
+    conftest holds one app context open for the whole test, so g is NOT
+    reset between client requests here the way it is on a real server. That
+    is the point. The guard is what makes a stale value harmless, so it is
+    the guard worth testing.
+    """
+    login_as(client, user)
+    client.get('/manage/theme/preview?theme=trailhead', base_url=ACME)
+    assert b'class="trailhead' not in client.get('/', base_url=ACME).data
+    assert b'class="trailhead' not in client.get('/manage/theme',
+                                                 base_url=ACME).data
+
+
+def test_a_theme_that_no_longer_resolves_still_gives_a_usable_picker(app,
+                                                                     client,
+                                                                     acme,
+                                                                     globex,
+                                                                     user):
+    """org.theme can hold a value no theme answers to: 'default' is a legacy
+    alias, and a theme can be uninstalled after an org picked it. Read raw,
+    the picker selects nothing and points the frame at a theme that 404s
+    inside it. It resolves the value the way every other reader does.
+    """
+    login_as(client, user)
+    for stored in ('default', 'removed-theme'):
+        org = db.session.get(Organization, acme.id)
+        org.theme = stored
+        db.session.commit()
+
+        page = client.get('/manage/theme', base_url=ACME)
+        assert page.status_code == 200, stored
+        html = page.get_data(as_text=True)
+        assert "theme: 'origin'" in html, stored
+        assert f"theme={stored}" not in html, stored
+        # The frame it renders without JavaScript has to work too.
+        assert '/manage/theme/preview?theme=origin' in html, stored
+
+
+def test_previewed_settings_reach_no_page_but_the_preview(app, client, acme,
+                                                          globex, user):
+    """The companion to the theme guard, and it needs its own test: the two
+    are separate conditions, and this one carries the colour rather than the
+    template choice. A previewed accent that reached the live site would
+    repaint it for visitors on the strength of a colour picker nobody
+    pressed Save on.
+    """
+    login_as(client, user)
+    client.post('/manage/theme', base_url=ACME,
+                data={'theme': 'supremely', 'theme_accent': '#112233'})
+
+    previewed = client.get('/manage/theme/preview', base_url=ACME,
+                           query_string={'theme': 'supremely',
+                                         'theme_accent': '#22ccff'})
+    assert b'#22ccff' in previewed.data
+
+    # Same theme, so only the guard on the settings can keep the colour out.
+    for path in ('/', '/manage/theme'):
+        response = client.get(path, base_url=ACME)
+        assert b'#22ccff' not in response.data, path
+    assert b'#112233' in client.get('/', base_url=ACME).data
+
+
+def test_a_theme_preview_is_scoped_to_the_organization_asking(app, client,
+                                                              acme, globex,
+                                                              user):
+    """The route renders a whole front page, so it needs the same isolation
+    every other org-scoped page has: Acme's own content, and nothing of
+    Globex's, with Globex's owner refused on Acme's host."""
+    login_as(client, user)
+    preview = client.get('/manage/theme/preview?theme=origin', base_url=ACME)
+    assert preview.status_code == 200
+    assert b'Acme' in preview.data
+    assert b'Globex' not in preview.data
+
+    hank = globex.memberships[0].user
+    login_as(client, hank)
+    assert client.get('/manage/theme/preview?theme=origin',
+                      base_url=ACME).status_code == 403
+    # On their own host they get their own organization, never Acme's.
+    theirs = client.get('/manage/theme/preview?theme=origin',
+                        base_url='http://globex.example.test')
+    assert theirs.status_code == 200
+    assert b'Globex' in theirs.data
+    assert b'Acme' not in theirs.data
+
+
+def test_only_the_theme_preview_may_be_framed(app, client, acme, globex, user):
+    """The application refuses to be framed everywhere, which is what stops
+    it being clickjacked. The preview is the one exception and opts in for
+    itself, same origin only."""
+    login_as(client, user)
+    preview = client.get('/manage/theme/preview?theme=origin', base_url=ACME)
+    assert "frame-ancestors 'self'" in \
+        preview.headers['Content-Security-Policy']
+
+    for path in ('/manage/theme', '/', '/dashboard'):
+        response = client.get(path, base_url=ACME)
+        assert "frame-ancestors 'none'" in \
+            response.headers['Content-Security-Policy'], path
+
+    # Only a preview that actually rendered. The refusals on the same path
+    # are not previews and have no business being framed either.
+    denied = client.get('/manage/theme/preview?theme=nope', base_url=ACME)
+    assert denied.status_code == 404
+    assert "frame-ancestors 'none'" in denied.headers['Content-Security-Policy']
+
+    member = make_user(email='framer@example.com')
+    Membership.add(member.id, acme.id, role='member')
+    login_as(client, member)
+    forbidden = client.get('/manage/theme/preview?theme=origin', base_url=ACME)
+    assert forbidden.status_code == 403
+    assert "frame-ancestors 'none'" in \
+        forbidden.headers['Content-Security-Policy']
+
+
+def test_a_theme_nobody_installed_cannot_be_previewed(app, client, acme,
+                                                      globex, user):
+    """The value names a template directory, so it is checked against the
+    installed themes rather than trusted."""
+    login_as(client, user)
+    for theme in ('', 'nope', '../origin', 'themes/origin'):
+        response = client.get(f'/manage/theme/preview?theme={theme}',
+                              base_url=ACME)
+        assert response.status_code == 404, theme
+
+
+def test_a_member_cannot_preview_a_theme(app, client, acme, globex, user):
+    """Choosing a theme is an owner's job, and so is looking at one."""
+    member = make_user(email='themer@example.com')
+    Membership.add(member.id, acme.id, role='member')
+    login_as(client, member)
+    assert client.get('/manage/theme/preview?theme=midnight',
+                      base_url=ACME).status_code == 403
+    assert client.get('/manage/theme', base_url=ACME).status_code == 403
+
+
 def test_landing_editor_saves_copy(app, client, acme, globex, user):
     acme.theme = 'supremely'        # editor uses the active theme's schema
     acme.save()

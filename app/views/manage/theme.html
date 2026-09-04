@@ -2,48 +2,117 @@
 {% from 'partials/_ui.html' import page_header with context %}
 
 {% block manage_content %}
-<div class="mx-auto max-w-2xl">
 {{ page_header(_('manage.theme')) }}
-<div class="card">
-  <form method="POST" class="space-y-4" x-data="{ theme: '{{ org.theme }}' }">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="space-y-2">
-      {% for slug, info in themes.items() %}
-      <label class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 ring-1 ring-slate-200 transition-colors has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 hover:bg-slate-50">
-        <input type="radio" name="theme" value="{{ slug }}" x-model="theme">
-        <span class="flex-1">
-          <span class="font-medium">{{ info.name }}</span>
-          <span class="ms-2 text-xs text-slate-500">v{{ info.version }}{% if info.author %} · {{ info.author }}{% endif %}</span>
-        </span>
-        {% if slug == org.theme %}<span class="badge-brand">{{ _('common.active') }}</span>{% endif %}
-      </label>
-      {% endfor %}
-    </div>
 
-    {% for slug, info in themes.items() %}
-    {% if info.settings %}
-    <div x-show="theme === '{{ slug }}'" x-cloak class="space-y-3 border-t border-slate-100 pt-3">
-      <h4 class="text-sm font-semibold">{{ info.name }} — {{ _('manage.theme_settings') }}</h4>
-      {% set config = org.setting('theme_config', {}) if slug == org.theme else {} %}
-      {% for key, spec in info.settings.items() %}
-      <div>
-        <label for="theme_{{ key }}" class="label">{{ spec.label or key }}</label>
-        {% if spec.type == 'color' %}
-        <input type="color" id="theme_{{ key }}" name="theme_{{ key }}"
-               value="{{ config.get(key, spec.default or '#000000') }}" class="mt-1">
-        {% else %}
-        <input type="text" id="theme_{{ key }}" name="theme_{{ key }}" class="input mt-1"
-               value="{{ config.get(key, spec.default or '') }}">
+{# Picker on the left, the home page as the picked theme would render it on
+   the right. Selecting is not saving: the preview follows the radio
+   straight away, and the choice only sticks when Save is pressed. That is
+   the whole point of showing it, so a theme can be looked at before it is
+   handed to visitors. #}
+{# The frame is a real desktop viewport, WIDE css pixels across, scaled
+   down to whatever room the column has. Letting it render at the column's
+   own width instead would cross the site's own breakpoints and show a
+   narrow layout no visitor is going to see. #}
+<div class="flex flex-col gap-5 xl:flex-row"
+     x-data="{ theme: '{{ active }}',
+               {# forceescape, because tojson leaves double quotes alone:
+                  it is built for a script block, and unescaped they close
+                  this attribute and spill the rest of it onto the page. #}
+               config: {{ theme_values|tojson|forceescape }},
+               base: '{{ url_for('manage.theme_preview') }}',
+               frame: '',
+               WIDE: 1280, TALL: 800, scale: 1,
+               refresh() {
+                 const query = new URLSearchParams({ theme: this.theme });
+                 Object.entries(this.config[this.theme] || {}).forEach(
+                   ([key, value]) => {
+                     if (value) query.set('theme_' + key, value);
+                   });
+                 this.frame = this.base + '?' + query.toString();
+               },
+               fit() {
+                 const room = $refs.shell ? $refs.shell.clientWidth : 0;
+                 this.scale = room ? room / this.WIDE : 1;
+               } }"
+     x-init="refresh(); $nextTick(() => fit())"
+     @change="refresh()"
+     @input.debounce.400ms="refresh()"
+     @resize.window.debounce.100ms="fit()">
+
+  <div class="w-full shrink-0 xl:w-72">
+    <div class="card">
+      <form method="POST" class="space-y-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="space-y-2" role="radiogroup"
+             aria-label="{{ _('manage.theme') }}">
+          {% for slug, info in themes.items() %}
+          <label class="flex cursor-pointer items-start gap-3 rounded-md px-3 py-2.5 ring-1 ring-slate-200 transition-colors has-checked:bg-brand-50/50 has-checked:ring-brand-600/40 hover:bg-slate-50">
+            <input type="radio" name="theme" value="{{ slug }}" x-model="theme" class="mt-1">
+            <span class="min-w-0 flex-1">
+              <span class="block font-medium">{{ info.name }}</span>
+              <span class="block text-xs text-slate-500">v{{ info.version }}{% if info.author %} · {{ info.author }}{% endif %}</span>
+            </span>
+            {% if slug == active %}<span class="badge-brand shrink-0">{{ _('common.active') }}</span>{% endif %}
+          </label>
+          {% endfor %}
+        </div>
+
+        {% for slug, info in themes.items() %}
+        {% if info.settings %}
+        <div x-show="theme === '{{ slug }}'" x-cloak class="space-y-3 border-t border-slate-100 pt-3">
+          <h3 class="text-sm font-semibold">{{ info.name }} — {{ _('manage.theme_settings') }}</h3>
+          {% set config = theme_values.get(slug, {}) %}
+          {% for key, spec in info.settings.items() %}
+          <div>
+            <label for="theme_{{ key }}" class="label">{{ spec.label or key }}</label>
+            {# value= as well as x-model, so the value still posts. With
+               JavaScript off x-show never runs and x-cloak keeps these
+               panels hidden, so the theme can be switched without them but
+               its settings cannot be edited. #}
+            {% if spec.type == 'color' %}
+            <input type="color" id="theme_{{ key }}" name="theme_{{ key }}"
+                   x-model="config[{{ slug|tojson|forceescape }}][{{ key|tojson|forceescape }}]"
+                   value="{{ config.get(key) or spec.default or '#000000' }}" class="mt-1">
+            {% else %}
+            <input type="text" id="theme_{{ key }}" name="theme_{{ key }}" class="input mt-1"
+                   x-model="config[{{ slug|tojson|forceescape }}][{{ key|tojson|forceescape }}]"
+                   value="{{ config.get(key) or spec.default or '' }}">
+            {% endif %}
+          </div>
+          {% endfor %}
+          <p class="text-xs text-slate-600">{{ _('manage.theme_settings_hint') }}</p>
+        </div>
         {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    {% endfor %}
+        {% endfor %}
 
-    <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
-  </form>
-  <p class="mt-3 text-xs text-slate-500">{{ _('manage.theme_hint') }}</p>
-</div>
+        <button type="submit" class="btn-primary w-full">{{ _('common.save') }}</button>
+      </form>
+      <p class="mt-3 text-xs text-slate-600">{{ _('manage.theme_hint') }}</p>
+    </div>
+  </div>
+
+  <div class="min-w-0 flex-1">
+    <div class="mb-2 flex items-baseline justify-between gap-3">
+      <h2 class="text-sm font-semibold text-slate-900">{{ _('manage.theme_preview') }}</h2>
+      {# Opened rather than framed, for a look at the full width the column
+         cannot give it. #}
+      <a href="{{ url_for('manage.theme_preview', theme=active) }}"
+         :href="frame" target="_blank" rel="noopener"
+         class="text-xs text-slate-600 hover:text-slate-900">{{ _('manage.theme_preview_full') }}
+        <span class="sr-only">({{ _('manage.preview_new_tab') }})</span></a>
+    </div>
+    <div x-ref="shell" dir="ltr"
+         class="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200"
+         :style="'height: ' + (TALL * scale) + 'px'">
+      <iframe src="{{ url_for('manage.theme_preview', theme=active) }}"
+              style="width: 1280px; height: 800px"
+              :src="frame"
+              class="block origin-top-left border-0"
+              :style="'width: ' + WIDE + 'px; height: ' + TALL
+                      + 'px; transform: scale(' + scale + ')'"
+              title="{{ _('manage.theme_preview') }}"></iframe>
+    </div>
+    <p class="mt-2 text-xs text-slate-600">{{ _('manage.theme_preview_hint') }}</p>
+  </div>
 </div>
 {% endblock %}

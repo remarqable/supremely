@@ -11,13 +11,23 @@ import json
 import re
 import zipfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from flask import current_app, g, has_app_context
+from flask import (
+    current_app,
+    g,
+    has_app_context,
+    has_request_context,
+    request,
+)
 from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
 
 from app.platform.devices import device_candidates, mobile_variant
 from app.platform.errors import ValidationError
 from app.platform.logger import get_logger
+
+if TYPE_CHECKING:                       # circular at runtime, fine for hints
+    from app.models import Organization
 
 log = get_logger()
 
@@ -176,12 +186,30 @@ def scan_themes() -> None:
     AVAILABLE_THEMES.update(themes)
 
 
+# The only endpoint whose response may render a theme the org has not
+# chosen. Naming it here, rather than trusting whatever set the override,
+# keeps a stale value on g from ever reaching a visitor.
+PREVIEW_ENDPOINT = 'manage.theme_preview'
+
+
+# Settings whose values the live preview will take from the URL. Both have
+# an exact validator in clean_theme_config. A free-text setting does not,
+# and the preview is a GET, so a link could otherwise put a stranger's CSS
+# in front of an admin. Free text is still saved and rendered, just not
+# previewed before it is saved.
+PREVIEWABLE_SETTING_TYPES = ('color', 'number')
+
+
 def current_theme() -> str:
-    org = getattr(g, 'org', None)
-    theme = org.theme if org else 'origin'
-    if theme == 'default':              # legacy alias for the fallback theme
-        theme = 'origin'
-    return theme if theme in AVAILABLE_THEMES else 'origin'
+    # Manage -> Theme renders the home page in a theme the org has not
+    # chosen yet, so the picker can be browsed before anything is saved.
+    # The override lives here because this is the one place the theme is
+    # decided, so everything downstream follows without knowing about it.
+    preview = getattr(g, 'preview_theme', None)
+    if (preview in AVAILABLE_THEMES and has_request_context()
+            and request.endpoint == PREVIEW_ENDPOINT):
+        return preview
+    return saved_theme(getattr(g, 'org', None))
 
 
 # Capabilities a theme is assumed to have unless its theme.json says
@@ -201,14 +229,52 @@ def theme_capabilities(theme: str | None = None) -> dict:
     return capabilities
 
 
+def saved_theme(org: 'Organization | None') -> str:
+    """The theme an organization has chosen, ignoring any preview.
+
+    Also where a stored value that no longer resolves is settled: the legacy
+    'default' alias, and a theme that has since been uninstalled. Anything
+    reading org.theme raw gets those wrong, which is why current_theme comes
+    through here too.
+    """
+    theme = (org.theme if org else 'origin') or 'origin'
+    if theme == 'default':              # legacy alias for the fallback theme
+        theme = 'origin'
+    return theme if theme in AVAILABLE_THEMES else 'origin'
+
+
+def theme_setting_values(org: 'Organization | None') -> dict:
+    """Each installed theme's settings as the picker should start them.
+
+    The theme in use starts from what was saved; every other theme starts
+    from its own defaults, because settings belong to the theme they were
+    saved against.
+    """
+    stored = (org.settings or {}).get('theme_config', {}) if org else {}
+    active = saved_theme(org)
+    return {slug: {key: (stored.get(key) if slug == active else None)
+                   or spec.get('default', '')
+                   for key, spec in (info.get('settings') or {}).items()}
+            for slug, info in AVAILABLE_THEMES.items()}
+
+
 def theme_config() -> dict:
     """The current org's theme configuration, with schema defaults filled in."""
     org = getattr(g, 'org', None)
     theme = current_theme()
     schema = AVAILABLE_THEMES.get(theme, {}).get('settings', {})
     values = {key: spec.get('default', '') for key, spec in schema.items()}
-    if org:
+    # Stored settings belong to the theme they were saved against. Previewing
+    # a different one shows its own defaults rather than borrowing colours
+    # from the theme in use, which is also what the picker's form shows.
+    if org and theme == saved_theme(org):
         values.update((org.settings or {}).get('theme_config', {}))
+    # Manage -> Theme previews settings that have not been saved, so the
+    # colour follows the picker. Already validated by the route through
+    # clean_theme_config, which is what makes a value safe to interpolate
+    # into a <style> block.
+    if has_request_context() and request.endpoint == PREVIEW_ENDPOINT:
+        values.update(getattr(g, 'preview_config', None) or {})
     return values
 
 
