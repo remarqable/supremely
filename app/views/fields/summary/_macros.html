@@ -1,0 +1,4 @@
+{# A listing chip: the value, unlabelled and inline. No separator of its
+   own -- the container spaces these, so a chip rendering first does not
+   start with a dangling bullet. #}
+{% macro chip() %}<span>{{ caller() }}</span>{% endmacro %}

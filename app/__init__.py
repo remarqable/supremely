@@ -323,8 +323,20 @@ def _init_context(app):
 
     @app.template_filter('localdate')
     def localdate(value, fmt='%Y-%m-%d'):
+        """A date column, or a `date` field's stored 'YYYY-MM-DD' string.
+
+        Field values live in JSON, so a date arrives here as text. Anything
+        that will not parse is handed back untouched rather than raising:
+        a page missing a formatted date beats a page that does not render.
+        """
         if value is None:
             return ''
+        if isinstance(value, str):
+            from datetime import date
+            try:
+                value = date.fromisoformat(value[:10])
+            except ValueError:
+                return value
         return value.strftime(fmt)
 
     @app.template_filter('localdatetime')
@@ -396,10 +408,18 @@ def _init_security_headers(app):
             + (f"connect-src 'self' {' '.join(connect_hosts)}; "
                if connect_hosts else '')
             + "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
-            # Video players embedded from a body's :::video directive. The
-            # hosts come from the renderer so the policy and the markup it
-            # allows cannot drift apart (app/platform/content.py).
-            f"frame-src {' '.join(VIDEO_FRAME_HOSTS)}; "
+            # Two ways a body ends up framing a player: a :::video
+            # directive, and a video field the type declares. Both build
+            # their frame from the same host list, so the policy and the
+            # markup it has to allow cannot drift apart
+            # (app/platform/content.py). media-src is for an audio field,
+            # which plays a file the author linked rather than framing one:
+            # any https file, because that is what an audio URL is. Without
+            # these, both inherit default-src 'self' and neither loads,
+            # which is a failure that shows up in the markup and nowhere
+            # else.
+            f"frame-src 'self' {' '.join(VIDEO_FRAME_HOSTS)}; "
+            "media-src 'self' https:; "
             "object-src 'none'; base-uri 'self'; "
             f"frame-ancestors {"'self'" if frameable else "'none'"}"
         )

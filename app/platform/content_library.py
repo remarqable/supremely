@@ -33,7 +33,7 @@ def register_library_types() -> None:
         slug='recording', singular='Video', plural='Videos',
         description='Talks, webinars and member deep dives, linked from '
                     'wherever the video is hosted.',
-        base='/recordings', group='learn',
+        base='/recordings', group='learn', icon='video',
         # One field. Duration, speakers and a recorded-on date were three
         # more things to type for something the video page already shows,
         # and nothing rendered them.
@@ -47,7 +47,7 @@ def register_library_types() -> None:
         slug='episode', singular='Episode', plural='Podcast',
         description='Podcast episodes, linked from wherever the audio is '
                     'hosted.',
-        base='/podcast', group='learn',
+        base='/podcast', group='learn', icon='podcast',
         fields=(
             FieldSpec(key='audio_url', type='url', label='Audio URL',
                       required=True),
@@ -56,7 +56,7 @@ def register_library_types() -> None:
     register_content_type(ContentType(
         slug='announcement', singular='Announcement', plural='Announcements',
         description='Official updates from the team.',
-        base='/announcements',
+        base='/announcements', icon='announcement',
     ))
     register_content_type(ContentType(
         slug='team_member', singular='Team member', plural='Team',

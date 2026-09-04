@@ -1,0 +1,8 @@
+{% from 'fields/email/_macros.html' import field_row with context %}
+{# No embeds and no players: an email client renders neither, and a link is
+   what a reader can act on in every one of them. #}
+{% set href = safe_url(value) %}
+{% call field_row(label) %}
+{% if href %}<a href="{{ href }}" style="color:#4f46e5;word-break:break-all">{{ href }}</a>
+{% else %}{{ value }}{% endif %}
+{% endcall %}

@@ -128,6 +128,16 @@ def init_theming(app) -> None:
     app.jinja_env.globals['theme_content'] = lambda: resolve_content(current_theme())
     app.jinja_env.globals['community_tokens'] = community_tokens
     app.jinja_env.globals['theme_capabilities'] = theme_capabilities
+    # Field rendering belongs with the other theme-facing verbs: registered
+    # on the environment rather than a context processor, so it is reachable
+    # from a field partial too (those are fetched from the environment, and
+    # context processors never run for them).
+    # video_embed is deliberately not here: the only template that wants it
+    # is fields/url-video_url.html, and every field partial already gets it
+    # in its render context.
+    from app.platform.fields import render_fields, render_lead_field
+    app.jinja_env.globals['render_fields'] = render_fields
+    app.jinja_env.globals['render_lead_field'] = render_lead_field
 
 
 def scan_themes() -> None:

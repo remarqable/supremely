@@ -12,6 +12,7 @@ from app.models import (
     Upload,
     User,
 )
+from app.platform.content import VIDEO_FRAME_HOSTS
 from tests.conftest import login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
@@ -248,14 +249,19 @@ def test_invalid_brand_color_rejected(app, client, acme, globex, user):
 
 
 PLAUSIBLE_URL = 'https://plausible.io/js/pa-abc12345.js'
-# frame-src is part of the baseline everywhere, including the console: a
-# body can carry a :::video embed, and the console renders one too when an
-# author previews an unsaved draft (manage.preview_content).
-BASELINE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-eval'; "
-                "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
-                "frame-src https://www.youtube-nocookie.com "
-                "https://player.vimeo.com; "
-                "object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+# frame-src and media-src are part of the baseline everywhere, the console
+# included: a body can carry a :::video directive and a type can declare a
+# video or audio field, and the console renders both when an author previews
+# an unsaved draft (manage.preview_content).
+#
+# Built from the same list the renderer builds embed URLs from, so the two
+# cannot drift: a policy that forgot a host would block the player rather
+# than fail this test.
+BASELINE_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-eval'; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+    f"frame-src 'self' {' '.join(VIDEO_FRAME_HOSTS)}; media-src 'self' https:; "
+    "object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 
 
 def save_analytics(client, **data):

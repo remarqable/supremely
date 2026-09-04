@@ -1,0 +1,7 @@
+{# The card's leading block for a dated type, in place of the author avatar.
+   Type-declared through ContentType.lead_field, so any dated type gets one
+   and a theme can replace this file to change what leading looks like. #}
+<div class="min-w-[52px] overflow-hidden rounded-[10px] text-center ring-1 ring-slate-200">
+  <div class="bg-red-500 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">{{ value|month_abbr }}</div>
+  <div class="py-1 text-xl font-bold tabular-nums text-slate-900">{{ value[8:10].lstrip('0') or '?' }}</div>
+</div>

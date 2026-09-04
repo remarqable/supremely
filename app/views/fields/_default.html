@@ -1,0 +1,5 @@
+{# How a field looks on an item's page when its type has nothing of its own
+   to say. A type only needs a file of its own when it differs: `date`
+   formats, `boolean` reads as words, `url` becomes a link. #}
+{% from 'fields/_macros.html' import field_row with context %}
+{% call field_row(label) %}{{ value }}{% endcall %}

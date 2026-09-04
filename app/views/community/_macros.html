@@ -179,7 +179,7 @@
     {% for ct in content_types().values() if ct.has_archive %}
     <a href="{{ url_for('manage.new_content', type_slug=ct.slug) }}" role="menuitem"
        class="flex items-center gap-2.5 px-3.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
-      <span class="text-slate-400">{{ type_icon(ct.slug) }}</span>{{ ct.singular }}</a>
+      <span class="text-slate-400">{{ type_icon(ct.icon) }}</span>{{ ct.singular }}</a>
     {% endfor %}
   </div>
 </div>

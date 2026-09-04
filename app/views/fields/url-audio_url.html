@@ -1,0 +1,11 @@
+{# The browser's own player. No iframe: the value is a media file, not a
+   document, so <audio src> is both safer and lighter. #}
+{% set href = safe_url(value) %}
+{% if href %}
+<div class="mt-4">
+  <audio controls preload="none" src="{{ href }}" class="w-full"
+         aria-label="{{ content.title if content else label }}">
+    <a href="{{ href }}" class="text-brand-700 hover:underline">{{ label }}</a>
+  </audio>
+</div>
+{% endif %}

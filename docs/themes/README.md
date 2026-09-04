@@ -110,6 +110,8 @@ exist and may change without warning — build on what is written down.
 |---|---|
 | `theme_settings` | Your `theme.json` settings, validated, with org overrides |
 | `theme_content()` | Your declared content fields, filled in under Manage → Theme editor |
+| `render_fields(item, surface='web')` | The fields that item's type declares, drawn as HTML. `surface='summary'` for a listing card |
+| `render_lead_field(item)` | The one field the type leads its listing card with (a date block, say), or nothing |
 | `theme_asset('theme.css')` | URL for a file in your `static/` |
 | `themed('header.html')` | Resolve a part through the theme chain |
 | `theme_capabilities()` / `current_theme()` | Your declared capabilities; the active theme's slug |
@@ -171,7 +173,7 @@ Page-specific context:
 | Template | Receives |
 |---|---|
 | `archive*.html` | `content_type`, `items`, `pagination`, `archive_title` |
-| `single*.html`, `page.html` | `content`, `content_type` (`content.title`, `.html`, `.excerpt_or_summary()`, `.fields`, `.author`, `.published_at`) |
+| `single*.html`, `page.html` | `content`, `content_type` (`content.title`, `.html`, `.excerpt_or_summary()`, `.author`, `.published_at`; call `render_fields(content)` for the type's own fields) |
 | `discussions.html` | `groups`, `recent_posts`, `q` |
 | `discussion-group.html` | `group`, `posts`, `q` |
 | `discussion-post.html` | `group`, `post`, `top_level`, `children`, `reactions`, `following`, `emoji_set` |
@@ -179,6 +181,42 @@ Page-specific context:
 Everything in `items`/`posts`/`groups` is **already authorized and
 filtered** for the current visitor. A members-only group simply never
 reaches a visitor's template.
+
+
+## Field partials
+
+A content type declares typed fields — a video's URL, an event's date. Call
+`render_fields(item)` and each one is drawn by a partial chosen from its
+type and key, so your template never has to know which types have which
+fields.
+
+Override one by shipping a file. Most specific wins:
+
+```
+fields/url-video_url.html     this key on this type
+fields/url.html               every URL field
+fields/_default.html          anything with no partial of its own
+```
+
+Yours are looked at before the ones Supremely ships, so `fields/url.html`
+in your theme replaces every URL field including the video embed. `_default`
+is the exception: it is consulted after every typed partial anywhere, so
+adding one gives you a fallback without switching off the players.
+
+Four surfaces, and a partial is per surface:
+
+| Directory | Drawn where |
+|---|---|
+| `fields/` | the item's own page |
+| `fields/summary/` | a listing card, inline and unlabelled |
+| `fields/lead/` | the block a card leads with, in place of the author avatar |
+| `fields/email/` | a newsletter. Inline styles only: no stylesheet reaches an email client, and these never fall back to your web partials |
+
+Each partial receives `value`, `label`, `spec` and `content`, plus `_()` for
+translation. They are trusted template output rather than sanitized Markdown,
+which is how a video field can emit an `<iframe>` when a body never can —
+and why a partial must never put a value into markup unescaped. Use
+`safe_url(value)` for anything that becomes an `href` or a `src`.
 
 ## theme.json
 

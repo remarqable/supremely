@@ -31,6 +31,12 @@ class FieldSpec:
     label: str = ''
     required: bool = False
     help: str = ''
+    # Does this field belong on a listing card as well as the item's own
+    # page? A single renders every field; an archive wants a date and a
+    # location, not a full ingredients list. Declared by the type rather
+    # than decided by each template, so a theme cannot disagree with the
+    # next one about what an event card says.
+    in_summary: bool = False
 
     def clean(self, raw):
         """Validate and coerce one submitted value. Returns the stored value."""
@@ -96,6 +102,17 @@ class ContentType:
     # there from inside the shell would drop them onto the public site
     # mid-browse (see in_community_nav).
     presentation: str = 'community'
+    # The field a listing card leads with, in place of the author avatar.
+    # An event card shows a date chip; that used to be a slug test in
+    # community/archive.html, which is the callsite membership test the
+    # architecture forbids. Naming the field here lets any type lead with
+    # one, and lets a theme change what leading looks like.
+    lead_field: str = ''
+    # Which icon the community sidebar draws for this type: the name of a
+    # partial in app/views/icons/. Empty falls back to the document icon,
+    # so a plugin's type is never iconless and no template has to know
+    # which types exist.
+    icon: str = ''
 
     @property
     def is_page(self) -> bool:
@@ -126,6 +143,13 @@ class ContentType:
             raise ValueError(f'Unknown nav group: {self.group!r}')
         if self.presentation not in ('community', 'site'):
             raise ValueError(f'Unknown presentation: {self.presentation!r}')
+        if self.icon and not _SLUG_RE.fullmatch(self.icon):
+            raise ValueError(f'Invalid icon name: {self.icon!r}')
+        keys = {spec.key for spec in self.fields}
+        if self.lead_field and self.lead_field not in keys:
+            raise ValueError(
+                f'lead_field {self.lead_field!r} is not a field of '
+                f'{self.slug}')
         seen = set()
         for spec in self.fields:
             if not isinstance(spec, FieldSpec):
@@ -239,14 +263,17 @@ def register_core_types() -> None:
     register_content_type(ContentType(
         slug='article', singular='Article', plural='Articles',
         description='The standard blog post.',
-        base='/blog', show_in_nav=True,
+        base='/blog', show_in_nav=True, icon='article',
     ))
     register_content_type(ContentType(
         slug='event', singular='Event', plural='Events',
         description='A vertical example: dated events with a location.',
         base='/events', show_in_nav=True, group='meet',
+        lead_field='starts_on', icon='calendar',
         fields=(
-            FieldSpec(key='starts_on', type='date', label='Date', required=True),
-            FieldSpec(key='location', type='string', label='Location'),
+            FieldSpec(key='starts_on', type='date', label='Date',
+                      required=True, in_summary=True),
+            FieldSpec(key='location', type='string', label='Location',
+                      in_summary=True),
         ),
     ))
