@@ -113,7 +113,19 @@
 
     <div>
       <label for="body" class="label">{{ _('manage.body_markdown') }}</label>
-      <textarea id="body" name="body" class="textarea mt-1 min-h-96 font-mono text-sm">{{ content.body if content else '' }}</textarea>
+      <textarea id="body" name="body" class="textarea mt-1 min-h-96 font-mono text-sm"
+                placeholder="{{ _('manage.body_placeholder') }}">{{ content.body if content else '' }}</textarea>
+      {# The syntax itself is not translated -- it is syntax. Only the words
+         around it are. Without this line the :::video directive is
+         undiscoverable: nothing else in the product mentions it. #}
+      <p class="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-500">
+        <span>{{ _('manage.body_help_markdown') }}</span>
+        <code class="syntax-hint">## {{ _('manage.body_help_heading') }}</code>
+        <code class="syntax-hint">**{{ _('manage.body_help_bold') }}**</code>
+        <code class="syntax-hint">[{{ _('manage.body_help_link') }}](https://…)</code>
+        <span class="ms-1">{{ _('manage.body_help_video') }}</span>
+        <code class="syntax-hint">:::video https://www.youtube.com/watch?v=…</code>
+      </p>
     </div>
   </div>
 

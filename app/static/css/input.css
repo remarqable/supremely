@@ -171,6 +171,10 @@
   .prose-supremely th { @apply border-b border-slate-300 px-3 py-2 text-start font-medium; }
   .prose-supremely td { @apply border-b border-slate-100 px-3 py-2; }
 
+  /* A scrap of syntax shown in a form hint, not code in prose. */
+  .syntax-hint { @apply rounded bg-slate-100 px-1 py-0.5 font-mono
+                        text-[11px] text-slate-700; }
+
   /* A video from a body's :::video directive (app/platform/content.py).
      16:9 and fluid, so the player fits whatever column it lands in. */
   .video-embed { @apply relative my-5 w-full overflow-hidden rounded-lg bg-slate-900; }

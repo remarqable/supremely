@@ -297,3 +297,14 @@ def test_another_tenants_category_cannot_be_attached(app, client, acme,
         item = Content.published_by_slug('article', 'c-post')
         assert item is not None
         assert item.category is None
+
+
+def test_the_editor_tells_an_author_the_video_directive_exists(app, client,
+                                                               acme, globex,
+                                                               user):
+    """A feature nobody can discover is not shipped. Nothing else in the
+    product mentions :::video, so the editor's own hint has to."""
+    login_as(client, user)
+    body = client.get('/manage/content/article/new', base_url=ACME).data.decode()
+    assert ':::video' in body
+    assert 'placeholder=' in body
