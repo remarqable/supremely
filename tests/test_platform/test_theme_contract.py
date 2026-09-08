@@ -489,3 +489,94 @@ def test_a_package_carrying_an_unsupported_file_is_refused(app):
     assert 'unsupported file' in str(caught.value)
     assert 'sneaky' not in AVAILABLE_THEMES
     assert not (Path(app.config['DATA_DIR']) / 'themes' / 'sneaky').exists()
+
+
+def test_a_theme_asks_which_sections_the_site_shows(app, client, acme):
+    """The window is a theme verb, not a section the application draws.
+
+    site_entries() answers which types this organization advertises and in
+    what order; the theme decides entirely what one looks like. A theme that
+    never calls it has no window, which is what Origin had before this.
+    """
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        publish(acme, 'An article')
+    acme.set_type_settings('article', site_entry=True)
+    install(app, acme, **{'front-page.html': """{% extends site_layout %}
+{% block content %}
+{% for ct in site_entries() %}<h2 class="section">{{ ct.plural }}</h2>
+{% for item in latest_content(ct.slug, 3) %}<a href="{{ item.permalink }}">{{ item.title }}</a>{% endfor %}
+{% endfor %}
+{% endblock %}"""})
+
+    body = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'class="section"' in body
+    assert 'An article' in body
+    assert '/blog/an-article' in body      # the community address, not a copy
+
+
+def test_a_theme_can_restyle_one_section_without_touching_the_rest(app, client,
+                                                                   acme):
+    """The override the partial exists to allow: site-feed-{type}.html for
+    one type, and everything else keeps the default."""
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        publish(acme, 'An article')
+        publish(acme, 'An episode', type_slug='episode')
+    acme.set_type_settings('article', site_entry=True)
+    acme.set_type_settings('episode', site_entry=True)
+
+    install(app, acme, **{
+        'site-feed-episode.html':
+            '<div class="my-podcast">{{ content_type.plural }}</div>',
+    })
+    body = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'class="my-podcast"' in body        # the theme's own section
+    assert 'Latest Articles' in body           # the default, still there
+
+
+def test_the_order_is_the_organizations(app, client, acme, globex):
+    """Two organizations can advertise the same types in different orders,
+    and a site with no opinion still shows them the same way every time."""
+    from app.platform.content_types import site_entry_types
+    acme.set_type_settings('episode', site_entry=True, site_entry_position=0)
+    acme.set_type_settings('article', site_entry=True, site_entry_position=1)
+    globex.set_type_settings('article', site_entry=True, site_entry_position=0)
+    globex.set_type_settings('episode', site_entry=True, site_entry_position=1)
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert [ct.slug for ct in site_entry_types()] == ['episode', 'article']
+    with app.test_request_context(base_url='http://globex.example.test'):
+        g.org = globex
+        assert [ct.slug for ct in site_entry_types()] == ['article', 'episode']
+    # Neither organization's choice reached the other, and one that has made
+    # no choice at all still advertises nothing.
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        acme.set_type_settings('episode', site_entry=None,
+                               site_entry_position=None)
+        acme.set_type_settings('article', site_entry=None,
+                               site_entry_position=None)
+        assert site_entry_types() == []
+    with app.test_request_context(base_url='http://globex.example.test'):
+        g.org = globex
+        assert [ct.slug for ct in site_entry_types()] == ['article', 'episode']
+
+
+def test_every_bundled_theme_can_show_the_window(app, client, acme):
+    """A theme that ships its own front page has to offer the window too,
+    or that site simply has none. Origin was updated and the two themes with
+    their own front-page.html were not, so half the bundled themes had no
+    shop window at all."""
+    from app.platform.theming import AVAILABLE_THEMES
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        publish(acme, 'A shopfront article')
+    acme.set_type_settings('article', site_entry=True)
+
+    for slug in AVAILABLE_THEMES:
+        acme.theme = slug
+        acme.save()
+        body = client.get('/', base_url=ACME).get_data(as_text=True)
+        assert 'A shopfront article' in body, slug

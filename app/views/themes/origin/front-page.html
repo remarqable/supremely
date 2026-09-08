@@ -26,4 +26,12 @@
   <a href="{{ hero.cta_url or '/subscribe' }}" class="btn-primary mt-6">{{ hero.cta_label }}</a>
   {% endif %}
 </div>
+
+{# The shop window: what this organization advertises, in its order. The
+   theme decides how a section looks (site-feed-{type}.html for one type,
+   _site_feed.html for all of them); nothing appears until somebody opens a
+   window in Manage -> Home page. #}
+{% for content_type in site_entries() %}
+{% include site_feed_template(content_type) with context %}
+{% endfor %}
 {% endblock %}

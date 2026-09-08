@@ -36,6 +36,8 @@ from app.platform.content_types import (
     ContentType,
     active_types,
     get_content_type,
+    offerable_sections,
+    site_entry_types,
     submitted_fields,
 )
 from app.platform.devices import render_device_template
@@ -1321,6 +1323,26 @@ def privacy_settings():
 
 # --- Theme editor (theme-declared editable content) ---------------------------
 
+@bp.route('/landing/sections', methods=['POST'])
+@org_required
+@require('content.write')
+def landing_sections() -> ResponseReturnValue:
+    """Which sections the public front page advertises, and in what order.
+
+    Its own address, not a second form posting to the page's. Sharing one
+    meant a save here ran the theme-copy save over a form carrying no copy,
+    and the headline somebody had written was gone. Two things that save
+    separately should submit separately.
+
+    What to store, and in what order, is the organization's rule and lives
+    on the model with the rest of the per-type map.
+    """
+    g.org.set_site_entries(request.form.getlist('site_entries'),
+                           offerable_sections())
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.landing_settings'))
+
+
 @bp.route('/landing', methods=['GET', 'POST'])
 @org_required
 @require('content.write')
@@ -1342,7 +1364,7 @@ def landing_settings():
             store = dict(g.org.setting('theme_content') or {})
             store[theme] = tc.clean(theme, request.form)
             g.org.update_settings(theme_content=store)
-            flash(t('common.saved'), 'success')
+        flash(t('common.saved'), 'success')
         return redirect(url_for('manage.landing_settings'))
 
     fields = tc.editor_view(theme, g.org)
@@ -1372,6 +1394,8 @@ def landing_settings():
         if field['type'] == 'image' and field['value']:
             field['unavailable'] = field['value'] not in still_offered
     return render_device_template('manage/landing.html',
+                           offered_sections=offerable_sections(),
+                           chosen_sections=[ct.slug for ct in site_entry_types()],
                            fields=fields,
                            image_uploads=image_uploads,
                            theme_name=AVAILABLE_THEMES[theme]['name'])

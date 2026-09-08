@@ -250,6 +250,19 @@ class ContentType:
     # provisioning is skipped by every caller that does not seed defaults,
     # and then two places disagree about what is on.
     enabled_by_default: bool = False
+    # Does the public site advertise this type on its front page?
+    #
+    # Separate from presentation, and deliberately so. Presentation says
+    # where a thing renders; this says whether the site puts a shop window
+    # in front of it. A podcast can live in the community and still be the
+    # first thing a visitor sees, and the window links inward: the site
+    # shows a list, never a second copy of the page.
+    #
+    # Off for everything Supremely ships. A front page is the one page an
+    # organization has almost certainly arranged deliberately, and growing
+    # four sections under somebody's hero on upgrade is not an improvement
+    # anybody asked for. Manage -> Home page is where a window is opened.
+    site_entry: bool = False
 
     @property
     def is_page(self) -> bool:
@@ -449,10 +462,20 @@ def _current_org():
     org_id = current_org_id()
     if org_id is None:
         return None
+    # Every type asks this, and every section on a front page asks every
+    # type: without a memo one page was 110 identical SELECTs. Keyed by id
+    # because org_scope() can change the tenant inside one app context.
+    from flask import g, has_app_context
+    cached = getattr(g, '_active_org', None) if has_app_context() else None
+    if cached is not None and cached.id == org_id:
+        return cached
     from app.models import Organization
     from app.platform.tenant import unscoped
     with unscoped():
-        return Organization.query.filter_by(id=org_id).first()
+        org = Organization.query.filter_by(id=org_id).first()
+    if has_app_context():
+        g._active_org = org
+    return org
 
 
 def type_presentation(content_type: ContentType) -> str:
@@ -466,6 +489,55 @@ def type_presentation(content_type: ContentType) -> str:
     org = _current_org()
     return (org.type_presentation(content_type) if org is not None
             else content_type.presentation)
+
+
+def site_entry_types() -> list[ContentType]:
+    """The types the public site advertises, in the order it shows them.
+
+    Only what this organization publishes: a type it has turned off has
+    nothing to advertise. Order is the organization's, falling back to the
+    order types were registered in, so a site with no opinion still shows
+    the same sections in the same places on every visit.
+
+    Sections the viewer may not read are not in the list at all. A locked
+    section returns no items to anybody outside it, so leaving it in would
+    put an empty heading on the page announcing something private exists,
+    and would leave the access decision to whether a theme happens to skip
+    empty sections. Themes are renderers; this is not their call.
+    """
+    from app.models import Content
+    org = _current_org()
+    entries = []
+    for position, content_type in enumerate(active_types().values()):
+        if org is None:
+            wanted, rank = content_type.site_entry, position
+        else:
+            wanted = org.type_site_entry(content_type)
+            rank = org.type_site_entry_position(content_type, position)
+        if not (wanted and content_type.has_archive):
+            continue
+        if Content.section_readable_by_current_visitor(content_type.slug):
+            entries.append((rank, position, content_type))
+    return [content_type for _rank, _position, content_type
+            in sorted(entries, key=lambda entry: (entry[0], entry[1]))]
+
+
+def offerable_sections() -> list[ContentType]:
+    """The types the front page could advertise, in the order the form
+    offering them lists them.
+
+    Chosen ones first, in their order, so the form reads the way the page
+    renders and reordering is a matter of moving a row. Every type with an
+    archive is offered, including one whose section is locked: choosing what
+    to advertise is the organization's decision, and it is a member.
+    """
+    chosen = [content_type.slug for content_type in site_entry_types()]
+    offerable = [content_type for content_type in active_types().values()
+                 if content_type.has_archive]
+    offerable.sort(key=lambda content_type: (
+        chosen.index(content_type.slug) if content_type.slug in chosen
+        else len(chosen)))
+    return offerable
 
 
 def active_types() -> dict[str, ContentType]:

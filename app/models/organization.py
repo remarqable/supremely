@@ -161,6 +161,58 @@ class Organization(BaseModel):
         return (chosen if chosen in ('site', 'community')
                 else content_type.presentation)
 
+    def type_site_entry(self, content_type: 'ContentType') -> bool:
+        """Does the public site advertise this type on its front page?
+
+        The type declares whether it is the kind of thing worth a shop
+        window; an organization decides whether it wants one.
+        """
+        chosen = self.type_settings(content_type.slug).get('site_entry')
+        return content_type.site_entry if chosen is None else bool(chosen)
+
+    def type_site_entry_position(self, content_type: 'ContentType',
+                                 default: int) -> int:
+        """Where its section sits on the front page.
+
+        A second key rather than folding the order into the on/off answer:
+        one of them is whether to show it and the other is where, and a
+        single value meaning both reads as neither.
+        """
+        chosen = self.type_settings(content_type.slug).get(
+            'site_entry_position')
+        # bool is an int in Python, and a stored True would read as
+        # position 1 rather than as the nonsense it is.
+        if isinstance(chosen, int) and not isinstance(chosen, bool):
+            return chosen
+        return default
+
+    def set_site_entries(self, wanted: list[str],
+                         offerable: list['ContentType']) -> None:
+        """Record which types the front page advertises, and their order.
+
+        Order is the order the slugs arrive in, which is the order they were
+        listed on the form: the browser sends checked boxes top to bottom,
+        so moving a row moves the section without a number to keep in step.
+
+        Only decisions that differ from the type's own answer are written.
+        Writing False for everything unticked would pin today's defaults
+        forever, and "no opinion" is the state the whole per-type map is
+        built around. One write for the lot, so a front page cannot end up
+        half reordered.
+        """
+        store = dict(self.setting(self.TYPE_SETTINGS_KEY) or {})
+        for content_type in offerable:
+            on = content_type.slug in wanted
+            entry = dict(store.get(content_type.slug) or {})
+            entry['site_entry'] = (None if on == content_type.site_entry
+                                   else on)
+            entry['site_entry_position'] = (wanted.index(content_type.slug)
+                                            if on else None)
+            store[content_type.slug] = {key: value
+                                        for key, value in entry.items()
+                                        if value is not None}
+        self.update_settings(**{self.TYPE_SETTINGS_KEY: store})
+
     def type_visibility(self, slug: str) -> str:
         """Who may read this whole section. Absent means public, and items
         then decide for themselves."""

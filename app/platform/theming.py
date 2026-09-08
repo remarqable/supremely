@@ -138,6 +138,12 @@ def init_theming(app) -> None:
     from app.platform.fields import render_fields, render_lead_field
     app.jinja_env.globals['render_fields'] = render_fields
     app.jinja_env.globals['render_lead_field'] = render_lead_field
+    # Which sections the public site advertises, in order. A theme verb like
+    # the rest: the theme decides how a section looks, the organization
+    # decides which ones there are.
+    from app.platform.content_types import site_entry_types
+    app.jinja_env.globals['site_entries'] = site_entry_types
+    app.jinja_env.globals['site_feed_template'] = site_feed_template
 
 
 def scan_themes() -> None:
@@ -545,6 +551,22 @@ def themed(name: str) -> str:
             if _template_exists(f'{root}/{candidate}'):
                 return f'{root}/{candidate}'
     return name
+
+
+def site_feed_template(content_type) -> str:
+    """Which partial draws one section of the public site's shop window.
+
+    A type's own section first, then the generic one, each resolved through
+    the theme chain. Written as a helper rather than a candidate list in a
+    template so it goes through themed(): a hand-rolled chain cannot see a
+    theme's mobile/ variant, and this is the fourth resolution seam in the
+    application (CLAUDE.md, Mobile).
+    """
+    for name in (f'site-feed-{content_type.slug}.html', '_site_feed.html'):
+        resolved = themed(name)
+        if _template_exists(resolved):
+            return resolved
+    return 'partials/_site_feed.html'
 
 
 def _template_exists(name: str) -> bool:

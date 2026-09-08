@@ -449,3 +449,130 @@ def test_preview_ignores_a_legacy_template_too(app, client, acme, user):
     assert response.status_code == 200
     assert b'Manage &mdash;' not in response.data
     assert 'Manage —' not in response.data.decode()
+
+
+# --- the shop window ----------------------------------------------------------
+
+def publish_episode(app, org, title, slug, visibility='public'):
+    from app.models import Content
+    with app.test_request_context(base_url=ACME):
+        g.org = org
+        item = Content(type='episode', title=title, slug=slug,
+                       body='Show notes.', org_id=org.id, tags=[],
+                       visibility=visibility,
+                       fields={'audio_url': 'https://cdn.example.com/e.mp3'})
+        item.save()
+        item.publish()
+        return item.permalink
+
+
+def test_the_site_advertises_the_community_and_links_inward(app, client, acme,
+                                                            user):
+    """The acceptance: a visitor sees a section on the themed front page and
+    clicking an item lands on the item's own address in the community.
+
+    A list, never a second copy of the page: the site has no URL of its own
+    for an episode, so there is nothing for a search engine to choose
+    between.
+    """
+    permalink = publish_episode(app, acme, 'Episode one', 'episode-one')
+    acme.set_type_settings('episode', site_entry=True)
+
+    home = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'Episode one' in home
+    assert 'Latest Podcast' in home          # the section heading
+    assert permalink in home                 # links to the community address
+
+    landed = client.get(permalink, base_url=ACME)
+    assert landed.status_code == 200
+    assert b'Show notes.' in landed.data
+
+
+def test_a_gated_item_is_locked_in_the_window_or_absent_from_it(app, client,
+                                                                acme, user):
+    """Teasing decides which. Not rebuilt here: the window reads through the
+    same query an archive does, so the two cannot disagree about what a
+    visitor may see listed."""
+    publish_episode(app, acme, 'Members only episode', 'members-only',
+                    visibility='members')
+    acme.set_type_settings('episode', site_entry=True)
+
+    acme.update_settings(gated_teasers=True)
+    teased = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'Members only episode' in teased      # the title, locked
+    assert 'Show notes.' not in teased           # never the body
+
+    acme.update_settings(gated_teasers=False)
+    hidden = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'Members only episode' not in hidden
+
+
+def test_turning_a_section_off_removes_it_and_nothing_else(app, client, acme,
+                                                           user):
+    """The window is not the content. Taking a section off the front page
+    leaves the archive, the item and the sidebar exactly as they were."""
+    permalink = publish_episode(app, acme, 'Episode two', 'episode-two')
+    acme.set_type_settings('episode', site_entry=True)
+    assert 'Episode two' in client.get('/', base_url=ACME).get_data(as_text=True)
+
+    acme.set_type_settings('episode', site_entry=False)
+
+    home = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'Episode two' not in home
+    assert 'Latest Podcast' not in home
+    # Everything else is untouched.
+    assert client.get('/podcast', base_url=ACME).status_code == 200
+    assert client.get(permalink, base_url=ACME).status_code == 200
+    login_as(client, user)
+    assert b'Podcast' in client.get('/dashboard', base_url=ACME).data
+
+
+def test_a_disabled_type_has_nothing_to_advertise(app, client, acme, user):
+    """Turning a type off is a stronger statement than taking its section
+    off the front page, and has to imply it.
+
+    Asserted on the list of sections and not only on the rendered page: an
+    empty section draws nothing either way, so a page assertion alone passes
+    whether or not this gate exists.
+    """
+    from app.platform.content_types import site_entry_types
+    publish_episode(app, acme, 'Episode three', 'episode-three')
+    acme.set_type_settings('episode', site_entry=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert 'episode' in [ct.slug for ct in site_entry_types()]
+
+    acme.set_type_settings('episode', enabled=False)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert 'episode' not in [ct.slug for ct in site_entry_types()]
+
+    home = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'Episode three' not in home
+    assert 'Latest Podcast' not in home
+
+
+def test_a_locked_section_is_not_advertised_at_all(app, client, acme, user):
+    """A section only members may read is not a heading on the public front
+    page with nothing under it.
+
+    The list itself has to leave it out. Leaving it in and relying on the
+    section drawing no items would announce that something private exists,
+    and would make the access decision a matter of whether a theme happens
+    to skip empty sections. Themes are renderers.
+    """
+    from app.platform.content_types import site_entry_types
+    publish_episode(app, acme, 'Episode four', 'episode-four')
+    acme.set_type_settings('episode', site_entry=True, visibility='members')
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert 'episode' not in [ct.slug for ct in site_entry_types()]
+
+    home = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'Latest Podcast' not in home
+    assert 'Episode four' not in home
+
+    login_as(client, user)
+    assert 'Episode four' in client.get(
+        '/', base_url=ACME).get_data(as_text=True)

@@ -647,6 +647,49 @@ def test_landing_editor_saves_copy(app, client, acme, globex, user):
     assert len(saved['features']) == 4          # always the four fixed slots
 
 
+def test_the_sections_form_survives_a_browser_without_javascript(app, client,
+                                                                 acme, user):
+    """Every checkbox is in the served HTML, not built by a script.
+
+    A form whose rows exist only once Alpine has run posts nothing at all
+    when it has not, and an empty list reads as "turn every section off":
+    one submit and the front page was blank with nothing to say why.
+    """
+    import re
+
+    from app.platform.content_types import get_content_type
+    login_as(client, user)
+    page = client.get('/manage/landing', base_url=ACME).get_data(as_text=True)
+    offered = re.findall(r'name="site_entries" value="([a-z_]+)"', page)
+    assert 'article' in offered and 'episode' in offered
+
+    # Posting exactly what that page rendered, checked boxes only, in the
+    # order they appeared.
+    response = client.post('/manage/landing/sections', base_url=ACME,
+                           data={'site_entries': ['episode', 'article']})
+    assert response.status_code == 302
+    saved = db.session.get(Organization, acme.id)
+    assert saved.type_site_entry(get_content_type('episode')) is True
+    assert saved.type_site_entry_position(get_content_type('episode'), 9) == 0
+    assert saved.type_site_entry_position(get_content_type('article'), 9) == 1
+
+
+def test_saving_sections_leaves_the_theme_copy_alone(app, client, acme, user):
+    """Two things that save separately submit separately. Sharing one
+    address meant saving the sections ran the copy save over a form carrying
+    no copy, and the headline somebody had written was gone."""
+    acme.theme = 'supremely'
+    acme.save()
+    login_as(client, user)
+    client.post('/manage/landing', base_url=ACME,
+                data={'headline_lead': 'The open-source'})
+    client.post('/manage/landing/sections', base_url=ACME,
+                data={'site_entries': ['article']})
+    saved = db.session.get(Organization, acme.id)
+    assert saved.setting('theme_content')['supremely']['headline_lead'] == (
+        'The open-source')
+
+
 def test_theme_editor_is_always_in_the_nav(app, client, acme, globex, user):
     """The entry does not come and go with the active theme: a theme that
     declares no editable copy still has the page, which explains itself."""
@@ -1884,3 +1927,39 @@ def test_deleting_a_picture_does_not_take_the_page_with_it(app, client, acme,
         g.org = acme
         assert upload_for(upload_id) is None
         assert upload_for('not-a-number') is None
+
+
+def test_saving_one_home_page_form_does_not_clear_the_other(app, client, acme,
+                                                            globex, user):
+    """Each form saves itself and nothing else.
+
+    They used to post to the same address, so saving the sections ran the
+    copy save over a form carrying no copy and the headline somebody had
+    written was gone. Separate addresses make that impossible rather than
+    guarded against.
+    """
+    login_as(client, user)
+    client.post('/manage/landing', base_url=ACME, data={
+        'headline': 'A community for makers',
+        'subhead': 'Come and build things.'})
+    stored = acme.setting('theme_content')['origin']
+    assert stored['headline'] == 'A community for makers'
+
+    # Now save the sections, which carries no copy at all.
+    client.post('/manage/landing/sections', base_url=ACME,
+                data={'site_entries': ['episode']})
+
+    kept = acme.setting('theme_content')['origin']
+    assert kept['headline'] == 'A community for makers'
+    assert kept['subhead'] == 'Come and build things.'
+    # And the sections really did save.
+    assert acme.type_settings('episode').get('site_entry') is True
+
+
+def test_the_home_page_puts_the_words_before_the_sections(app, client, acme,
+                                                          globex, user):
+    """The page is called Home page because of the words on it; the sections
+    are what appears underneath them."""
+    login_as(client, user)
+    page = client.get('/manage/landing', base_url=ACME).get_data(as_text=True)
+    assert page.index('Headline') < page.index('Sections on your home page')

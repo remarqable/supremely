@@ -112,6 +112,8 @@ exist and may change without warning — build on what is written down.
 | `theme_content()` | Your declared content fields, filled in under Manage → Theme editor |
 | `render_fields(item, surface='web')` | The fields that item's type declares, drawn as HTML. `surface='summary'` for a listing card |
 | `render_lead_field(item)` | The one field the type leads its listing card with (a date block, say), or nothing |
+| `site_entries()` | The content types this organization advertises on its front page, in its chosen order |
+| `site_feed_template(type)` | Which partial draws one of those sections, resolved through your theme first |
 | `theme_asset('theme.css')` | URL for a file in your `static/` |
 | `themed('header.html')` | Resolve a part through the theme chain |
 | `theme_capabilities()` / `current_theme()` | Your declared capabilities; the active theme's slug |
@@ -217,6 +219,38 @@ translation. They are trusted template output rather than sanitized Markdown,
 which is how a video field can emit an `<iframe>` when a body never can —
 and why a partial must never put a value into markup unescaped. Use
 `safe_url(value)` for anything that becomes an `href` or a `src`.
+
+
+## The front page window
+
+A community's content lives in the community. The public site advertises it:
+a section per content type, linking inward. There is no second address for
+an item, so nothing is published twice and a search engine has nothing to
+choose between.
+
+Which types appear, and in what order, is the organization's decision
+(Manage -> Home page). Nothing appears until somebody opens a window, so a
+front page you designed stays as you designed it.
+
+Your front page asks for the sections and draws them:
+
+```html
+{% for content_type in site_entries() %}
+{% include site_feed_template(content_type) with context %}
+{% endfor %}
+```
+
+Each section partial receives `content_type`, and may set `limit` before
+including to ask for a different number of items. Override one type's
+section by shipping `site-feed-{type}.html`, or all of them with your own
+`_site_feed.html`; both resolve through your theme before the defaults, and
+a `mobile/` sibling of either is picked up on a phone.
+
+Inside a section, `latest_content(slug, limit)` and `content_count(slug)`
+give you the items and the total. Both already account for who is looking:
+a members-only item arrives as a locked title where the organization teases
+its gated content, and is simply absent where it does not. Nothing in your
+template decides who may read anything.
 
 ## theme.json
 
