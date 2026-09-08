@@ -63,6 +63,11 @@
          font-medium ring-1 ring-inset;
 }
 
+@utility pill {
+  @apply inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-semibold
+         ring-1 ring-inset ring-transparent transition-colors;
+}
+
 @layer components {
   .btn-primary   { @apply btn bg-brand-600 text-white hover:bg-brand-700
                           focus-visible:outline-brand-600; }
@@ -112,6 +117,38 @@
   .badge-red   { @apply badge bg-red-50 text-red-700 ring-red-200; }
   .badge-slate { @apply badge bg-slate-50 text-slate-600 ring-slate-200; }
   .badge-brand { @apply badge bg-brand-50 text-brand-700 ring-brand-100; }
+
+  /* Category pills. The tone is derived from the category slug
+     (Category.tone), so a category keeps its colour everywhere without
+     storing one. Six tones, deliberately off the brand hue: an org tints
+     brand-* to its own colour and these must not collide with it. */
+  .pill-all { @apply pill bg-slate-100 text-slate-700 hover:bg-slate-200; }
+  .pill-0   { @apply pill bg-amber-100 text-amber-900 hover:bg-amber-200; }
+  .pill-1   { @apply pill bg-rose-100 text-rose-900 hover:bg-rose-200; }
+  .pill-2   { @apply pill bg-emerald-100 text-emerald-900 hover:bg-emerald-200; }
+  .pill-3   { @apply pill bg-sky-100 text-sky-900 hover:bg-sky-200; }
+  .pill-4   { @apply pill bg-indigo-100 text-indigo-900 hover:bg-indigo-200; }
+  .pill-5   { @apply pill bg-teal-100 text-teal-900 hover:bg-teal-200; }
+  /* Last, so the ring colour wins over the transparent one in `pill`. */
+  .pill-current { @apply ring-slate-900/25; }
+
+  /* The tinted band at the head of a card that has no featured image, so a
+     grid of cards stays a grid rather than alternating tall and short.
+     Same tone as the item's category, which is the placeholder for the
+     per-category artwork this is meant to grow into. */
+  .band-0 { @apply bg-amber-100 text-amber-500; }
+  .band-1 { @apply bg-rose-100 text-rose-500; }
+  .band-2 { @apply bg-emerald-100 text-emerald-500; }
+  .band-3 { @apply bg-sky-100 text-sky-500; }
+  .band-4 { @apply bg-indigo-100 text-indigo-500; }
+  .band-5 { @apply bg-teal-100 text-teal-500; }
+  .band-none { @apply bg-slate-100 text-slate-400; }
+  /* After the tone classes, so a card chip overrides `pill`'s own sizing. */
+  .pill-sm { @apply px-2 py-0.5 text-xs; }
+  /* A chip sitting on a band of its own tone would be invisible -- same
+     fill on same fill. On the band it keeps the tone's text colour and
+     takes a white ground instead. */
+  .pill-on-band { @apply bg-white/75 hover:bg-white; }
 
   /* Rendered markdown content */
   .prose-supremely { @apply leading-relaxed text-slate-800; }

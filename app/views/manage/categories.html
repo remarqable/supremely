@@ -1,20 +1,70 @@
 {% extends 'manage/_layout.html' %}
-{% from 'partials/_ui.html' import page_header, empty_state with context %}
+{% from 'partials/_ui.html' import page_header, empty_state, category_icon with context %}
+
+{# The icon picker: a radio per catalogue entry, drawn by the same macro the
+   public card uses, so what an admin picks here is exactly what a reader
+   sees. `current` marks the category's saved icon; `name` scopes the radio
+   group to one row's form. #}
+{% macro icon_picker(name, icons, current=None) %}
+<div class="flex flex-wrap gap-1">
+  <label class="cursor-pointer" title="{{ _('manage.category_icon_none') }}">
+    <input type="radio" name="{{ name }}" value="" class="peer sr-only" {{ 'checked' if not current }}>
+    <span class="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 ring-1 ring-slate-200
+                 hover:bg-slate-50 peer-checked:bg-brand-50 peer-checked:text-brand-700 peer-checked:ring-brand-300">
+      <span class="text-xs">—</span></span>
+  </label>
+  {% for icon in icons %}
+  <label class="cursor-pointer" title="{{ icon }}">
+    <input type="radio" name="{{ name }}" value="{{ icon }}" class="peer sr-only" {{ 'checked' if current == icon }}>
+    <span class="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 ring-1 ring-slate-200
+                 hover:bg-slate-50 peer-checked:bg-brand-50 peer-checked:text-brand-700 peer-checked:ring-brand-300">
+      {{ category_icon(icon, 'h-[18px] w-[18px]') }}</span>
+  </label>
+  {% endfor %}
+</div>
+{% endmacro %}
 
 {% block manage_content %}
-<div>
-  {{ page_header(_('manage.categories')) }}
+<div class="mx-auto max-w-3xl">
+  {{ page_header(_('manage.categories'), _('manage.categories_intro')) }}
+
   <div class="card">
     {% if categories %}
     <ul class="divide-y divide-slate-100">
       {% for category in categories %}
-      <li class="flex items-center gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
-        <span class="font-medium text-slate-900">{{ category.name }}</span>
-        <span class="font-mono text-xs text-slate-400">/blog/category/{{ category.slug }}</span>
-        <form method="POST" action="{{ url_for('manage.delete_category', category_id=category.id) }}" class="ms-auto">
+      <li class="py-4 first:pt-0 last:pb-0">
+        <form method="POST" action="{{ url_for('manage.edit_category', category_id=category.id) }}"
+              class="space-y-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button type="submit" class="text-sm text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
+          <div class="flex flex-wrap items-end gap-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg band-{{ category.tone }}">
+              {{ category_icon(category.icon, 'h-5 w-5') }}</span>
+            <div class="min-w-40 flex-1">
+              <label for="name-{{ category.id }}" class="label">{{ _('common.name') }}</label>
+              <input type="text" id="name-{{ category.id }}" name="name" class="input mt-1"
+                     required maxlength="100" value="{{ category.name }}">
+            </div>
+            <div class="min-w-40 flex-1">
+              <label for="slug-{{ category.id }}" class="label">{{ _('orgs.slug_label') }}</label>
+              <input type="text" id="slug-{{ category.id }}" name="slug" class="input mt-1"
+                     required value="{{ category.slug }}">
+            </div>
+            <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+          </div>
+          <div>
+            <span class="label">{{ _('manage.category_icon') }}</span>
+            <div class="mt-1.5">{{ icon_picker('icon', icons, category.icon) }}</div>
+          </div>
         </form>
+        <div class="mt-2 flex items-center gap-3">
+          <a href="/blog/category/{{ category.slug }}"
+             class="font-mono text-xs text-slate-400 hover:text-slate-600">/blog/category/{{ category.slug }}</a>
+          <form method="POST" action="{{ url_for('manage.delete_category', category_id=category.id) }}"
+                class="ms-auto">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="text-sm text-slate-400 hover:text-red-600">{{ _('common.delete') }}</button>
+          </form>
+        </div>
       </li>
       {% endfor %}
     </ul>
@@ -22,17 +72,23 @@
     {{ empty_state(_('common.none')) }}
     {% endif %}
 
-    <form method="POST" class="mt-5 flex items-end gap-3 border-t border-slate-100 pt-4">
+    <form method="POST" class="mt-5 space-y-3 border-t border-slate-100 pt-4">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="flex-1">
-        <label for="name" class="label">{{ _('common.name') }}</label>
-        <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="min-w-40 flex-1">
+          <label for="name" class="label">{{ _('common.name') }}</label>
+          <input type="text" id="name" name="name" class="input mt-1" required maxlength="100">
+        </div>
+        <div class="min-w-40 flex-1">
+          <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
+          <input type="text" id="slug" name="slug" class="input mt-1" required>
+        </div>
+        <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
       </div>
-      <div class="flex-1">
-        <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
-        <input type="text" id="slug" name="slug" class="input mt-1" required>
+      <div>
+        <span class="label">{{ _('manage.category_icon') }}</span>
+        <div class="mt-1.5">{{ icon_picker('icon', icons) }}</div>
       </div>
-      <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
     </form>
   </div>
 </div>

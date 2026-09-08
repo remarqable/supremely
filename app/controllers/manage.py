@@ -389,7 +389,8 @@ def toggle_section_visibility(type_slug):
 def categories():
     if request.method == 'POST':
         category = Category(name=request.form.get('name', ''),
-                            slug=request.form.get('slug', ''))
+                            slug=request.form.get('slug', ''),
+                            icon=request.form.get('icon', ''))
         try:
             category.save()
             flash(t('common.saved'), 'success')
@@ -397,7 +398,31 @@ def categories():
             flash(e.message, 'error')
         return redirect(url_for('manage.categories'))
     category_list = Category.query.order_by(Category.name).all()
-    return render_device_template('manage/categories.html', categories=category_list)
+    return render_device_template('manage/categories.html',
+                                  categories=category_list,
+                                  icons=Category.ICONS)
+
+
+@bp.route('/categories/<int:category_id>', methods=['POST'])
+@org_required
+@require('content.write')
+def edit_category(category_id):
+    """Rename a category or change its icon.
+
+    The slug is editable too, and changing it moves the category's archive
+    URL -- the same trade every slug in the product makes.
+    """
+    category = db.get_or_404(Category, category_id)
+    category.name = request.form.get('name', '')
+    category.slug = request.form.get('slug', '')
+    category.icon = request.form.get('icon', '')
+    try:
+        category.save()
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.categories'))
 
 
 @bp.route('/categories/<int:category_id>/delete', methods=['POST'])

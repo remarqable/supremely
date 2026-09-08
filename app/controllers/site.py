@@ -77,18 +77,28 @@ def _render_page(content):
                        org=g.org, content=content, page=content)
 
 
-def _render_archive(ct, title=None):
+def _render_archive(ct, title=None, category=None, query=None):
+    """One archive renderer for the type, its categories and its tags.
+
+    `query` narrows the listing (a category or a tag); `category` marks
+    which pill is current. The three used to be separate near-identical
+    blocks, which is how the category pills would have ended up on two of
+    the three pages.
+    """
     if not Content.section_readable_by_current_visitor(ct.slug):
         # The whole section is locked: one gate, no item titles teased.
         return render_gate(ct.plural)
     page_number = request.args.get('page', 1, type=int)
-    pagination = Content.visible_query(ct.slug).paginate(
-        page=page_number, per_page=PER_PAGE, error_out=False)
+    listing = Content.visible_query(ct.slug) if query is None else query
+    pagination = listing.paginate(page=page_number, per_page=PER_PAGE,
+                                  error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
                        force_theme=(ct.presentation == 'site'),
                        content_type=ct, items=pagination.items,
                        pagination=pagination,
+                       categories=Category.for_type(ct.slug),
+                       active_category=category,
                        archive_title=title or ct.plural)
 
 
@@ -131,15 +141,8 @@ def archive_category(seg, cslug):
     category = Category.get_by_slug(cslug)
     if category is None:
         abort(404)
-    page_number = request.args.get('page', 1, type=int)
-    pagination = (Content.visible_in_category(ct.slug, category)
-                  .paginate(page=page_number, per_page=PER_PAGE,
-                            error_out=False))
-    return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
-                        'archive.html'],
-                       force_theme=(ct.presentation == 'site'),
-                       content_type=ct, items=pagination.items,
-                       pagination=pagination, archive_title=category.name)
+    return _render_archive(ct, title=category.name, category=category,
+                           query=Content.visible_in_category(ct.slug, category))
 
 
 @bp.route('/<seg>/tag/<tag>')
@@ -150,14 +153,8 @@ def archive_tag(seg, tag):
         abort(404)
     if not Content.section_readable_by_current_visitor(ct.slug):
         return render_gate(ct.plural)
-    page_number = request.args.get('page', 1, type=int)
-    pagination = Content.with_tag(ct.slug, tag).paginate(
-        page=page_number, per_page=PER_PAGE, error_out=False)
-    return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
-                        'archive.html'],
-                       force_theme=(ct.presentation == 'site'),
-                       content_type=ct, items=pagination.items,
-                       pagination=pagination, archive_title=f'#{tag}')
+    return _render_archive(ct, title=f'#{tag}',
+                           query=Content.with_tag(ct.slug, tag))
 
 
 @bp.route('/<seg>/<slug>')

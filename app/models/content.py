@@ -49,10 +49,21 @@ class Category(OrgScoped, BaseModel):
 
     name = db.Column(db.String(100), nullable=False)
     slug = db.Column(db.String(100), nullable=False)
+    # One of ICONS, or None for the fallback. A name, never markup: the
+    # drawing lives in the category_icon macro, so a value from the database
+    # can never put SVG on a page.
+    icon = db.Column(db.String(30), nullable=True)
 
     __table_args__ = (
         db.UniqueConstraint('org_id', 'slug', name='uq_category_org_slug'),
     )
+
+    # The icon catalogue an admin picks from. Names only; every one of these
+    # must be drawn by the category_icon macro in partials/_ui.html, which a
+    # test asserts.
+    ICONS = ('tag', 'book', 'chat', 'calendar', 'video', 'mic', 'file',
+             'users', 'star', 'lightbulb', 'rocket', 'chart', 'shield',
+             'globe', 'heart', 'wrench')
 
     def validate(self):
         self.name = (self.name or '').strip()
@@ -61,6 +72,9 @@ class Category(OrgScoped, BaseModel):
             raise ValidationError('Category name is required')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,98})?', self.slug):
             raise ValidationError('Category slug must be lowercase letters, numbers, hyphens')
+        self.icon = (self.icon or '').strip() or None
+        if self.icon is not None and self.icon not in self.ICONS:
+            raise ValidationError('Unknown icon')
         existing = scoped_to_own_org(
             Category.query.filter_by(slug=self.slug), self).first()
         if existing and existing.id != self.id:
@@ -69,6 +83,45 @@ class Category(OrgScoped, BaseModel):
     @classmethod
     def get_by_slug(cls, slug: str):
         return cls.query.filter_by(slug=(slug or '').strip().lower()).first()
+
+    # How many pill colours the stylesheet defines (.pill-0 … .pill-N).
+    PILL_TONES = 6
+
+    @property
+    def tone(self) -> int:
+        """Colour index for this category's pill.
+
+        Taken from the row id, which is sequential, so categories created
+        one after another get different colours and a row of six is six
+        colours. Hashing the slug was tried first and clustered badly --
+        three of the first six categories landed on the same tone, which
+        reads as a bug rather than a palette.
+
+        The id never changes, so a category keeps its colour for life and
+        looks the same on every archive that draws it. Deleting and adding
+        categories can eventually collide two of them; that is cosmetic,
+        and worth it for needing no column and no query.
+        """
+        return (self.id or 0) % self.PILL_TONES
+
+    @classmethod
+    def for_type(cls, type_slug: str) -> list['Category']:
+        """Categories holding at least one item of one type this visitor
+        may see.
+
+        A category is shared across content types, so the blog must not
+        offer one that only events use. Visibility rides on
+        Content.visible_query, which means a category whose only items are
+        gated disappears for a visitor when teasing is off, and stays as a
+        locked-item filter when it is on.
+        """
+        visible_ids = (Content.visible_query(type_slug)
+                       .order_by(None)
+                       .with_entities(Content.id))
+        used = (db.session.query(content_category.c.category_id)
+                .filter(content_category.c.content_id.in_(visible_ids))
+                .distinct())
+        return cls.query.filter(cls.id.in_(used)).order_by(cls.name).all()
 
 
 # Slugs a page-type content cannot use, because a page is served at /<slug>
