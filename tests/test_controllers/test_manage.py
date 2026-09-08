@@ -248,8 +248,13 @@ def test_invalid_brand_color_rejected(app, client, acme, globex, user):
 
 
 PLAUSIBLE_URL = 'https://plausible.io/js/pa-abc12345.js'
+# frame-src is part of the baseline everywhere, including the console: a
+# body can carry a :::video embed, and the console renders one too when an
+# author previews an unsaved draft (manage.preview_content).
 BASELINE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-eval'; "
                 "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+                "frame-src https://www.youtube-nocookie.com "
+                "https://player.vimeo.com; "
                 "object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 
 

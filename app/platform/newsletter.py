@@ -26,9 +26,13 @@ def compose_email(content, org, subscriber) -> tuple[str, str, str]:
             f'Read online: {content_url}\n\n--\n'
             f'You receive this because you subscribed to {org.name}.\n'
             f'Unsubscribe: {unsubscribe_url}\n')
+    # Mail clients drop an iframe, so a video renders as a link here rather
+    # than as the blank space an embed would leave (platform/content.py).
+    from app.platform.content import render_markdown
+    body_html = render_markdown(content.body, embed_videos=False)
     html = (
         f'<h1 style="font-family:sans-serif">{_escape(content.title)}</h1>'
-        f'<div style="font-family:sans-serif;line-height:1.6">{content.html}</div>'
+        f'<div style="font-family:sans-serif;line-height:1.6">{body_html}</div>'
         f'<p style="font-family:sans-serif"><a href="{content_url}">Read online</a></p>'
         f'<hr><p style="font-family:sans-serif;font-size:12px;color:#666">'
         f'You receive this because you subscribed to {_escape(org.name)}. '

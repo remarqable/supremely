@@ -364,6 +364,7 @@ def _init_context(app):
 
 def _init_security_headers(app):
     from .platform.analytics import analytics_csp_sources
+    from .platform.content import VIDEO_FRAME_HOSTS
     from .platform.theming import PREVIEW_ENDPOINT
 
     @app.after_request
@@ -395,6 +396,10 @@ def _init_security_headers(app):
             + (f"connect-src 'self' {' '.join(connect_hosts)}; "
                if connect_hosts else '')
             + "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+            # Video players embedded from a body's :::video directive. The
+            # hosts come from the renderer so the policy and the markup it
+            # allows cannot drift apart (app/platform/content.py).
+            f"frame-src {' '.join(VIDEO_FRAME_HOSTS)}; "
             "object-src 'none'; base-uri 'self'; "
             f"frame-ancestors {"'self'" if frameable else "'none'"}"
         )
