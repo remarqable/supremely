@@ -161,3 +161,56 @@ def test_the_button_is_on_feed_types_not_pages(app, client, acme, globex,
     url = '/blog/thing' if type_slug == 'article' else '/thing'
     body = client.get(url, base_url=ACME).data.decode()
     assert ('Start a discussion' in body) is expected
+
+
+def test_the_default_group_is_general_not_whichever_came_first(app, acme):
+    """Provisioning writes General at position 2, so "the oldest group" was
+    usually Welcome — arbitrary, and not where article talk belongs."""
+    make_group(app, acme, 'general')
+    with app.test_request_context():
+        g.org = acme
+        assert DiscussionGroup.for_content_threads().slug == 'general'
+
+
+def test_an_org_can_choose_a_different_group(app, client, acme, globex, user):
+    make_group(app, acme, 'general')
+    make_group(app, acme, 'reading-room')
+    login_as(client, user)
+    client.post('/manage/discussions', base_url=ACME,
+                data={'content_discussion_group': 'reading-room'},
+                follow_redirects=True)
+    with app.test_request_context():
+        g.org = acme
+        assert DiscussionGroup.for_content_threads().slug == 'reading-room'
+
+
+def test_choosing_the_blank_option_returns_to_the_default(app, client, acme,
+                                                          globex, user):
+    make_group(app, acme, 'general')
+    make_group(app, acme, 'reading-room')
+    login_as(client, user)
+    client.post('/manage/discussions', base_url=ACME,
+                data={'content_discussion_group': 'reading-room'},
+                follow_redirects=True)
+    client.post('/manage/discussions', base_url=ACME,
+                data={'content_discussion_group': ''}, follow_redirects=True)
+    with app.test_request_context():
+        g.org = acme
+        assert DiscussionGroup.for_content_threads().slug == 'general'
+
+
+def test_a_configured_group_that_was_deleted_falls_back(app, client, acme,
+                                                        globex, user):
+    """The setting names a slug, and a slug can stop existing. The button
+    must still work rather than 500."""
+    make_group(app, acme, 'general')
+    gone = make_group(app, acme, 'temporary')
+    login_as(client, user)
+    client.post('/manage/discussions', base_url=ACME,
+                data={'content_discussion_group': 'temporary'},
+                follow_redirects=True)
+    with app.test_request_context():
+        g.org = acme
+        db.session.get(DiscussionGroup, gone).delete()
+        db.session.commit()
+        assert DiscussionGroup.for_content_threads().slug == 'general'

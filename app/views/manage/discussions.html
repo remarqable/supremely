@@ -22,6 +22,29 @@
   </form>
 </div>
 
+{# Where a "Discuss this" thread on an article opens. Each option shows the
+   group's own visibility, because putting article discussion in a
+   members-only group means a visitor who follows the button from a public
+   article lands on the gate. #}
+{% set thread_group = g.org.setting('content_discussion_group') %}
+<div class="card mb-4">
+  <form method="POST" class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="min-w-0 flex-1">
+      <label for="content_discussion_group" class="label">{{ _('manage.content_discussion_group') }}</label>
+      <select id="content_discussion_group" name="content_discussion_group" class="select mt-1">
+        <option value="">{{ _('manage.content_discussion_group_default') }}</option>
+        {% for group in groups %}
+        <option value="{{ group.slug }}" {{ 'selected' if thread_group == group.slug }}>
+          {{ group.name }}{% if group.visibility == 'members' %} — {{ _('manage.visibility_members') }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <p class="mt-1.5 text-xs text-slate-500">{{ _('manage.content_discussion_group_hint') }}</p>
+    </div>
+    <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+  </form>
+</div>
+
 <div class="card mb-4">
   {% if groups %}
   <table class="table-plain">

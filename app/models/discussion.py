@@ -82,20 +82,30 @@ class DiscussionGroup(OrgScoped, BaseModel):
         value = org.setting('discussions_visibility') if org else None
         return value if value in cls.AREA_VISIBILITIES else 'per_group'
 
+    # The group a "Discuss this" thread lands in when nobody has chosen one.
+    # Seeded on every new community (app/platform/community_seed.py), and the
+    # obvious home for a conversation about an article.
+    DEFAULT_CONTENT_GROUP = 'general'
+
     @classmethod
     def for_content_threads(cls):
         """The group a "Discuss this" thread is opened in, or None.
 
         org.settings['content_discussion_group'] names it (Manage →
-        Discussions). Absent or pointing at a group since deleted, the
-        oldest group stands in, so the button works on a fresh install
-        without anyone configuring anything.
+        Discussions). With nothing chosen, General, which provisioning
+        creates. Falling back further to the first group in the admin's own
+        ordering, because General can be renamed or deleted and a community
+        seeded in another language may never have had one.
         """
         from flask import g
         org = getattr(g, 'org', None)
         slug = org.setting('content_discussion_group') if org else None
         group = cls.query.filter_by(slug=slug).first() if slug else None
-        return group or cls.query.order_by(cls.id).first()
+        if group is None:
+            group = cls.query.filter_by(slug=cls.DEFAULT_CONTENT_GROUP).first()
+        # position, not id: the order the admin arranged is a better guess at
+        # "the main one" than whichever row happened to be written first.
+        return group or cls.query.order_by(cls.position, cls.id).first()
 
     @classmethod
     def area_readable_by_current_visitor(cls) -> bool:

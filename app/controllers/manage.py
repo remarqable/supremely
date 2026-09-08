@@ -968,6 +968,14 @@ def send_content_newsletter(content_id):
 @require('content.moderate')
 def discussions():
     from app.models.discussion import DiscussionGroup
+    if request.method == 'POST' and 'content_discussion_group' in request.form:
+        # Which group a "Discuss this" thread on an article opens in.
+        slug = request.form['content_discussion_group']
+        if slug and DiscussionGroup.query.filter_by(slug=slug).first() is None:
+            slug = None                  # a group deleted in another tab
+        g.org.update_settings(content_discussion_group=slug or None)
+        flash(t('common.saved'), 'success')
+        return redirect(url_for('manage.discussions'))
     if request.method == 'POST' and 'area_visibility' in request.form:
         # The whole-area switch; per-group visibility still applies in
         # 'per_group' mode.
