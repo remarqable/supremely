@@ -219,7 +219,59 @@ def test_the_editor_offers_the_template_to_the_body(app, client, acme, globex,
     login_as(client, user)
     body = client.get('/manage/content/article/new', base_url=ACME).data.decode()
     assert 'data-template="## TL;DR"' in body
-    assert 'fillTemplate()' in body
+    assert 'pickCategory($event.target)' in body
+
+
+def test_the_editor_offers_one_category_not_several(app, client, acme, globex,
+                                                    user):
+    """A category decides the template and the card colour, so the editor
+    asks for one. Several topics is what tags are for."""
+    make_category(app, acme, 'Reviews', 'reviews')
+    login_as(client, user)
+    body = client.get('/manage/content/article/new', base_url=ACME).data.decode()
+    assert 'type="radio" name="category_id"' in body
+    assert 'name="category_ids"' not in body
+    assert 'value=""' in body               # the None choice
+
+
+def test_saving_replaces_the_category_rather_than_adding_one(app, client, acme,
+                                                             globex, user):
+    first = make_category(app, acme, 'Reviews', 'reviews')
+    second = make_category(app, acme, 'Notes', 'notes')
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
+        'visibility': 'public', 'category_id': first.id, 'action': 'publish'})
+    with app.test_request_context():
+        g.org = acme
+        item = Content.published_by_slug('article', 'a-post')
+        assert item.category.slug == 'reviews'
+        item_id = item.id
+    client.post(f'/manage/content/{item_id}/edit', base_url=ACME, data={
+        'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
+        'visibility': 'public', 'category_id': second.id, 'action': 'save'})
+    with app.test_request_context():
+        g.org = acme
+        again = db.session.get(Content, item_id)
+        assert [c.slug for c in again.categories] == ['notes']
+
+
+def test_choosing_no_category_clears_it(app, client, acme, globex, user):
+    category = make_category(app, acme, 'Reviews', 'reviews')
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'B post', 'slug': 'b-post', 'body': 'Body.',
+        'visibility': 'public', 'category_id': category.id,
+        'action': 'publish'})
+    with app.test_request_context():
+        g.org = acme
+        item_id = Content.published_by_slug('article', 'b-post').id
+    client.post(f'/manage/content/{item_id}/edit', base_url=ACME, data={
+        'title': 'B post', 'slug': 'b-post', 'body': 'Body.',
+        'visibility': 'public', 'category_id': '', 'action': 'save'})
+    with app.test_request_context():
+        g.org = acme
+        assert db.session.get(Content, item_id).category is None
 
 
 def test_a_blank_template_is_stored_as_none(app, acme):
@@ -229,3 +281,19 @@ def test_a_blank_template_is_stored_as_none(app, acme):
                             body_template='   ')
         category.save()
         assert category.body_template is None
+
+
+def test_another_tenants_category_cannot_be_attached(app, client, acme,
+                                                     globex, user):
+    """The id comes from a form, so it is not trusted: the lookup is scoped
+    and a number belonging to another organization simply finds nothing."""
+    theirs = make_category(app, globex, 'Theirs', 'theirs')
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'C post', 'slug': 'c-post', 'body': 'Body.',
+        'visibility': 'public', 'category_id': theirs.id, 'action': 'publish'})
+    with app.test_request_context():
+        g.org = acme
+        item = Content.published_by_slug('article', 'c-post')
+        assert item is not None
+        assert item.category is None

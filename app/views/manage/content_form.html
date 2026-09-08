@@ -32,15 +32,21 @@
                     the body is still empty and exactly one category is
                     picked, so it can neither overwrite writing nor guess
                     between two templates. -#}
-                fillTemplate() {
-                  {#- document, not $el: this runs from the checkbox's own
-                      change handler, so $el is that checkbox. -#}
+                applied: '',
+                {#- Switching category swaps the skeleton, but only while the
+                    body is still the skeleton. Once the author has written
+                    anything of their own, changing category leaves the text
+                    alone. document, not $el: this runs from the radio's own
+                    change handler, so $el is that radio. -#}
+                pickCategory(radio) {
                   const body = document.querySelector('#body');
-                  if (!body || body.value.trim()) return;
-                  const picked = document.querySelectorAll('input[name=category_ids]:checked');
-                  if (picked.length !== 1) return;
-                  const template = picked[0].dataset.template;
-                  if (template) { body.value = template; this.dirty = true; }
+                  if (!body) return;
+                  const untouched = !body.value.trim() || body.value === this.applied;
+                  if (!untouched) return;
+                  const template = radio.dataset.template || '';
+                  body.value = template;
+                  this.applied = template;
+                  this.dirty = true;
                 } }"
       @input="dirty = true" @change="dirty = true"
       @submit="if ($event.submitter?.formTarget !== '_blank') dirty = false"
@@ -139,13 +145,22 @@
       </div>
       {% else %}
       <div>
-        <span class="label">{{ _('manage.categories') }}</span>
+        <span class="label">{{ _('manage.category') }}</span>
+        {# One category, not several: it decides the template an item starts
+           from and the colour its card wears, and two answers to either is
+           no answer. Several topics is what tags are for. #}
         <div class="mt-1 space-y-1">
+          <label class="flex items-center gap-2 text-sm">
+            <input type="radio" name="category_id" value=""
+                   data-template="" @change="pickCategory($event.target)"
+                   {{ 'checked' if not (content and content.categories) }}>
+            <span class="text-slate-500">{{ _('manage.category_none') }}</span>
+          </label>
           {% for category in categories %}
           <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="category_ids" value="{{ category.id }}"
+            <input type="radio" name="category_id" value="{{ category.id }}"
                    data-template="{{ category.body_template or '' }}"
-                   @change="fillTemplate()"
+                   @change="pickCategory($event.target)"
                    {{ 'checked' if content and category in content.categories }}>
             {{ category.name }}
           </label>

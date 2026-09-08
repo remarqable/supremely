@@ -185,9 +185,18 @@ def _content_from_form(content: Content, *, previewing: bool = False) -> Content
         content.featured_upload_id = _own_upload_id('featured_upload_id')
     content.tags = [tag.strip() for tag in
                     request.form.get('tags', '').split(',') if tag.strip()]
-    category_ids = request.form.getlist('category_ids', type=int)
-    content.categories = (Category.query.filter(Category.id.in_(category_ids)).all()
-                          if category_ids else [])
+    # One category, or none. The editor offers a radio list because a
+    # category carries the template an item starts from and the colour its
+    # card wears, and neither question has an answer when two are picked.
+    # Stored through the existing join table, so the relation itself is
+    # unchanged and this is a rule about how many, not a schema change.
+    category_id = request.form.get('category_id', type=int)
+    # A real scoped SELECT, not Query.get: get can answer from the
+    # identity map and skip the tenant filter, and this id arrives
+    # from a form where anyone could type another org's number.
+    category = (Category.query.filter_by(id=category_id).first()
+                if category_id else None)
+    content.categories = [category] if category else []
     content.set_structured_fields({
         key[len('field_'):]: value for key, value in request.form.items()
         if key.startswith('field_')})

@@ -29,7 +29,7 @@
      featured image, or a structured field such as the date or location.
      The permalink lands on the gate page. #}
   {% set locked = not can_view(item) %}
-  {% set category = item.categories[0] if item.categories else none %}
+  {% set category = item.category %}
   <article class="group flex flex-col overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
     {# Every card gets a head of the same height, so the grid lines up
        whether or not an item has a picture. A featured image when there is

@@ -200,6 +200,8 @@
   "manage.theme_hint": "Themes are installed at the installation level by Platform Admins.",
   "manage.post_type": "Type",
   "manage.categories": "Categories",
+  "manage.category": "Category",
+  "manage.category_none": "None",
   "manage.categories_intro": "Categories group your posts. Each one can carry an icon, which a post shows on its card when it has no picture of its own.",
   "manage.category_icon": "Icon",
   "manage.category_template": "New item template",

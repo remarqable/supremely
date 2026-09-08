@@ -367,6 +367,18 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         return self.status == 'published'
 
     @property
+    def category(self):
+        """The item's category, or None.
+
+        An item has one. The join table stays a many-to-many because that is
+        what it already was and nothing is gained by rewriting it, but the
+        editor offers a single choice, so callers that want "the" category --
+        the card's chip, its colour -- have one thing to ask rather than an
+        arbitrary first element.
+        """
+        return self.categories[0] if self.categories else None
+
+    @property
     def discussion(self):
         """The thread discussing this item, or None.
 
