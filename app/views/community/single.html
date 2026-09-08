@@ -55,5 +55,31 @@
     {% endfor %}
   </p>
   {% endif %}
+
+  {# The conversation about this item. It is an ordinary discussion thread
+     living in a group -- this is the way in, so a reader who arrived from
+     search can see the discussion exists at all. Members only: starting one
+     needs the discuss permission, and a visitor is shown the way in and
+     lands on the gate, the same as every other members-only thing. #}
+  {% if content_type.in_community_nav %}
+  {% set thread = content.discussion %}
+  <div class="mt-8 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-5">
+    {% if thread %}
+    <a href="{{ thread.url }}" class="btn-secondary">
+      {{ _('discussions.discuss_this') }} →</a>
+    <span class="text-sm text-slate-500">
+      {%- if thread.reply_count == 1 %}{{ _('discussions.one_reply') }}
+      {%- elif thread.reply_count %}{{ _('discussions.reply_count', count=thread.reply_count) }}
+      {%- else %}{{ _('discussions.no_replies') }}{% endif -%}
+    </span>
+    {% elif can('discuss') %}
+    <form method="POST"
+          action="{{ url_for('discussions.start_content_discussion', content_id=content.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="btn-secondary">{{ _('discussions.start_discussion') }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 </article>
 {% endblock %}

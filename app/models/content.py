@@ -358,6 +358,16 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         return self.status == 'published'
 
     @property
+    def discussion(self):
+        """The thread discussing this item, or None.
+
+        A reference, not ownership: the thread is an ordinary discussion post
+        living in a group and moderated there (app/models/discussion.py).
+        """
+        from .discussion import Post
+        return Post.for_content(self.id)
+
+    @property
     def permalink(self) -> str:
         ct = self.content_type
         if ct.is_page:

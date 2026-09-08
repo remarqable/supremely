@@ -120,6 +120,15 @@
         {% if post.is_hidden %}<span class="badge-red">{{ _('discussions.hidden') }}</span>{% endif %}
       </div>
       <h1 class="mt-1 text-xl font-bold tracking-tight text-slate-900">{{ post.title }}</h1>
+      {# What this thread is about, when it was opened from a published item.
+         The item links here; this links back, so neither side is a dead end.
+         can_view, because the thread may outlive the item's visibility. #}
+      {% if post.content and can_view(post.content) %}
+      <p class="mt-1 text-sm text-slate-500">
+        {{ _('discussions.about_content', title='') }}
+        <a href="{{ post.content.permalink }}" class="text-brand-600 hover:underline">{{ post.content.title }}</a>
+      </p>
+      {% endif %}
     </div>
 
     <div class="flex shrink-0 items-center gap-2">

@@ -83,6 +83,21 @@ class DiscussionGroup(OrgScoped, BaseModel):
         return value if value in cls.AREA_VISIBILITIES else 'per_group'
 
     @classmethod
+    def for_content_threads(cls):
+        """The group a "Discuss this" thread is opened in, or None.
+
+        org.settings['content_discussion_group'] names it (Manage →
+        Discussions). Absent or pointing at a group since deleted, the
+        oldest group stands in, so the button works on a fresh install
+        without anyone configuring anything.
+        """
+        from flask import g
+        org = getattr(g, 'org', None)
+        slug = org.setting('content_discussion_group') if org else None
+        group = cls.query.filter_by(slug=slug).first() if slug else None
+        return group or cls.query.order_by(cls.id).first()
+
+    @classmethod
     def area_readable_by_current_visitor(cls) -> bool:
         """Can the current visitor see the discussions area at all? False
         only when the org gated the whole area and the visitor is neither a
@@ -150,6 +165,19 @@ class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
     group_id = db.Column(BigIntFK,
                          db.ForeignKey('discussion_group.id', ondelete='CASCADE'),
                          nullable=False, index=True)
+    # The published item this thread is the discussion of, if any. A post is
+    # still an ordinary post -- it lives in a group, it is moderated like any
+    # other -- this only records what it is about, so the item can show
+    # "Discuss - N replies" and the thread can point back.
+    #
+    # Content stays editorial and Discussion stays conversational: this is a
+    # reference between them, not a merge. Unique, so an item has one
+    # canonical thread and a second person joins it rather than starting a
+    # rival. Nulls repeat freely under a unique constraint on both engines,
+    # which is what lets every unrelated post leave it empty.
+    content_id = db.Column(BigIntFK,
+                           db.ForeignKey('content.id', ondelete='SET NULL'),
+                           nullable=True)
     title = db.Column(db.String(200), nullable=False)
     body = db.Column(db.Text, nullable=False, default='')
     is_locked = db.Column(db.Boolean, nullable=False, default=False)
@@ -163,6 +191,7 @@ class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
     last_activity_at = db.Column(TZDateTime, nullable=False, default=utcnow)
 
     group = db.relationship('DiscussionGroup', lazy='select')
+    content = db.relationship('Content', lazy='select')
     replies = db.relationship('Reply', back_populates='post', lazy='select',
                               cascade='all, delete-orphan',
                               order_by='Reply.created_at')
@@ -170,6 +199,7 @@ class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
     __table_args__ = (
         db.Index('ix_discussion_post_group_activity',
                  'group_id', 'last_activity_at'),
+        db.UniqueConstraint('content_id', name='uq_discussion_post_content'),
     )
 
     def validate(self):
@@ -209,6 +239,31 @@ class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
         """Refresh the denormalized reply count from the reply table."""
         self.reply_count = Reply.query.filter_by(post_id=self.id).count()
         return self
+
+    @classmethod
+    def for_content(cls, content_id: int):
+        """The thread discussing one published item, or None.
+
+        Hidden posts count: a moderator hid the thread, and offering to
+        start a second one would be a way around that.
+        """
+        if not content_id:
+            return None
+        return cls.query.filter_by(content_id=content_id).first()
+
+    @classmethod
+    def start_for_content(cls, content, group):
+        """Open the thread for a published item.
+
+        The body is a link back rather than empty, because a post must have
+        one and because a reader who lands on the thread from the group list
+        needs to know what is being discussed.
+        """
+        post = cls(group_id=group.id, content_id=content.id,
+                   title=content.title,
+                   body=f'Discussion of [{content.title}]({content.permalink}).')
+        post.stamp_audit()
+        return post.save()
 
 
 class Reply(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):

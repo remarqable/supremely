@@ -151,6 +151,52 @@ def new_post(slug):
     return redirect(post.url)
 
 
+@bp.route('/for-content/<int:content_id>', methods=['POST'])
+@org_required
+@require('discuss')
+def start_content_discussion(content_id: int):
+    """Open (or join) the discussion for a published item.
+
+    The button on the item posts here. Unique on content_id, so two people
+    pressing it at once do not get two threads -- the second lands on the
+    first one's.
+    """
+    from app.models import Content
+
+    content = Content.query.filter_by(id=content_id,
+                                      status='published').first_or_404()
+    # The item's own gate applies: a thread must not be a way to discuss
+    # something the member cannot read.
+    if not content.visible_to_current_visitor():
+        abort(403)
+
+    existing = Post.for_content(content.id)
+    if existing is not None:
+        return redirect(existing.url)
+
+    group = DiscussionGroup.for_content_threads()
+    if group is None:
+        flash(t('discussions.no_group_for_content'), 'error')
+        return redirect(content.permalink)
+
+    try:
+        post = Post.start_for_content(content, group)
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+        return redirect(content.permalink)
+    except sa.exc.IntegrityError:
+        # Someone else won the race on the unique constraint.
+        db.session.rollback()
+        existing = Post.for_content(content.id)
+        return redirect(existing.url if existing else content.permalink)
+
+    PostFollow.follow(current_user.id, post)
+    log.info('content_discussion_started', post_id=post.id,
+             content_id=content.id, org_id=g.org.id)
+    return redirect(post.url)
+
+
 @bp.route('/<slug>/<int:post_id>')
 @org_required
 def post(slug, post_id):
