@@ -318,6 +318,19 @@ class ContentType:
         return self.kind == 'page'
 
     @property
+    def in_community_nav(self) -> bool:
+        """Does this type belong in the community sidebar?
+
+        A type that presents as site furniture does not. Its archive renders
+        through the theme, so a row in the community sidebar would take a
+        member out of the shell they were browsing and into the public site,
+        which is a jarring thing for a sidebar to do. Team is the current
+        example: a roster is something a visitor reads on the website, not
+        something a member navigates to from inside the community.
+        """
+        return self.has_archive and self.presentation == 'community'
+
+    @property
     def has_archive(self) -> bool:
         """A post has an archive; a page is the archive of nothing.
 

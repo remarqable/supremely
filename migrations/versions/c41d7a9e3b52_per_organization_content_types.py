@@ -38,7 +38,7 @@ belong to. Without the split, two courses could not each hold a lesson called
 articles share an address, because nulls never compare equal.
 
 Revision ID: c41d7a9e3b52
-Revises: c4d1a7e93b02
+Revises: e8a3c60f2b91
 Create Date: 2026-09-04
 
 """
@@ -48,7 +48,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = 'c41d7a9e3b52'
-down_revision = 'c4d1a7e93b02'
+down_revision = 'e8a3c60f2b91'
 branch_labels = None
 depends_on = None
 
