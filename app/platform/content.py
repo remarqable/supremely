@@ -335,9 +335,32 @@ def _render_feed(wanted: 're.Match[str]') -> str:
                            content_type=content_type, limit=limit)
 
 
-def _active_type(slug: str) -> 'ContentType | None':
-    """The type, if this organization publishes it. None otherwise, so a
-    directive naming a type that was turned off renders nothing rather than
-    publishing through a door the archive closed."""
+def _active_type(name: str) -> 'ContentType | None':
+    """The type a directive is naming, if this organization publishes it.
+
+    Accepts either the type's slug or the segment its archive lives at, so
+    both of these find the same thing:
+
+        :::embed resource/setup-guide
+        :::embed resources/setup-guide
+
+    The second is what an author will write, because it is what the address
+    bar shows them: the item is at /resources/setup-guide. Not one type in
+    the library has a URL base equal to its slug -- article publishes at
+    /blog, episode at /podcast, team_member at /team -- so accepting only
+    the slug means the obvious spelling silently renders nothing, on every
+    type, forever.
+
+    The slug wins where a name could be both, so adding a type can never
+    change what an existing body points at.
+
+    None for a type this organization does not publish, so a directive is
+    not a way in through a door the archive closed.
+    """
     from app.platform.content_types import active_types
-    return active_types().get(slug)
+    active = active_types()
+    if name in active:
+        return active[name]
+    return next((content_type for content_type in active.values()
+                 if content_type.has_archive
+                 and content_type.base.strip('/') == name), None)

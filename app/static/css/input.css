@@ -180,4 +180,16 @@
   .video-embed { @apply relative my-5 w-full overflow-hidden rounded-lg bg-slate-900; }
   .video-embed::before { content: ''; @apply block pt-[56.25%]; }
   .video-embed iframe { @apply absolute inset-0 h-full w-full border-0; }
+  /* An item pulled into a body by :::embed is a card, and it lands inside
+     the body's prose container, so the rules above reach in and restyle it:
+     the title turns into an underlined link and a button's label turns
+     brand colour on a brand background, which reads as an empty box. These
+     put the card back. The embedded item's own body is left alone, because
+     that part really is prose. */
+  .prose-supremely .embed-card > h3 { @apply my-0; }
+  .prose-supremely .embed-card > h3 > a { @apply text-inherit no-underline hover:text-brand-700; }
+  .prose-supremely .embed-card > p { @apply my-0; }
+  .prose-supremely .embed-card a.btn-primary { @apply text-white no-underline; }
+  .prose-supremely .embed-card a.btn-secondary { @apply text-slate-700 no-underline hover:text-slate-900; }
+  .prose-supremely .embed-card a.btn-danger { @apply text-white no-underline; }
 }

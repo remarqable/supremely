@@ -311,6 +311,12 @@ Anything else on the line is not a directive, and a directive in backticks
 or in a code block is code, which is where anyone writing *about* the syntax
 would put it.
 
+The first part is the content type. Either its slug or the address its
+archive lives at will do, so `episode/why-we-build` and
+`podcast/why-we-build` find the same item. The second spelling is the one an
+author reads off the address bar, and no type in the library has a base
+equal to its slug.
+
 `:::feed` draws the **same partial as the front page window**, so a section
 an author places mid-article and one a theme places on the front page are
 the same thing: override `site-feed-{type}.html` or `_site_feed.html` and

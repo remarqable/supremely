@@ -514,3 +514,50 @@ def test_one_type_can_be_teased_while_another_is_not(app, acme):
     acme.set_type_settings('episode', tease=False)
     hidden = rendered(app, acme, ':::embed episode/members-episode')
     assert 'Members Episode' not in hidden
+
+
+def test_a_directive_takes_the_slug_or_the_address_the_author_can_see(app,
+                                                                     acme):
+    """Both spellings find the same item.
+
+    Not one type in the library has a URL base equal to its slug: article
+    publishes at /blog, episode at /podcast, team_member at /team. An author
+    writes what the address bar shows them, so accepting only the slug means
+    the obvious spelling renders nothing, on every type, forever.
+    """
+    episode(app, acme, title='Why We Build', slug='why-we-build')
+    by_slug = rendered(app, acme, ':::embed episode/why-we-build')
+    by_base = rendered(app, acme, ':::embed podcast/why-we-build')
+    assert 'Why We Build' in by_slug
+    assert 'Why We Build' in by_base
+
+    # The same for a feed, and for a base that is just the plural.
+    acme.set_type_settings('resource', enabled=True)
+    publish(app, acme, type='resource', title='Setup Guide',
+            slug='setup-guide', body='How to.')
+    assert 'Setup Guide' in rendered(app, acme, ':::feed resources limit=3')
+    assert 'Setup Guide' in rendered(app, acme, ':::feed resource limit=3')
+
+
+def test_a_type_slug_wins_over_another_types_address(app, acme):
+    """Adding a type must never change what a body already points at, so a
+    name that could be read either way is read as the slug."""
+    from app.platform.content import _active_type
+    from app.platform.content_types import active_types
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        for slug, content_type in active_types().items():
+            assert _active_type(slug) is content_type, slug
+
+
+def test_an_embed_is_a_card_and_not_prose(app, acme):
+    """An embed lands inside the body's prose container, so the prose rules
+    reach into it: the title becomes an underlined link and a button's label
+    turns brand colour on a brand background, which reads as an empty box.
+
+    The card carries a class the stylesheet uses to put it back, so the
+    class is part of the contract rather than decoration somebody can drop.
+    """
+    episode(app, acme)
+    out = rendered(app, acme, ':::embed episode/why-we-build')
+    assert 'embed-card' in out
