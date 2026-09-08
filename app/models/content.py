@@ -225,6 +225,10 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         db.Index('ix_content_parent_position', 'org_id', 'parent_id', 'position'),
     )
 
+    # This is the publishing surface, so :::embed and :::feed mean
+    # something here. They do not in a discussion post.
+    resolves_directives = True
+
     STATUSES = ('draft', 'published', 'archived')
     VISIBILITIES = VISIBILITY_LEVELS   # single source: app.platform.authz
     PRESENTATIONS = ('site', 'community')

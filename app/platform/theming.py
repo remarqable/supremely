@@ -146,6 +146,7 @@ def init_theming(app) -> None:
     app.jinja_env.globals['site_feed_template'] = site_feed_template
     app.jinja_env.globals['block_template'] = block_template
     app.jinja_env.globals['blocks_template'] = blocks_template
+    app.jinja_env.globals['embed_template'] = embed_template
 
 
 def scan_themes() -> None:
@@ -569,6 +570,19 @@ def site_feed_template(content_type) -> str:
         if _template_exists(resolved):
             return resolved
     return 'partials/_site_feed.html'
+
+
+def embed_template(item: 'Content') -> str:
+    """Which partial draws an item pulled into a body by :::embed.
+
+    The item's own type first, then the generic one, through the theme
+    chain -- the same shape as every other partial seam here.
+    """
+    for name in (f'embed-{item.type}.html', '_embed.html'):
+        resolved = themed(name)
+        if _template_exists(resolved):
+            return resolved
+    return 'partials/_embed.html'
 
 
 def blocks_template() -> str:

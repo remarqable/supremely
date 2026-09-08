@@ -117,6 +117,7 @@ exist and may change without warning — build on what is written down.
 | `item.visible_children()` | The blocks written inside an item that this visitor may read |
 | `blocks_template()` | Which partial draws the whole run of blocks under an item's body |
 | `block_template(block)` | Which partial draws one block, resolved through your theme first |
+| `embed_template(item)` | Which partial draws an item pulled into a body by `:::embed` |
 | `theme_asset('theme.css')` | URL for a file in your `static/` |
 | `themed('header.html')` | Resolve a part through the theme chain |
 | `theme_capabilities()` / `current_theme()` | Your declared capabilities; the active theme's slug |
@@ -294,6 +295,52 @@ who may read what.
 Blocks go one level deep, and they render after the body rather than
 somewhere inside it. Both are deliberate: blocks are content, not layout,
 and Supremely is not a site builder.
+
+
+## Directives in a body
+
+An author can reference other content from inside a body. A directive is a
+paragraph of its own and nothing else:
+
+```
+:::embed episode/why-we-build      one published item
+:::feed episode limit=3            a type's latest items
+```
+
+Anything else on the line is not a directive, and a directive in backticks
+or in a code block is code, which is where anyone writing *about* the syntax
+would put it.
+
+`:::feed` draws the **same partial as the front page window**, so a section
+an author places mid-article and one a theme places on the front page are
+the same thing: override `site-feed-{type}.html` or `_site_feed.html` and
+both change together. `:::embed` has its own seam — ship `embed-{type}.html`
+for one type or `_embed.html` for all of them.
+
+An embed partial receives `item`, `content_type`, and `locked`. Draw the
+body from `item.html_flat`, never `item.html`: the flat form leaves any
+directives inside the embedded item as plain text, which is what stops an
+embed following what it pulled in. The renderer enforces that too, so
+getting it wrong costs you a missing embed rather than a hung server.
+
+As everywhere else, the access decision is already made. A gated target
+arrives as `locked` where the organization teases its gated content and
+never arrives at all where it does not, and its body is not rendered either
+way. A whole section that is members-only renders nothing rather than a
+locked title, the same as its archive does: one gate, no item titles teased.
+
+A directive that cannot be honoured leaves nothing behind. That covers a
+typo in the target, a draft, a type the organization does not publish, and
+a body that has used its ten. Ten is the cap, because each directive is a
+query and a template render, and no page should be able to cost thousands
+of either. Bodies are typed by hand, so a mistake leaves a gap rather than
+an error message or a line of raw `:::embed` in a published page.
+
+Two places directives are inert by design. They do nothing in **discussion
+posts and replies**, which share this renderer but are written by any member
+rather than by somebody publishing the site. And they do nothing in a
+**newsletter**, which is sent by a background job with no reader to answer
+`can_view` for; the prose around them still sends.
 
 ## theme.json
 
