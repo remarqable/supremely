@@ -570,3 +570,33 @@ def test_a_type_cannot_lead_with_a_field_it_does_not_have():
         ContentType(slug='broken', singular='B', plural='Bs', base='/bs',
                     lead_field='nope',
                     fields=(FieldSpec(key='real'),)).validate_definition()
+
+
+def test_a_newsletter_builds_whole_addresses_for_its_pictures(app, acme):
+    """A mail client has no origin to resolve a relative src against, so an
+    image in a newsletter needs the full address.
+
+    Rendered in a job, which knows its tenant through org_scope rather than
+    through the request. Reading g.org there answered None, and every
+    picture in every newsletter went out as "/files/1/medium".
+    """
+    from flask import g
+
+    from app.models import Upload
+    from app.platform.content_types import FieldSpec
+    from app.platform.fields import render_field
+    from app.platform.tenant import org_scope
+
+    with app.test_request_context(base_url='http://acme.example.test'):
+        g.org = acme
+        upload = Upload(filename='p.png', key='p.png',
+                        content_type='image/png', size=10, org_id=acme.id)
+        upload.save()
+        upload_id = upload.id
+
+    spec = FieldSpec(key='photo', type='image', label='Photo')
+    # No request at all, the way the worker runs.
+    with app.app_context(), org_scope(acme.id):
+        out = str(render_field(spec, upload_id, surface='email'))
+    assert 'src="http' in out, out
+    assert 'src="/files' not in out, out

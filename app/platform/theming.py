@@ -28,6 +28,7 @@ from app.platform.logger import get_logger
 
 if TYPE_CHECKING:                       # circular at runtime, fine for hints
     from app.models import Content, Organization
+    from app.platform.content_types import ContentType
 
 log = get_logger()
 
@@ -228,7 +229,10 @@ def current_theme() -> str:
     if (preview in AVAILABLE_THEMES and has_request_context()
             and request.endpoint == PREVIEW_ENDPOINT):
         return preview
-    return saved_theme(getattr(g, 'org', None))
+    # current_org rather than g.org, so a job resolves the organization's
+    # own theme instead of quietly falling back to Origin.
+    from app.platform.tenant import current_org
+    return saved_theme(current_org())
 
 
 # Capabilities a theme is assumed to have unless its theme.json says
@@ -556,63 +560,48 @@ def themed(name: str) -> str:
     return name
 
 
-def site_feed_template(content_type) -> str:
-    """Which partial draws one section of the public site's shop window.
+def _partial(*names: str) -> str:
+    """The first of these partials that resolves, theme first.
 
-    A type's own section first, then the generic one, each resolved through
-    the theme chain. Written as a helper rather than a candidate list in a
-    template so it goes through themed(): a hand-rolled chain cannot see a
-    theme's mobile/ variant, and this is the fourth resolution seam in the
-    application (CLAUDE.md, Mobile).
+    Every partial seam in the application asks the same question: the
+    specific name, then the general one, each through themed() so a theme's
+    override and its mobile/ variant are both found. Written once, because
+    four copies of it drifted: each of the four spelled its own fallback as
+    a bare `partials/x.html`, which skips device_candidates, so a theme
+    could ship partials/mobile/_embed.html and never see it.
+
+    The last name is the application's own, and it goes through the same
+    resolution as the rest rather than being returned as a literal.
     """
-    for name in (f'site-feed-{content_type.slug}.html', '_site_feed.html'):
+    for name in names:
         resolved = themed(name)
         if _template_exists(resolved):
             return resolved
-    return 'partials/_site_feed.html'
+    fallback = f'partials/{names[-1]}'
+    for candidate in device_candidates([fallback]):
+        if _template_exists(candidate):
+            return candidate
+    return fallback
+
+
+def site_feed_template(content_type: 'ContentType') -> str:
+    """Which partial draws one section of the public site's shop window."""
+    return _partial(f'site-feed-{content_type.slug}.html', '_site_feed.html')
 
 
 def embed_template(item: 'Content') -> str:
-    """Which partial draws an item pulled into a body by :::embed.
-
-    The item's own type first, then the generic one, through the theme
-    chain -- the same shape as every other partial seam here.
-    """
-    for name in (f'embed-{item.type}.html', '_embed.html'):
-        resolved = themed(name)
-        if _template_exists(resolved):
-            return resolved
-    return 'partials/_embed.html'
+    """Which partial draws an item pulled into a body by :::embed."""
+    return _partial(f'embed-{item.type}.html', '_embed.html')
 
 
 def blocks_template() -> str:
-    """Which partial draws the whole run of blocks under an item's body.
-
-    Resolved through the theme chain like every other part, so a theme
-    shipping its own _content_blocks.html (or a mobile/ sibling of it) is
-    actually used. A literal include path here would have meant a theme
-    could only replace this section by overriding single.html as well,
-    which is not what the theme contract says.
-    """
-    resolved = themed('_content_blocks.html')
-    if _template_exists(resolved):
-        return resolved
-    return 'partials/_content_blocks.html'
+    """Which partial draws the whole run of blocks under an item's body."""
+    return _partial('_content_blocks.html')
 
 
 def block_template(block: 'Content') -> str:
-    """Which partial draws one block inside its parent.
-
-    The block's own type first, then the generic one, each resolved through
-    the theme chain -- the same shape as site_feed_template, and through
-    themed() for the same reason: a hand-rolled candidate list cannot see a
-    theme's mobile/ variant.
-    """
-    for name in (f'content-block-{block.type}.html', '_content_block.html'):
-        resolved = themed(name)
-        if _template_exists(resolved):
-            return resolved
-    return 'partials/_content_block.html'
+    """Which partial draws one block inside its parent."""
+    return _partial(f'content-block-{block.type}.html', '_content_block.html')
 
 
 def _template_exists(name: str) -> bool:

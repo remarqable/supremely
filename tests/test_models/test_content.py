@@ -551,3 +551,40 @@ def test_turning_a_type_off_does_not_empty_articles_that_use_it(app, acme):
         assert card in parent.visible_children()
         # ...while the type really is off everywhere it is a section.
         assert Content.published_query('recipe').all() == []
+
+
+def test_a_summary_reads_only_as_much_body_as_it_needs(app, acme):
+    """Every listing card summarises every item it draws, so summarising
+    has to cost what a summary is worth, not what a body is worth.
+
+    Rendering the whole body to take a couple of hundred characters made an
+    archive of twenty items twenty full renders of up to half a megabyte
+    each, and a body full of directives multiplied that again.
+    """
+    filler = 'Some prose about things. ' * 2000          # about 50 KB
+    item = make(app, acme, slug='long-one', body=filler)
+
+    # Asserted on how much body reaches the renderer, not on the string that
+    # comes back: truncating the answer to 140 characters hides the
+    # difference, so a test reading only the result passes whether the whole
+    # body was rendered or a slice of it was.
+    from app.platform import content as renderer
+    seen = []
+    real = renderer.render_markdown
+
+    def spy(text, **kwargs):
+        seen.append(len(text))
+        return real(text, **kwargs)
+
+    with app.test_request_context():
+        g.org = acme
+        renderer.render_markdown = spy
+        try:
+            summary = item.excerpt_or_summary(140)
+        finally:
+            renderer.render_markdown = real
+
+    assert summary.startswith('Some prose about things.')
+    assert summary.endswith('…')
+    assert len(item.body) > 40000                    # the body really is big
+    assert seen and max(seen) <= 140 * 20, max(seen)

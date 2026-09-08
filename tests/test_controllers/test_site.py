@@ -753,3 +753,64 @@ def test_blocks_render_inside_a_page_too(app, client, acme, user):
     assert 'Who we are.' in body
     assert 'A card' in body
     assert 'Mix it.' in body
+
+
+def test_a_block_is_gated_on_its_own_type_not_its_parents(app, client, acme,
+                                                          user):
+    """A course must not advertise a lesson that /lessons itself refuses to
+    name.
+
+    Listing a gated block follows the block's own type: its section lock and
+    its own teasing switch. Asking the parent's type instead meant a course
+    page teased a members-only lesson while the lesson archive gated the
+    whole section and teased nothing, so the two surfaces disagreed about
+    what a locked section means.
+    """
+    course = publish_course(app, acme)
+    add_block(app, acme, course, type='lesson', title='Gated Lesson',
+              slug='gated', body='Paid words.', visibility='members')
+    acme.update_settings(gated_teasers=True)
+
+    # The lesson section is locked outright: nothing of it is teased
+    # anywhere, the course page included.
+    acme.set_type_settings('lesson', visibility='members')
+    locked = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert 'Gated Lesson' not in locked
+    assert 'Paid words.' not in locked
+    # ...which is what the lesson's own archive does.
+    assert 'Gated Lesson' not in client.get(
+        '/lessons', base_url=ACME).get_data(as_text=True)
+
+    # Section readable again, but this type says do not tease.
+    acme.set_type_settings('lesson', visibility='public', tease=False)
+    hidden = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert 'Gated Lesson' not in hidden
+
+    # ...and with its own type teasing, the title shows and the body does not.
+    acme.set_type_settings('lesson', tease=True)
+    teased = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert 'Gated Lesson' in teased
+    assert 'Paid words.' not in teased
+
+    login_as(client, user)
+    seen = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert 'Paid words.' in seen
+
+
+def test_a_block_stops_linking_out_when_its_type_is_turned_off(app, client,
+                                                               acme, user):
+    """Turning a type off does not empty the articles that already use it as
+    a block, but it does close the route. A block that kept its own address
+    left a live link on every course page that answers 404."""
+    course = publish_course(app, acme)
+    add_block(app, acme, course, type='lesson', title='Lesson one', slug='one',
+              body='The lesson.')
+    linked = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert '/courses/intro/lessons/one' in linked
+
+    acme.set_type_settings('lesson', enabled=False)
+    page = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert '/courses/intro/lessons/one' not in page
+    assert 'Lesson one' in page              # still rendered in its parent
+    assert client.get('/courses/intro/lessons/one',
+                      base_url=ACME).status_code == 404

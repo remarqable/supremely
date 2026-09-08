@@ -180,20 +180,21 @@ class MarkdownBody:
     @property
     def html(self) -> str:
         from app.platform.content import render_markdown
-        return render_markdown(self.body,
-                               resolve_directives=self.resolves_directives)
+        return render_markdown(
+            self.body,
+            directives='resolve' if self.resolves_directives else 'ignore')
 
     @property
     def html_flat(self) -> str:
-        """The same body with its directives left as plain text.
+        """The same body with its directives removed.
 
-        What an embedded item renders. An embed that resolved the embeds
-        inside what it pulled in would follow a body that referenced itself
-        forever, so one level is where it stops -- the same depth blocks go
-        to, for the same reason.
+        What an embedded item renders, and what a listing summarises. An
+        embed that resolved the embeds inside what it pulled in would follow
+        a body that referenced itself forever, so one level is where it
+        stops -- the same depth blocks go to, for the same reason.
         """
         from app.platform.content import render_markdown
-        return render_markdown(self.body, resolve_directives=False)
+        return render_markdown(self.body, directives='drop')
 
 
 class AuditMixin:

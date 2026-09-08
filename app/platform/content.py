@@ -154,22 +154,36 @@ _FEED_RE = re.compile(r'(?P<type>[a-z][a-z0-9_]{0,49})'
                       r'(?:\s+limit=(?P<limit>\d{1,3}))?\Z')
 
 
+DIRECTIVE_MODES = ('resolve', 'drop', 'ignore')
 
 
 def render_markdown(text: str, *, embed_videos: bool = True,
-                    resolve_directives: bool = True) -> str:
-    """This body as sanitized HTML, with its directives honoured.
+                    directives: str = 'resolve') -> str:
+    """This body as sanitized HTML.
 
-    `embed_videos=False` renders a :::video directive as a link rather than a
-    frame, for a surface that cannot show one. Email is the case: every mail
-    client drops an iframe, so an embedded video would be a blank space in a
-    newsletter rather than a video.
+    `embed_videos=False` renders a :::video directive as a link rather than
+    a frame, for a surface that cannot show one. Email is the case: every
+    mail client drops an iframe, so an embedded video would be a blank space
+    in a newsletter rather than a video.
 
-    `resolve_directives=False` renders the body with :::embed and :::feed
-    left as the plain text they are. That is what an embedded item renders,
-    and it is the whole recursion guard: an embed inside an embedded item is
+    What happens to a :::embed or a :::feed depends on what kind of body
+    this is, and the three answers are genuinely different things rather
+    than degrees of one:
+
+    'resolve' -- honour them. A published body.
+
+    'drop' -- remove them, honour none. What an embedded item renders and
+    what a listing summarises. A card inside a card must not show the words
+    ":::embed episode/x", and neither should a one-line archive summary.
+    This is also the recursion guard: an embed inside an embedded item is
     never looked at, so a body that embeds itself terminates rather than
     descending. One level, matching blocks.
+
+    'ignore' -- leave the text exactly as written, because directives are
+    not a feature of this kind of body at all. A discussion post is somebody
+    talking, and ":::embed" in a sentence is a sentence. Dropping it there
+    would delete a member's own words on the grounds that they resemble
+    syntax they were never offered.
     """
     if not text:
         return ''
@@ -184,19 +198,23 @@ def render_markdown(text: str, *, embed_videos: bool = True,
                      link_rel='noopener noreferrer')
     html = _restore_videos(html, placeholders)
 
-    if not resolve_directives or ':::' not in html:
-        return html
-    if getattr(_resolving, 'active', False):
-        # Already inside an embed. Whatever this body says, it is being read
-        # as part of something else and goes no deeper.
+    if directives == 'ignore' or ':::' not in html:
         return html
     from flask import has_request_context
-    resolver = _Resolver(active=has_request_context())
+    # Two more reasons a directive is dropped rather than honoured, both
+    # meaning the same thing as an explicit 'drop': we are already inside an
+    # embed and one level is the cap, or this is a job, where there is
+    # nobody to answer can_view for and so no safe answer.
+    nested = getattr(_resolving, 'active', False)
+    resolver = _Resolver(active=(directives == 'resolve' and not nested
+                                 and has_request_context()))
     _resolving.active = True
     try:
         return _PARAGRAPH_RE.sub(resolver, html)
     finally:
-        _resolving.active = False
+        # Restored rather than cleared, so a nested call cannot end the
+        # guard for the render still running around it.
+        _resolving.active = nested
 
 
 def _link_videos(text: str) -> str:

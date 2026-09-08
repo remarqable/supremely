@@ -356,8 +356,7 @@
          be removed from. Not marked .btn-admin: removing a block from your
          own item is editing your own item. #}
       <form method="POST" class="shrink-0"
-            action="{{ url_for('manage.delete_content', content_id=block.id) }}"
-            onsubmit="return confirm('{{ _('manage.block_remove_confirm', title=block.title) }}')">
+            action="{{ url_for('manage.delete_content', content_id=block.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button type="submit" class="btn-secondary px-2 py-1 text-red-700">
           <span aria-hidden="true">&times;</span>

@@ -468,13 +468,25 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         """
         from flask import g
 
-        from app.platform.authz import is_member_or_platform_admin
         org = getattr(g, 'org', None)
-        teasing = bool(org and org.type_teases(self.type))
-        return [child for child in self.children
-                if child.is_published
-                and (teasing or is_member_or_platform_admin()
-                     or child.visible_to_current_visitor())]
+        listed = []
+        for child in self.children:
+            if not child.is_published:
+                continue
+            if child.visible_to_current_visitor():
+                listed.append(child)
+                continue
+            # Gated. It may still be listed as a locked title, but only on
+            # the same terms its own archive would list it on: its own
+            # type's teasing switch, not the parent's, and never when that
+            # type's whole section is locked. Asking the parent's type
+            # meant a course could advertise a lesson that /lessons itself
+            # refuses to name.
+            if not Content.section_readable_by_current_visitor(child.type):
+                continue
+            if org is not None and org.type_teases(child.type):
+                listed.append(child)
+        return listed
 
     def _free_slug(self, base: str) -> str:
         """An address near `base` that is actually available.
@@ -579,11 +591,16 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
             if parent is None:
                 return ''
             # A block's own address exists only where something serves it:
-            # under a parent whose type has an archive base to hang it from.
-            # A block inside a standalone page is read in that page, so that
-            # is the honest link -- better than a tidy-looking 404.
+            # under a parent whose type has an archive base to hang it from,
+            # and only while this organization still publishes the block's
+            # type, because the route resolves that type before it answers.
+            # A block whose address nothing serves is read inside its
+            # parent, so that is the honest link -- better than a
+            # tidy-looking 404 on every course page.
+            from app.platform.content_types import type_is_active
             if (ct.child_routable and self.slug
-                    and parent.content_type.has_archive):
+                    and parent.content_type.has_archive
+                    and type_is_active(ct)):
                 return f'{parent.permalink}{ct.base}/{self.slug}'
             return parent.permalink
         if ct.is_page:
@@ -601,9 +618,29 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         the difference. The column keeps whatever was written in it.
         """
         import nh3
-        text = nh3.clean(self.html, tags=set())
+
+        from app.platform.content import render_markdown
+        # Only as much of the body as a summary could possibly need.
+        #
+        # A body may be half a megabyte and this returns a couple of hundred
+        # characters of it, so rendering the whole thing and throwing nearly
+        # all of it away is work every listing card pays for every item it
+        # draws. An archive of twenty items was doing it twenty times.
+        # Markdown never yields more text than its source, so a slice this
+        # generous cannot come up short of the length asked for.
+        #
+        # Directives are dropped rather than resolved: a one-line summary
+        # has no business pulling in whatever this body embeds, and
+        # resolving cost a query and a template render apiece for text that
+        # is then stripped of all its markup anyway.
+        body = self.body or ''
+        source = body[:length * 20]
+        text = nh3.clean(render_markdown(source, directives='drop'),
+                         tags=set())
         text = ' '.join(text.split())
-        return text[:length] + ('…' if len(text) > length else '')
+        if len(text) > length:
+            return text[:length] + '…'
+        return text + ('…' if len(body) > len(source) else '')
 
     def set_structured_fields(self, data: dict):
         """Write the type's declared fields, keeping anything else.

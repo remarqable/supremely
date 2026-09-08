@@ -249,11 +249,16 @@ def test_an_embed_loop_terminates(app, acme):
         assert 'Mine.' in Content.published_by_slug('article', 'selfish').html
 
 
-def test_an_embedded_body_leaves_its_own_directives_as_text(app, acme):
-    """html_flat is what the embed partial renders, and this is the property
-    it is for. Asserted on its own rather than through an embed: the
-    renderer has a second guard, so a test that went through one would pass
-    with this one gone."""
+def test_an_embedded_body_has_its_own_directives_removed(app, acme):
+    """html_flat is what the embed partial renders and what a summary reads,
+    and this is the property it is for.
+
+    Removed rather than left as text: a card inside a card must not show the
+    words ":::embed article/second", and neither should a one-line archive
+    summary. Asserted on its own rather than through an embed, because the
+    renderer has a second guard and a test going through one would pass with
+    this one gone.
+    """
     first = publish(app, acme, title='First', slug='first',
                     body='First body.\n\n:::embed article/second')
     publish(app, acme, title='Second', slug='second', body='Second body.')
@@ -261,8 +266,24 @@ def test_an_embedded_body_leaves_its_own_directives_as_text(app, acme):
         g.org = acme
         flat = first.html_flat
     assert 'First body.' in flat
-    assert ':::embed article/second' in flat     # text, not resolved
+    assert ':::' not in flat                     # removed, not resolved
     assert 'Second body.' not in flat
+
+
+def test_a_summary_is_the_items_own_words(app, acme):
+    """Every archive card and front-page tile calls this. Reading the
+    resolved body pulled whatever the item embeds into the parent's
+    summary, and charged a query and a template render per directive for
+    text that is then stripped of all its markup anyway."""
+    episode(app, acme, title='Target', slug='target', body='TARGET BODY.')
+    host = publish(app, acme, slug='host',
+                   body='Intro words.\n\n:::embed episode/target')
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        summary = host.excerpt_or_summary(200)
+    assert 'Intro words.' in summary
+    assert 'TARGET BODY.' not in summary
+    assert ':::' not in summary
 
 
 def test_the_depth_cap_does_not_depend_on_the_template_asking_nicely(app, acme):
@@ -289,7 +310,7 @@ def test_the_depth_cap_does_not_depend_on_the_template_asking_nicely(app, acme):
         finally:
             content_module._resolving.active = False
     assert 'Mine.' in out
-    assert ':::embed' in out           # left as text
+    assert ':::' not in out            # the directive is gone
     assert '<figure' not in out        # and nothing was pulled in
 
 

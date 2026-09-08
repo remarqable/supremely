@@ -71,6 +71,11 @@ def create_app(config_class=Config):
         # same hazard: a held app context would otherwise carry one
         # request's answers into the next.
         _g.pop('_template_exists', None)
+        # Added with the field renderer and the per-type settings, and just
+        # as hazardous held over: one resolves partials against the
+        # organization's theme, the other is the organization itself.
+        _g.pop('_field_partials', None)
+        _g.pop('_active_org', None)
 
     # Before CSRF and tenant resolution, so a blocked request answers 404
     # rather than 403 or 410 and never resolves a tenant.

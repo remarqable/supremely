@@ -695,3 +695,47 @@ def test_no_theme_sorts_an_archive_for_itself(app):
                  for path in themes.rglob('*.html')
                  if sorting.search(path.read_text(encoding='utf-8'))]
     assert offenders == []
+
+
+def test_every_partial_seam_finds_a_mobile_variant(app, client, acme):
+    """All four partial seams resolve the same way, the application's own
+    fallback included.
+
+    Each seam used to spell its fallback as a bare `partials/x.html`, which
+    skips device resolution, so shipping `partials/mobile/_embed.html` would
+    never have been found on a phone. There are four of these and they must
+    not drift apart again.
+    """
+    from pathlib import Path
+
+    from app.platform.theming import (
+        block_template,
+        blocks_template,
+        embed_template,
+        site_feed_template,
+    )
+    views = Path(__file__).parents[2] / 'app' / 'views' / 'partials'
+    mobile = views / 'mobile'
+    mobile.mkdir(exist_ok=True)
+    written = []
+    try:
+        for name in ('_site_feed.html', '_embed.html', '_content_block.html',
+                     '_content_blocks.html'):
+            path = mobile / name
+            path.write_text('<p>phone</p>', encoding='utf-8')
+            written.append(path)
+
+        with app.test_request_context('/?device=mobile', base_url=ACME):
+            g.org = acme
+            from app.platform.content_types import get_content_type
+            article = get_content_type('article')
+            item = type('T', (), {'type': 'article'})()
+            resolved = [site_feed_template(article), embed_template(item),
+                        block_template(item), blocks_template()]
+        for name in resolved:
+            assert '/mobile/' in name, name
+    finally:
+        for path in written:
+            path.unlink()
+        if not any(mobile.iterdir()):
+            mobile.rmdir()

@@ -279,10 +279,12 @@ def absolute_url(path: str) -> str:
     rather than handing partials `g`, which is what they would otherwise
     reach for and is a short step from reading `content.visibility`.
     """
-    from flask import g
-
-    from app.platform.tenant import org_url
-    org = getattr(g, 'org', None)
+    from app.platform.tenant import current_org, org_url
+    # current_org, not g.org: a newsletter is a job, and a job knows its
+    # tenant through org_scope rather than through the request. Reading
+    # g.org there answered None and sent every picture in the mail as a
+    # relative path, which no mail client can resolve.
+    org = current_org()
     return org_url(org, path) if org is not None else path
 
 

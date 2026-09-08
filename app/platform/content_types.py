@@ -517,31 +517,10 @@ def type_is_active(content_type: ContentType) -> bool:
 
 
 def _current_org():
-    """The organization in force, from a request or from org_scope().
-
-    Asked the same way the tenant filter asks it. Deciding on
-    has_request_context alone answers "no tenant" inside a job, which runs
-    under org_scope with the tenant perfectly well known, and a question
-    about what an organization publishes then defaults to permitting.
-    """
-    from app.platform.tenant import current_org_id
-    org_id = current_org_id()
-    if org_id is None:
-        return None
-    # Every type asks this, and every section on a front page asks every
-    # type: without a memo one page was 110 identical SELECTs. Keyed by id
-    # because org_scope() can change the tenant inside one app context.
-    from flask import g, has_app_context
-    cached = getattr(g, '_active_org', None) if has_app_context() else None
-    if cached is not None and cached.id == org_id:
-        return cached
-    from app.models import Organization
-    from app.platform.tenant import unscoped
-    with unscoped():
-        org = Organization.query.filter_by(id=org_id).first()
-    if has_app_context():
-        g._active_org = org
-    return org
+    """The organization in force. One implementation, in the tenant layer,
+    so a job and a request answer this the same way."""
+    from app.platform.tenant import current_org
+    return current_org()
 
 
 def type_presentation(content_type: ContentType) -> str:
