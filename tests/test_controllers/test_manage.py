@@ -1963,3 +1963,173 @@ def test_the_home_page_puts_the_words_before_the_sections(app, client, acme,
     login_as(client, user)
     page = client.get('/manage/landing', base_url=ACME).get_data(as_text=True)
     assert page.index('Headline') < page.index('Sections on your home page')
+
+
+# --- blocks in the editor ------------------------------------------------------
+
+def test_adding_a_block_opens_the_ordinary_editor_for_it(app, client, acme,
+                                                         user):
+    """No nested field editor. A block is a content row, so it is written in
+    the editor that already knows how to edit its type."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+
+    response = client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                           data={'block_type': 'recipe'})
+    assert response.status_code == 302
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent = db.session.get(Content, parent_id)
+        assert len(parent.children) == 1
+        block = parent.children[0]
+        assert block.type == 'recipe'
+        assert block.parent_id == parent_id
+        assert block.slug is None
+    assert response.headers['Location'].endswith(
+        f'/manage/content/{block.id}/edit')
+
+    # The block's editor offers no address to choose and goes back to the
+    # thing it lives inside.
+    page = client.get(f'/manage/content/{block.id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert 'name="slug"' not in page
+    assert f'/manage/content/{parent_id}/edit' in page
+    # A block cannot hold blocks of its own.
+    assert 'name="block_type"' not in page
+
+
+def test_blocks_keep_the_order_the_author_gives_them(app, client, acme, user):
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    for _ in range(3):
+        client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                    data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        ids = [block.id for block in db.session.get(Content, parent_id).children]
+    assert len(ids) == 3
+
+    client.post(f'/manage/content/{parent_id}/blocks/move', base_url=ACME,
+                data={'block_id': ids[2], 'direction': 'up'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        moved = [block.id for block in db.session.get(Content, parent_id).children]
+    assert moved == [ids[0], ids[2], ids[1]]
+
+    # The top one has nowhere further to go, and saying so is not an error.
+    client.post(f'/manage/content/{parent_id}/blocks/move', base_url=ACME,
+                data={'block_id': moved[0], 'direction': 'up'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert [block.id for block in
+                db.session.get(Content, parent_id).children] == moved
+
+
+def test_deleting_a_block_returns_to_what_it_was_inside(app, client, acme,
+                                                        user):
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        block_id = db.session.get(Content, parent_id).children[0].id
+
+    response = client.post(f'/manage/content/{block_id}/delete', base_url=ACME)
+    assert response.headers['Location'].endswith(
+        f'/manage/content/{parent_id}/edit')
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Content, parent_id).children == []
+
+
+def test_a_block_never_appears_in_a_type_listing(app, client, acme, user):
+    """The console lists what an organization published, and a block was
+    published inside something else."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+
+    listing = client.get('/manage/content/recipe',
+                         base_url=ACME).get_data(as_text=True)
+    assert 'Untitled block' not in listing
+
+
+def test_a_block_can_be_removed_from_its_parent(app, client, acme, user):
+    """The editor's remove control. A block appears in no listing, so the
+    parent's block list is the only place it can be removed from."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        block_id = db.session.get(Content, parent_id).children[0].id
+
+    page = client.get(f'/manage/content/{parent_id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert f'/manage/content/{block_id}/delete' in page
+
+    client.post(f'/manage/content/{block_id}/delete', base_url=ACME)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Content, parent_id).children == []
+
+
+def test_a_block_cannot_be_sent_as_a_newsletter(app, client, acme, user):
+    """Sending one would give it a delivery record and a line in the
+    members' newsletter archive, which is an address for something whose
+    whole point is that it has none. The route refuses, not just the UI."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        block_id = db.session.get(Content, parent_id).children[0].id
+
+    page = client.get(f'/manage/content/{block_id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert 'send-newsletter' not in page
+    assert client.post(f'/manage/content/{block_id}/send-newsletter',
+                       base_url=ACME).status_code == 404
+    # ...and the article it lives in still can be sent.
+    assert client.post(f'/manage/content/{parent_id}/send-newsletter',
+                       base_url=ACME).status_code != 404

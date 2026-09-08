@@ -12,8 +12,12 @@ when a vertical is added -- you register one ContentType.
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.platform.errors import ValidationError
+
+if TYPE_CHECKING:
+    from app.models import Content
 
 FIELD_TYPES = ('string', 'text', 'url', 'number', 'boolean', 'date',
                'select', 'image', 'file', 'datetime', 'list')
@@ -263,6 +267,16 @@ class ContentType:
     # four sections under somebody's hero on upgrade is not an improvement
     # anybody asked for. Manage -> Home page is where a window is opened.
     site_entry: bool = False
+    # Does a block of this type get its own address under its parent?
+    #
+    # A lesson does: /courses/intro/lessons/one is a page somebody links to
+    # and comes back to. A recipe card inside an article does not -- it is
+    # read where it sits, and giving it a second URL would be publishing the
+    # same words twice.
+    #
+    # Off by default, because a block having no address is the ordinary
+    # case and the one that cannot go wrong.
+    child_routable: bool = False
 
     @property
     def is_page(self) -> bool:
@@ -520,6 +534,23 @@ def site_entry_types() -> list[ContentType]:
             entries.append((rank, position, content_type))
     return [content_type for _rank, _position, content_type
             in sorted(entries, key=lambda entry: (entry[0], entry[1]))]
+
+
+def nestable_types(content: 'Content | None') -> list[ContentType]:
+    """The types that may be written as a block inside `content`.
+
+    Every active type except pages. A recipe card inside an article and a
+    standalone recipe are the same kind of thing written in two places,
+    which is the reason blocks are content rows rather than a second
+    registry; a page is a destination, and one nested inside an article is
+    neither.
+
+    Nothing at all for a block, because blocks go one level deep.
+    """
+    if content is None or content.id is None or content.is_child:
+        return []
+    return [content_type for content_type in active_types().values()
+            if not content_type.is_page]
 
 
 def offerable_sections() -> list[ContentType]:

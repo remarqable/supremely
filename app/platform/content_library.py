@@ -7,9 +7,9 @@ library type registers for every organization; per-org enablement and
 "community type" presets (a named selection of these at org setup) build on
 top of this list.
 
-Types that need platform features we don't have yet (file/select field
-types, child content) are declared in COMING_SOON: visible in Manage as
-placeholders, never registered, never routable.
+A type that needs a platform feature we don't have yet is declared in
+COMING_SOON: visible in Manage as a placeholder, never registered, never
+routable. The list is empty today.
 """
 
 from dataclasses import dataclass
@@ -159,6 +159,40 @@ def register_library_types() -> None:
                                     label='Caption'))),
         ),
     ))
+    register_content_type(ContentType(
+        slug='course', singular='Course', plural='Courses',
+        description='Structured learning: a course made of ordered lessons.',
+        base='/courses', group='community', icon='document',
+        fields=(
+            FieldSpec(key='level', type='select', label='Level',
+                      in_summary=True,
+                      choices=(('beginner', 'Beginner'),
+                               ('intermediate', 'Intermediate'),
+                               ('advanced', 'Advanced'))),
+            FieldSpec(key='duration', type='string', label='Length',
+                      in_summary=True,
+                      help='How long it takes, e.g. "4 weeks"'),
+        ),
+    ))
+    register_content_type(ContentType(
+        # Lessons are written inside a course and read there, so a lesson
+        # gets an address under the course it belongs to. It keeps an
+        # archive of its own for the lesson that outgrows its course: a
+        # block promoted to standalone has a URL and an archive row waiting,
+        # with nothing to convert.
+        slug='lesson', singular='Lesson', plural='Lessons',
+        description='One lesson of a course. Written inside the course it '
+                    'belongs to.',
+        base='/lessons', group='community', icon='document',
+        child_routable=True,
+        fields=(
+            FieldSpec(key='duration', type='string', label='Length',
+                      in_summary=True,
+                      help='How long it takes, e.g. "20 minutes"'),
+            FieldSpec(key='video_url', type='url', label='Video',
+                      help='Where the video is hosted (YouTube, Vimeo, ...).'),
+        ),
+    ))
 
 
 @dataclass(frozen=True)
@@ -172,12 +206,10 @@ class PlannedType:
     needs: str
 
 
-COMING_SOON: tuple[PlannedType, ...] = (
-    PlannedType(
-        slug='course', singular='Course', plural='Courses',
-        description='Structured learning: a course made of ordered lessons.',
-        needs='child content (lessons that belong to a course)'),
-)
+# Empty, and that is the intended end state rather than an oversight: every
+# type the library had been holding back is now buildable. The mechanism
+# stays because the next type that needs a platform feature will want it.
+COMING_SOON: tuple[PlannedType, ...] = ()
 
 
 def validate_planned_types() -> None:

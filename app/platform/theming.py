@@ -27,7 +27,7 @@ from app.platform.errors import ValidationError
 from app.platform.logger import get_logger
 
 if TYPE_CHECKING:                       # circular at runtime, fine for hints
-    from app.models import Organization
+    from app.models import Content, Organization
 
 log = get_logger()
 
@@ -144,6 +144,8 @@ def init_theming(app) -> None:
     from app.platform.content_types import site_entry_types
     app.jinja_env.globals['site_entries'] = site_entry_types
     app.jinja_env.globals['site_feed_template'] = site_feed_template
+    app.jinja_env.globals['block_template'] = block_template
+    app.jinja_env.globals['blocks_template'] = blocks_template
 
 
 def scan_themes() -> None:
@@ -567,6 +569,36 @@ def site_feed_template(content_type) -> str:
         if _template_exists(resolved):
             return resolved
     return 'partials/_site_feed.html'
+
+
+def blocks_template() -> str:
+    """Which partial draws the whole run of blocks under an item's body.
+
+    Resolved through the theme chain like every other part, so a theme
+    shipping its own _content_blocks.html (or a mobile/ sibling of it) is
+    actually used. A literal include path here would have meant a theme
+    could only replace this section by overriding single.html as well,
+    which is not what the theme contract says.
+    """
+    resolved = themed('_content_blocks.html')
+    if _template_exists(resolved):
+        return resolved
+    return 'partials/_content_blocks.html'
+
+
+def block_template(block: 'Content') -> str:
+    """Which partial draws one block inside its parent.
+
+    The block's own type first, then the generic one, each resolved through
+    the theme chain -- the same shape as site_feed_template, and through
+    themed() for the same reason: a hand-rolled candidate list cannot see a
+    theme's mobile/ variant.
+    """
+    for name in (f'content-block-{block.type}.html', '_content_block.html'):
+        resolved = themed(name)
+        if _template_exists(resolved):
+            return resolved
+    return 'partials/_content_block.html'
 
 
 def _template_exists(name: str) -> bool:

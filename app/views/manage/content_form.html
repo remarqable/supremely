@@ -6,8 +6,14 @@
 {# The only way out used to be Cancel, at the foot of the sidebar under the
    publish controls, which is the last place someone looks for one. #}
 <p class="mb-2">
+  {% if content and content.parent %}
+  {# A block has no listing to go back to. It goes back to what it is inside. #}
+  {{ back_link(url_for('manage.edit_content', content_id=content.parent.id),
+               content.parent.title) }}
+  {% else %}
   {{ back_link(url_for('manage.content_list', type_slug=content_type.slug),
                content_type.plural) }}
+  {% endif %}
 </p>
 <div class="mb-5 flex items-center gap-2.5">
   <h1 class="page-title">{{ content.title if content and content.title else _('manage.new_of', name=content_type.singular) }}</h1>
@@ -84,6 +90,10 @@
              maxlength="200" value="{{ content.title if content else '' }}"
              @input="from($event.target.value)">
     </div>
+    {# A block is read inside the thing it belongs to, so it has no address
+       of its own and no slug to choose -- unless its type takes pages, and
+       then the address sits under the parent's. #}
+    {% if not (content and content.is_child) or content_type.child_routable %}
     <div>
       <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
       <input type="text" id="slug" name="slug" class="input mt-1"
@@ -91,6 +101,7 @@
              :placeholder="preview" aria-describedby="slug-hint">
       <p id="slug-hint" class="mt-1 text-xs text-slate-500">{{ _('manage.slug_hint') }}</p>
     </div>
+    {% endif %}
 
     {% for spec in content_type.fields %}
     {# A refused save hands back what was posted, not what is stored: the
@@ -291,7 +302,11 @@
               class="btn-secondary w-full">{{ _('manage.preview') }}
         <span class="sr-only">({{ _('manage.preview_new_tab') }})</span></button>
       {% if content and content.id %}
-      {% if not content_type.is_page %}
+      {# Not for a page, and not for a block: sending one as a newsletter
+         would give it a delivery record and a line in the members'
+         newsletter archive, which is a second address for something whose
+         whole point is that it has none. #}
+      {% if not content_type.is_page and not content.is_child %}
       <button type="submit" name="action" value="save"
               formaction="{{ url_for('manage.send_content_newsletter', content_id=content.id) }}"
               class="btn-secondary w-full">{{ _('newsletter.send_by_email') }}</button>
@@ -303,4 +318,67 @@
     </div>
   </div>
 </form>
+
+{# Blocks: the content written inside this item. Its own forms, after the
+   editor's, because a form cannot be nested inside another one and because
+   adding a block should not depend on the edits above being saved first.
+
+   There is no nested field editor here on purpose. A block is a content row
+   like any other, so it is written in the ordinary editor for its type --
+   one place that knows how to edit a type's fields, rather than a second
+   one reimplemented inside this form. #}
+{% if block_types %}
+<div class="card mt-5 space-y-3">
+  <h2 class="text-sm font-semibold tracking-tight">{{ _('manage.blocks') }}</h2>
+  <p class="text-xs text-slate-600">{{ _('manage.blocks_hint') }}</p>
+
+  {% if content.children %}
+  <div>
+    {% for block in content.children %}
+    <div class="flex items-center gap-2 border-b border-slate-100 py-1.5 last:border-0">
+      <a href="{{ url_for('manage.edit_content', content_id=block.id) }}"
+         class="flex-1 truncate text-sm font-medium hover:text-brand-700">{{ block.title }}</a>
+      <span class="badge-slate shrink-0">{{ block.content_type.singular }}</span>
+      {{ status_badge(block.status) }}
+      {% for direction, glyph, label in (('up', '&uarr;', _('manage.field_row_up')),
+                                         ('down', '&darr;', _('manage.field_row_down'))) %}
+      <form method="POST" class="shrink-0"
+            action="{{ url_for('manage.move_block', content_id=content.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="block_id" value="{{ block.id }}">
+        <input type="hidden" name="direction" value="{{ direction }}">
+        <button type="submit" class="btn-secondary px-2 py-1">
+          <span aria-hidden="true">{{ glyph|safe }}</span>
+          <span class="sr-only">{{ label }}</span></button>
+      </form>
+      {% endfor %}
+      {# A block has no listing of its own, so this is the only place it can
+         be removed from. Not marked .btn-admin: removing a block from your
+         own item is editing your own item. #}
+      <form method="POST" class="shrink-0"
+            action="{{ url_for('manage.delete_content', content_id=block.id) }}"
+            onsubmit="return confirm('{{ _('manage.block_remove_confirm', title=block.title) }}')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-secondary px-2 py-1 text-red-700">
+          <span aria-hidden="true">&times;</span>
+          <span class="sr-only">{{ _('manage.block_remove') }}</span></button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="POST" class="flex flex-wrap items-center gap-2"
+        action="{{ url_for('manage.add_block', content_id=content.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="block_type" class="sr-only">{{ _('manage.add_block') }}</label>
+    <select id="block_type" name="block_type" class="input w-auto">
+      {% for block_type in block_types %}
+      <option value="{{ block_type.slug }}">{{ block_type.singular }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-secondary">{{ _('manage.add_block') }}</button>
+  </form>
+</div>
+{% endif %}
 {% endblock %}

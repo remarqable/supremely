@@ -117,6 +117,9 @@ def create_app(config_class=Config):
     # the bindings are deliberately unused.
     from .platform import newsletter as _newsletter  # noqa: F401
     from .platform import notify as _notify  # noqa: F401
+    # Before the blueprints: a rule cannot use a converter that is not
+    # registered yet.
+    app.url_map.converters['published'] = site.PublishedSegment
     for module in (main, auth, setup, admin, orgs, manage, members,
                    discussions, notifications, newsletter, site):
         app.register_blueprint(module.bp)

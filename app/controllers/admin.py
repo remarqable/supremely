@@ -90,8 +90,12 @@ def org_detail(org_id):
                    .join(Membership.user).order_by(User.email).all())
     usage = {
         'members': len(memberships),
-        'pages': Content.query.filter_by(org_id=org.id, type='page').count(),
+        # Standalone rows only: a block inside an article is part of that
+        # article, not a second thing this organization published.
+        'pages': Content.query.filter_by(org_id=org.id, type='page',
+                                         parent_id=None).count(),
         'content': Content.query.filter(Content.org_id == org.id,
+                                        Content.parent_id.is_(None),
                                         Content.type != 'page').count(),
         'posts': Post.query.filter_by(org_id=org.id).count(),
         'subscribers': Subscriber.query.filter_by(org_id=org.id).count(),

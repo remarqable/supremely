@@ -114,6 +114,9 @@ exist and may change without warning — build on what is written down.
 | `render_lead_field(item)` | The one field the type leads its listing card with (a date block, say), or nothing |
 | `site_entries()` | The content types this organization advertises on its front page, in its chosen order |
 | `site_feed_template(type)` | Which partial draws one of those sections, resolved through your theme first |
+| `item.visible_children()` | The blocks written inside an item that this visitor may read |
+| `blocks_template()` | Which partial draws the whole run of blocks under an item's body |
+| `block_template(block)` | Which partial draws one block, resolved through your theme first |
 | `theme_asset('theme.css')` | URL for a file in your `static/` |
 | `themed('header.html')` | Resolve a part through the theme chain |
 | `theme_capabilities()` / `current_theme()` | Your declared capabilities; the active theme's slug |
@@ -251,6 +254,46 @@ give you the items and the total. Both already account for who is looking:
 a members-only item arrives as a locked title where the organization teases
 its gated content, and is simply absent where it does not. Nothing in your
 template decides who may read anything.
+
+
+## Blocks inside an item
+
+Some content is written inside other content: a recipe card in an article, a
+lesson in a course. A block is an ordinary content row with a parent, so it
+has the same fields, the same renderer and the same visibility rules as
+anything else. It simply has no address of its own, and appears in no
+archive, feed or count.
+
+Your single and page templates draw them after the body:
+
+```html
+{% include blocks_template() with context %}
+```
+
+Override the whole section with your own `_content_blocks.html`, or one
+type's block with `content-block-{type}.html`. Both resolve through your
+theme first, and a `mobile/` sibling of either is picked up on a phone.
+
+If you replace the wrapper, call the loop variable `block` — that is the
+name a block partial reads:
+
+```html
+{% for block in content.visible_children() %}
+{% include block_template(block) with context %}
+{% endfor %}
+```
+
+Two things are already decided before your template runs.
+`item.visible_children()` has applied the organization's gating rules, so a
+members-only lesson arrives as a locked title where that organization teases
+its gated content and is absent where it does not; and blocks arrive in the
+order their author put them in. Ask `can_view(block)` before drawing a body,
+exactly as you would for any item in a list. Nothing in a template decides
+who may read what.
+
+Blocks go one level deep, and they render after the body rather than
+somewhere inside it. Both are deliberate: blocks are content, not layout,
+and Supremely is not a site builder.
 
 ## theme.json
 

@@ -44,6 +44,8 @@
 
   {{ render_fields(content) }}
 
+  {% include blocks_template() with context %}
+
   {% if content.tags %}
   <p class="mt-8 flex flex-wrap gap-2">
     {% for tag in content.tags %}

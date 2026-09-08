@@ -110,14 +110,55 @@ def run_migrations_online():
     connectable = get_engine()
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=get_metadata(),
-            **conf_args
-        )
+        # SQLite cannot alter a column in place, so Alembic's batch mode
+        # rebuilds the whole table: create the new shape, copy the rows, DROP
+        # the old table, rename. With foreign keys enforced -- which the
+        # application turns on for every connection -- that DROP fires ON
+        # DELETE CASCADE on everything pointing at the table, so migrating
+        # `content` silently deletes every row of content_category,
+        # navigation_item and newsletter_delivery while `content` itself
+        # survives intact. PRAGMA foreign_key_check then reports clean and
+        # nothing tells the operator.
+        #
+        # Issued straight to the driver, not through this connection: a
+        # statement run through SQLAlchemy starts a transaction, the pragma
+        # is ignored inside one, and Alembic's own transaction then never
+        # commits the version row -- leaving a database with the new schema
+        # that believes it was never migrated. Other engines rebuild nothing
+        # and are unaffected.
+        sqlite = connection.dialect.name == 'sqlite'
+        driver = connection.connection.driver_connection if sqlite else None
+        if sqlite:
+            driver.execute('PRAGMA foreign_keys=OFF')
 
-        with context.begin_transaction():
-            context.run_migrations()
+        try:
+            context.configure(
+                connection=connection,
+                target_metadata=get_metadata(),
+                **conf_args
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
+
+            if sqlite:
+                # A migration that really does strand a reference should be
+                # loud rather than silent, now that nothing enforces it live.
+                dangling = driver.execute(
+                    'PRAGMA foreign_key_check').fetchall()
+                if dangling:
+                    raise RuntimeError(
+                        'Migration left rows pointing at rows that are not '
+                        f'there: {dangling[:10]}')
+        finally:
+            # In a finally, because this connection goes back to the pool
+            # afterwards and the connect event does not fire again on
+            # checkout. A migration that raised would otherwise hand the
+            # application a connection with foreign keys off for the rest of
+            # the process, making every ondelete='CASCADE' a silent no-op --
+            # which is the failure this whole block exists to prevent.
+            if sqlite:
+                driver.execute('PRAGMA foreign_keys=ON')
 
 
 if context.is_offline_mode():

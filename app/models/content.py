@@ -154,7 +154,18 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
     type = db.Column(db.String(50), nullable=False, default='article')
     title = db.Column(db.String(200), nullable=False)
-    slug = db.Column(db.String(200), nullable=False)
+    # Null for a child: a block inside an article has no address of its own.
+    slug = db.Column(db.String(200), nullable=True)
+    # The item this one lives inside, if any. A block is an ordinary content
+    # row with a parent -- same registry, same fields, same renderer, same
+    # validation -- rather than a second kind of thing with its own of each.
+    # A child that earns its own page loses its parent and gains a slug; no
+    # conversion between shapes, which is the whole reason it is one table.
+    parent_id = db.Column(BigIntFK,
+                          db.ForeignKey('content.id', ondelete='CASCADE',
+                                        name='fk_content_parent_id'),
+                          nullable=True)
+    position = db.Column(db.Integer, nullable=True)
     body = db.Column(db.Text, nullable=False, default='')
     # The teaser a non-member sees in place of a gated item. It began as a
     # hand-written summary, was dropped when every item was made to
@@ -181,12 +192,37 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     categories = db.relationship('Category', secondary=content_category,
                                  lazy='select')
     featured_upload = db.relationship('Upload', lazy='select')
+    # delete-orphan as well as cascade: detaching a child from its parent in
+    # Python has to mean the same thing as ON DELETE CASCADE means in the
+    # database, or the two disagree about what a parentless block is.
+    children = db.relationship('Content', lazy='select',
+                               order_by='Content.position, Content.id',
+                               cascade='all, delete-orphan',
+                               backref=db.backref('parent', remote_side='Content.id'))
 
     __table_args__ = (
-        db.UniqueConstraint('org_id', 'type', 'slug',
-                            name='uq_content_org_type_slug'),
+        # Two unique rules, because there are two address spaces. A
+        # standalone item's address is unique across the organization; a
+        # block's is unique inside the item it belongs to, so two courses
+        # can each hold a lesson at .../lessons/one, which is the obvious
+        # thing to want and what a single organization-wide rule refuses.
+        #
+        # Partial indexes rather than one constraint over both, because a
+        # constraint including parent_id would treat every standalone row as
+        # distinct from every other -- nulls do not compare equal -- and two
+        # articles could then share an address. Both engines have supported
+        # partial indexes for a decade, and the suite runs on both.
+        db.Index('uq_content_org_type_slug', 'org_id', 'type', 'slug',
+                 unique=True,
+                 sqlite_where=db.text('parent_id IS NULL'),
+                 postgresql_where=db.text('parent_id IS NULL')),
+        db.Index('uq_content_parent_type_slug',
+                 'org_id', 'parent_id', 'type', 'slug', unique=True,
+                 sqlite_where=db.text('parent_id IS NOT NULL'),
+                 postgresql_where=db.text('parent_id IS NOT NULL')),
         db.Index('ix_content_org_type_status',
                  'org_id', 'type', 'status'),
+        db.Index('ix_content_parent_position', 'org_id', 'parent_id', 'position'),
     )
 
     STATUSES = ('draft', 'published', 'archived')
@@ -235,8 +271,14 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         # deriving first would look for a free address among rows whose type
         # is still None, find nothing taken, and hand back a slug that the
         # uniqueness check then refuses.
-        self.slug = (self.slug or '').strip().lower()
-        if not self.slug:
+        self.slug = (self.slug or '').strip().lower() or None
+        if self.is_child and not self._wants_an_address():
+            # A block read only inside its parent has no address, so there
+            # is nothing to derive and nothing to keep unique. Any slug that
+            # came in with it is dropped rather than stored unused: a value
+            # nothing reads is a value somebody will eventually believe.
+            self.slug = None
+        elif not self.slug:
             self.slug = self._free_slug(slugify(self.title))
             if not self.slug:
                 raise ValidationError(
@@ -258,7 +300,8 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
                                     ('body', 'Body', BODY_MAX)):
             if len(getattr(self, field) or '') > limit:
                 raise ValidationError(f'{label} too long (max {limit} chars)')
-        if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,198})?', self.slug):
+        if self.slug is not None and not re.fullmatch(
+                r'[a-z0-9]([a-z0-9-]{0,198})?', self.slug):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
         if self.type not in CONTENT_TYPES:
             raise ValidationError(f'Unknown content type: {self.type}')
@@ -289,9 +332,13 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
                     'Template must be lowercase letters, numbers and '
                     'hyphens: a template name, not a path')
 
-        # Page slugs live at /<slug>, so they cannot shadow app routes or a
-        # feed type's base segment (e.g. "blog", "events").
-        if self.content_type.is_page:
+        if self.is_child:
+            self._validate_as_child()
+            if self.slug is None:
+                return          # no address, so nothing left to check
+        elif self.content_type.is_page:
+            # Page slugs live at /<slug>, so they cannot shadow app routes
+            # or a feed type's base segment (e.g. "blog", "events").
             # Every archive base, not just the tenant's active ones: a page
             # must not take a slug that a later plugin install would shadow.
             bases = {ct.base.strip('/') for ct in CONTENT_TYPES.values()
@@ -299,14 +346,122 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
             if self.slug in RESERVED_PAGE_SLUGS or self.slug in bases:
                 raise ValidationError('That slug is reserved')
 
-        # Unique per (org, type, slug): a page "about" and an article "about"
-        # can coexist because they live at different URLs.
-        existing = scoped_to_own_org(
-            Content.query.filter_by(type=self.type, slug=self.slug),
-            self).first()
+        # Unique per (org, type, slug) for a standalone row -- a page
+        # "about" and an article "about" coexist because they live at
+        # different URLs -- and per (parent, type, slug) for a block, so two
+        # courses can each have a lesson called "one".
+        query = Content.query.filter_by(type=self.type, slug=self.slug,
+                                        parent_id=self.parent_id)
+        existing = scoped_to_own_org(query, self).first()
         if existing and existing.id != self.id:
             raise ValidationError(
                 f'A {self.content_type.singular.lower()} with that slug already exists')
+
+    def _wants_an_address(self) -> bool:
+        """Does a block of this type get a URL under its parent?
+
+        Asked without going through content_type, which assumes the type is
+        registered: this runs before the type has been checked.
+        """
+        from app.platform.content_types import CONTENT_TYPES
+        content_type = CONTENT_TYPES.get(self.type)
+        return bool(content_type and content_type.child_routable)
+
+    def _validate_as_child(self) -> None:
+        """What has to be true of a block, checked where everything else
+        about a content row is checked.
+
+        One level, deliberately. A block inside a block inside a block is a
+        layout tree, and the axiom this architecture is built on is that
+        Supremely is not a site builder: blocks are content, never layout.
+        One level also keeps rendering and routing finite -- a parent draws
+        its children and that is the end of it.
+        """
+        parent = self.parent
+        if parent is None:
+            # Set by id without the object loaded, which is normal on a save.
+            parent = Content.query.filter_by(id=self.parent_id).first()
+        if parent is None:
+            raise ValidationError('That block has no parent')
+        if parent.id == self.id:
+            raise ValidationError('An item cannot be inside itself')
+        if parent.parent_id is not None:
+            raise ValidationError(
+                'Blocks go one level deep: this one is already inside '
+                'something else')
+        if self.children:
+            raise ValidationError(
+                'Blocks go one level deep: this one already has blocks of '
+                'its own')
+        if self.position is None:
+            # Added blocks go on the end. Set here rather than in the editor
+            # so a seed, an import or a plugin gets an order too, instead of
+            # a pile of nulls that sort differently on each engine.
+            taken = [sibling.position for sibling in parent.children
+                     if sibling.id != self.id and sibling.position is not None]
+            self.position = max(taken, default=-1) + 1
+
+    @property
+    def is_child(self) -> bool:
+        return self.parent_id is not None
+
+    def move_child(self, child_id: int, delta: int) -> None:
+        """Move one block up or down inside this item.
+
+        Positions are rewritten from the resulting order rather than swapped
+        in place: rows written before positions existed, or by a seed or an
+        import, can hold nulls and duplicates, and a swap between two of
+        those moves nothing. Renumbering makes the order true whatever it
+        started as. Asking to move the first block up is not an error, it
+        just leaves the order alone.
+        """
+        blocks = list(self.children)
+        index = next((i for i, block in enumerate(blocks)
+                      if block.id == child_id), None)
+        if index is None:
+            raise ValidationError('That block is not in this item')
+        target = index + delta
+        if 0 <= target < len(blocks):
+            blocks.insert(target, blocks.pop(index))
+        for position, block in enumerate(blocks):
+            block.position = position
+        self.save()
+
+    def visible_children(self) -> list['Content']:
+        """The blocks of this item to list, for the current visitor.
+
+        A child decides its own visibility, and that is the point rather
+        than an oversight: lesson one of a course is public and the rest are
+        members-only, which is a free preview for the price of a nullable
+        column. Draft blocks are left out of a published parent the same way
+        a draft article is left out of an archive.
+
+        Listing follows the organization's tease-or-hide switch, the same
+        one visible_query applies to archives, so a gated lesson is a locked
+        title on the course page where the organization teases and is absent
+        where it does not.
+
+        Not gated on whether the organization still publishes the block's
+        type, deliberately, and this is the one place that answer differs
+        from published_query's. Turning a type off means it stops being
+        published as a section: its archive goes, its listings go, its
+        routes go. It does not mean deleting words out of the middle of an
+        article somebody wrote. A block is part of its parent, and the
+        parent is what was turned on. Deciding it separately here would have made a
+        course the one place in the product where gating means "vanish"
+        while everywhere else it means "locked title", and left the lesson's
+        own gate page undiscoverable. The template still asks can_view about
+        each one before it draws a body.
+        """
+        from flask import g
+
+        from app.platform.authz import is_member_or_platform_admin
+        org = getattr(g, 'org', None)
+        teasing = bool(org and org.type_teases(self.type))
+        return [child for child in self.children
+                if child.is_published
+                and (teasing or is_member_or_platform_admin()
+                     or child.visible_to_current_visitor())]
 
     def _free_slug(self, base: str) -> str:
         """An address near `base` that is actually available.
@@ -339,8 +494,12 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         def taken(candidate: str) -> bool:
             if candidate in reserved:
                 return True
+            # In the same address space this row lives in: a block only
+            # has to be unique inside its parent, so a lesson called "one"
+            # in another course is not a clash.
             clash = scoped_to_own_org(
-                Content.query.filter_by(type=self.type, slug=candidate),
+                Content.query.filter_by(type=self.type, slug=candidate,
+                                        parent_id=self.parent_id),
                 self).first()
             return clash is not None and clash.id != self.id
 
@@ -393,7 +552,27 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
     @property
     def permalink(self) -> str:
+        """Where this item is read.
+
+        A block has no address of its own. One whose type wants pages gets
+        one under its parent -- /courses/intro/lessons/one -- and one whose
+        type does not is read inside its parent, so that is where a link to
+        it goes. Never an empty href: a template that links a block should
+        not have to know which kind it has.
+        """
         ct = self.content_type
+        if self.is_child:
+            parent = self.parent
+            if parent is None:
+                return ''
+            # A block's own address exists only where something serves it:
+            # under a parent whose type has an archive base to hang it from.
+            # A block inside a standalone page is read in that page, so that
+            # is the honest link -- better than a tidy-looking 404.
+            if (ct.child_routable and self.slug
+                    and parent.content_type.has_archive):
+                return f'{parent.permalink}{ct.base}/{self.slug}'
+            return parent.permalink
         if ct.is_page:
             return f'/{self.slug}'
         return f'{ct.base}/{self.slug}'
@@ -478,8 +657,26 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     # --- queries -----------------------------------------------------------
 
     @classmethod
+    def standalone(cls):
+        """Content that stands on its own, which is what a listing means.
+
+        A block inside an article is a content row like any other, so every
+        archive, feed, count, sitemap and search would list it next to the
+        article it belongs to unless something says otherwise. This is that
+        something, and it is one method rather than a parent_id test at each
+        of the dozen readers, for the same reason the tenant filter is one
+        filter: a listing added later gets the rule by starting here, and
+        the twelfth caller cannot forget what the first eleven remembered.
+
+        Deliberately not a global filter like the tenant one. Rendering a
+        parent has to be able to load its children, and a rule with an
+        exception is a rule every caller has to think about.
+        """
+        return cls.query.filter(cls.parent_id.is_(None))
+
+    @classmethod
     def of_type(cls, type_slug: str):
-        return cls.query.filter_by(type=type_slug)
+        return cls.standalone().filter_by(type=type_slug)
 
     @classmethod
     def count_by_type(cls):
@@ -488,6 +685,7 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
         from app.extensions import db
         return (db.session.query(cls.type, sa.func.count(cls.id))
+                .filter(cls.parent_id.is_(None))
                 .group_by(cls.type).all())
 
     @classmethod
@@ -507,7 +705,7 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         """
         from app.platform.content_types import active_types
         active = active_types()
-        q = cls.query.filter_by(status='published')
+        q = cls.standalone().filter_by(status='published')
         if type_slug:
             if type_slug not in active:
                 return q.filter(sa.false())
@@ -593,8 +791,9 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
     @classmethod
     def published_by_slug(cls, type_slug: str, slug: str):
-        return cls.query.filter_by(type=type_slug, status='published',
-                                   slug=(slug or '').strip().lower()).first()
+        return cls.standalone().filter_by(
+            type=type_slug, status='published',
+            slug=(slug or '').strip().lower()).first()
 
     @classmethod
     def published_page(cls, slug: str):

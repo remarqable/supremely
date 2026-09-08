@@ -576,3 +576,180 @@ def test_a_locked_section_is_not_advertised_at_all(app, client, acme, user):
     login_as(client, user)
     assert 'Episode four' in client.get(
         '/', base_url=ACME).get_data(as_text=True)
+
+
+# --- blocks on the public site -------------------------------------------------
+
+def publish_course(app, org, title='Intro to Woodwork', slug='intro'):
+    # Both are library types an organization opts into, so a test that wants
+    # a course has to ask for one the same way an organization does.
+    org.set_type_settings('course', enabled=True)
+    org.set_type_settings('lesson', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = org
+        course = Content(type='course', title=title, slug=slug,
+                         body='What this course covers.', org_id=org.id,
+                         tags=[], visibility='public', fields={})
+        course.save()
+        course.publish()
+        return course
+
+
+def add_block(app, org, parent, **kwargs):
+    defaults = {'type': 'recipe', 'title': 'A recipe card', 'body': 'Mix it.',
+                'org_id': org.id, 'tags': [], 'fields': {},
+                'visibility': 'public', 'parent_id': parent.id}
+    defaults.update(kwargs)
+    with app.test_request_context(base_url=ACME):
+        g.org = org
+        child = Content(**defaults)
+        child.save()
+        child.publish()
+        return child
+
+
+def test_a_block_renders_inside_its_parent_and_nowhere_else(app, client, acme,
+                                                            user):
+    """The acceptance: a card added to an article is read below the article
+    and appears in no archive, no feed and no count."""
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        acme.set_type_settings('recipe', enabled=True)
+    article = publish_article(app, acme, 'host', 'Host article', 'The prose.')
+    add_block(app, acme, Content.published_by_slug('article', 'host'),
+              title='Sourdough card', body='Flour, water, salt.')
+
+    page = client.get('/blog/host', base_url=ACME).get_data(as_text=True)
+    assert 'The prose.' in page
+    assert 'Sourdough card' in page          # below the body
+    assert 'Flour, water, salt.' in page
+
+    # ...and nowhere a standalone recipe would be.
+    assert 'Sourdough card' not in client.get(
+        '/recipes', base_url=ACME).get_data(as_text=True)
+    assert 'Sourdough card' not in client.get(
+        '/', base_url=ACME).get_data(as_text=True)
+    assert client.get('/recipes/sourdough-card', base_url=ACME).status_code == 404
+    assert article                            # the article itself is untouched
+
+
+def test_a_gated_block_is_teased_or_hidden_like_anything_else(app, client,
+                                                              acme, user):
+    """A block decides its own visibility -- lesson one public, the rest
+    members-only -- and listing it follows the organization's tease-or-hide
+    switch, exactly as an archive does.
+
+    Deciding it separately for blocks would make a course the one place in
+    the product where gating means "vanish" while everywhere else it means
+    "locked title", and would leave the lesson's own gate page with nothing
+    linking to it.
+    """
+    course = publish_course(app, acme)
+    add_block(app, acme, course, type='lesson', title='Lesson one', slug='one',
+              body='Free preview.', visibility='public')
+    add_block(app, acme, course, type='lesson', title='Lesson two', slug='two',
+              body='Paid content.', visibility='members')
+
+    acme.update_settings(gated_teasers=True)          # the default
+    teased = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert 'Free preview.' in teased
+    assert 'Lesson two' in teased                     # the title, locked
+    assert 'Paid content.' not in teased              # never the body
+
+    acme.update_settings(gated_teasers=False)
+    hidden = client.get('/courses/intro', base_url=ACME).get_data(as_text=True)
+    assert 'Lesson one' in hidden
+    assert 'Lesson two' not in hidden
+    assert 'Paid content.' not in hidden
+
+    login_as(client, user)
+    for teasing in (True, False):
+        acme.update_settings(gated_teasers=teasing)
+        member_page = client.get('/courses/intro',
+                                 base_url=ACME).get_data(as_text=True)
+        assert 'Lesson two' in member_page, teasing
+        assert 'Paid content.' in member_page, teasing
+
+
+def test_a_routable_block_has_a_page_under_its_parent(app, client, acme, user):
+    course = publish_course(app, acme)
+    add_block(app, acme, course, type='lesson', title='Lesson one', slug='one',
+              body='The first lesson.')
+
+    landed = client.get('/courses/intro/lessons/one', base_url=ACME)
+    assert landed.status_code == 200
+    assert b'The first lesson.' in landed.data
+    # The lesson is not also published beside its course.
+    assert client.get('/lessons/one', base_url=ACME).status_code == 404
+
+
+def test_a_block_under_a_gated_parent_is_not_reachable_by_its_address(app,
+                                                                      client,
+                                                                      acme,
+                                                                      user):
+    """Knowing the URL is not membership. The course gates the lesson
+    whatever the lesson says about itself."""
+    acme.set_type_settings('course', enabled=True)
+    acme.set_type_settings('lesson', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        course = Content(type='course', title='Members course', slug='paid',
+                         body='Members only.', org_id=acme.id, tags=[],
+                         visibility='members', fields={})
+        course.save()
+        course.publish()
+    add_block(app, acme, course, type='lesson', title='Lesson one', slug='one',
+              body='Should not leak.', visibility='public')
+
+    landed = client.get('/courses/paid/lessons/one', base_url=ACME)
+    assert b'Should not leak.' not in landed.data
+
+    login_as(client, user)
+    assert b'Should not leak.' in client.get('/courses/paid/lessons/one',
+                                             base_url=ACME).data
+
+
+def test_the_child_route_does_not_swallow_application_urls(app, client, acme,
+                                                           user):
+    """A four-segment rule that matched anything would answer 404 where the
+    application's own rule should answer."""
+    login_as(client, user)
+    # POST-only: the honest answer is "wrong method", not "no such page".
+    assert client.get('/manage/content/article/preview',
+                      base_url=ACME).status_code in (403, 405)
+
+
+def test_the_reserved_slugs_cover_every_mounted_prefix(app):
+    """The four-segment child route is kept off application paths by
+    RESERVED_PAGE_SLUGS, so a blueprint mounted at a prefix that is not in
+    that list would be silently swallowed: a GET to a POST-only URL under it
+    would answer 404 instead of letting the real rule answer.
+
+    The list is also what stops a page taking that slug, so the two uses
+    agree by construction -- but only while it is complete.
+    """
+    from app.models.content import RESERVED_PAGE_SLUGS
+    mounted = {rule.rule.strip('/').split('/')[0]
+               for rule in app.url_map.iter_rules()}
+    prefixes = {segment for segment in mounted
+                if segment and not segment.startswith('<')}
+    assert prefixes <= RESERVED_PAGE_SLUGS, sorted(prefixes - RESERVED_PAGE_SLUGS)
+
+
+def test_blocks_render_inside_a_page_too(app, client, acme, user):
+    """A page can hold blocks, so a page has to draw them. The editor offers
+    the Add block form on any saved standalone row, pages included."""
+    acme.set_type_settings('recipe', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        page = Content(type='page', title='About us', slug='about-us',
+                       body='Who we are.', org_id=acme.id, tags=[],
+                       visibility='public', fields={})
+        page.save()
+        page.publish()
+    add_block(app, acme, page, title='A card', body='Mix it.')
+
+    body = client.get('/about-us', base_url=ACME).get_data(as_text=True)
+    assert 'Who we are.' in body
+    assert 'A card' in body
+    assert 'Mix it.' in body

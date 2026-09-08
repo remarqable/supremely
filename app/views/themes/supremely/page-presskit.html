@@ -46,6 +46,10 @@
     {{ page.html | safe }}
   </section>
 
+  {% with content = page %}
+  <div class="mt-12 max-w-2xl">{% include blocks_template() with context %}</div>
+  {% endwith %}
+
   {# ---- Logos & icons --------------------------------------------------- #}
   <section class="mt-16" aria-labelledby="presskit-logos">
     <h2 id="presskit-logos" class="text-2xl font-bold tracking-tight">Logos &amp; icons</h2>

@@ -67,7 +67,9 @@ def test_planned_types_are_valid_and_unregistered(app):
     its own address, which nothing in the model can express yet.
     """
     validate_planned_types()
-    assert [planned.slug for planned in COMING_SOON] == ['course']
+    # Empty now that course and lesson ship. The mechanism stays for the
+    # next type that needs a platform feature we don't have yet.
+    assert [planned.slug for planned in COMING_SOON] == []
 
 
 def test_a_video_asks_for_a_url_and_nothing_else(app):

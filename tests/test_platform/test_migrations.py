@@ -217,3 +217,105 @@ def test_the_downgrade_does_not_republish_what_was_turned_off(migrated_app):
     assert types.get('episode', {}).get('enabled') is False   # still off
     assert types.get('episode', {}).get('tease') is False     # still kept
     assert types.get('article', {}).get('visibility') == 'members'
+
+
+def test_a_migration_does_not_delete_rows_that_point_at_what_it_alters(tmp_path):
+    """The failure mode of SQLite batch migrations, in a test.
+
+    SQLite cannot alter a column in place, so Alembic rebuilds the table:
+    create, copy, DROP the old one, rename. With foreign keys enforced, the
+    DROP fires ON DELETE CASCADE on everything referencing it, so migrating
+    `content` deletes every row of content_category, navigation_item and
+    newsletter_delivery, leaves `content` itself intact, and passes
+    PRAGMA foreign_key_check afterwards. Nothing anywhere reports it.
+
+    Seeded before the revision that rebuilds the table and counted after.
+    Every other test builds its schema from the models, so this is the only
+    place the real upgrade path is exercised with data in it.
+    """
+    class Cfg(TestConfig):
+        DATA_DIR = str(tmp_path)
+
+    app = create_app(Cfg)
+    with app.app_context():
+        _wipe()
+        upgrade(revision='a13451eb2b44')       # the revision before the rebuild
+        db.session.execute(text(
+            "INSERT INTO organization (id, name, slug, theme, is_active,"
+            " settings, created_at, updated_at)"
+            " VALUES (1, 'T', 't', 'origin', true, '{}',"
+            " CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+        db.session.execute(text(
+            "INSERT INTO content (id, org_id, type, title, slug, body, fields,"
+            " tags, status, visibility, presentation, created_at, updated_at)"
+            " VALUES (1, 1, 'article', 'H', 'h', 'x', '{}', '[]', 'published',"
+            " 'public', 'site', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+        db.session.execute(text(
+            "INSERT INTO category (id, org_id, name, slug, created_at,"
+            " updated_at) VALUES (1, 1, 'C', 'c', CURRENT_TIMESTAMP,"
+            " CURRENT_TIMESTAMP)"))
+        db.session.execute(text(
+            'INSERT INTO content_category (content_id, category_id)'
+            ' VALUES (1, 1)'))
+        db.session.execute(text(
+            "INSERT INTO navigation_item (id, org_id, menu, label, url,"
+            " content_id, position, created_at, updated_at)"
+            " VALUES (1, 1, 'primary', 'H', '/h', 1, 0, CURRENT_TIMESTAMP,"
+            " CURRENT_TIMESTAMP)"))
+        db.session.commit()
+        db.session.remove()
+
+        upgrade()
+
+        counted = {
+            table: db.session.execute(
+                text(f'SELECT count(*) FROM {table}')).scalar()
+            for table in ('content', 'content_category', 'navigation_item')}
+        assert counted == {'content': 1, 'content_category': 1,
+                           'navigation_item': 1}, counted
+        # ...and the reference still resolves, rather than surviving as a
+        # row pointing at nothing.
+        assert db.session.execute(text(
+            'SELECT content_id FROM navigation_item WHERE id = 1')).scalar() == 1
+        db.session.remove()
+        _wipe()
+
+
+def test_a_failed_migration_leaves_foreign_keys_enforced(tmp_path, monkeypatch):
+    """The pragma that protects the batch rebuild must not outlive it.
+
+    Migrations run with SQLite foreign keys off, because Alembic's batch mode
+    rebuilds the table and the DROP would cascade. The connection then goes
+    back into the pool, and the connect event does not fire again on
+    checkout, so a migration that raised part-way would hand the application
+    a connection with enforcement off for the rest of the process -- turning
+    every ondelete='CASCADE' into a silent no-op.
+    """
+    class Cfg(TestConfig):
+        DATA_DIR = str(tmp_path)
+
+    app = create_app(Cfg)
+    with app.app_context():
+        _wipe()
+        if db.engine.dialect.name != 'sqlite':
+            pytest.skip('the pragma only applies to SQLite')
+
+        import alembic.runtime.migration as runtime
+
+        def explode(self, *args, **kwargs):
+            raise RuntimeError('migration blew up')
+
+        monkeypatch.setattr(runtime.MigrationContext, 'run_migrations', explode)
+        # Flask-Migrate catches the error and exits, so the exception that
+        # escapes here is SystemExit rather than the one raised inside.
+        with pytest.raises(SystemExit):
+            upgrade()
+        monkeypatch.undo()
+
+        enforced = db.session.execute(
+            text('PRAGMA foreign_keys')).scalar()
+        db.session.remove()
+        assert enforced == 1, (
+            'the migration connection went back to the pool with foreign '
+            'keys off')
+        _wipe()

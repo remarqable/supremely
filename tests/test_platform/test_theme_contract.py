@@ -580,3 +580,96 @@ def test_every_bundled_theme_can_show_the_window(app, client, acme):
         acme.save()
         body = client.get('/', base_url=ACME).get_data(as_text=True)
         assert 'A shopfront article' in body, slug
+
+
+def test_a_theme_can_replace_the_block_section_and_one_block(app, client, acme):
+    """Both block seams go through the theme chain.
+
+    The wrapper used to be a literal include path, so a theme shipping its
+    own _content_blocks.html was ignored unless it also overrode
+    single.html -- which is not what the theme contract promises.
+    """
+    acme.set_type_settings('recipe', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        host = publish(acme, 'Host article')
+        card = Content(type='recipe', title='A card', body='Mix it.',
+                       org_id=acme.id, fields={}, tags=[],
+                       visibility='public', parent_id=host.id)
+        card.save()
+        card.publish()
+
+    install(app, acme, **{
+        '_content_blocks.html':
+            '<div class="my-blocks">'
+            '{% for block in content.visible_children() %}'
+            '{% include block_template(block) with context %}'
+            '{% endfor %}</div>',
+        'content-block-recipe.html':
+            '<p class="my-recipe">{{ block.title }}</p>',
+    })
+    body = client.get('/blog/host-article', base_url=ACME).get_data(as_text=True)
+    assert 'class="my-blocks"' in body        # the theme's own wrapper
+    assert 'class="my-recipe"' in body        # and its own block
+    assert 'A card' in body
+
+
+def test_every_bundled_theme_renders_the_blocks_in_a_page(app, client, acme):
+    """A theme that ships its own page template has to draw blocks too.
+
+    The blocks section was added to the community templates and to Origin
+    and not to the Supremely theme's own page.html, so a page's blocks were
+    silently dropped for anyone using it. Same shape of miss as the front
+    page window, so it gets the same shape of test: vary the theme.
+    """
+    from app.platform.theming import AVAILABLE_THEMES
+    acme.set_type_settings('recipe', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        page = Content(type='page', title='About us', slug='about-us',
+                       body='Who we are.', org_id=acme.id, fields={}, tags=[],
+                       visibility='public')
+        page.save()
+        page.publish()
+        card = Content(type='recipe', title='Inline card', body='Mix it.',
+                       org_id=acme.id, fields={}, tags=[],
+                       visibility='public', parent_id=page.id)
+        card.save()
+        card.publish()
+
+    for slug in AVAILABLE_THEMES:
+        acme.theme = slug
+        acme.save()
+        body = client.get('/about-us', base_url=ACME).get_data(as_text=True)
+        assert 'Who we are.' in body, slug
+        assert 'Inline card' in body, slug
+
+
+def test_the_documented_theme_recipe_is_the_one_that_works(app, client, acme):
+    """A theme following docs/themes/README.md verbatim gets what the doc
+    promises. The recipe used to be a literal include path, which quietly
+    ignored the theme's own wrapper."""
+    acme.set_type_settings('recipe', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        host = publish(acme, 'Host article')
+        card = Content(type='recipe', title='Inline card', body='Mix it.',
+                       org_id=acme.id, fields={}, tags=[],
+                       visibility='public', parent_id=host.id)
+        card.save()
+        card.publish()
+
+    install(app, acme, **{
+        # Exactly the two snippets the documentation gives.
+        'single.html': """{% extends site_layout %}
+{% block content %}<div>{{ content.html | safe }}</div>
+{% include blocks_template() with context %}{% endblock %}""",
+        '_content_blocks.html':
+            '<div class="doc-wrapper">'
+            '{% for block in content.visible_children() %}'
+            '{% include block_template(block) with context %}'
+            '{% endfor %}</div>',
+    })
+    body = client.get('/blog/host-article', base_url=ACME).get_data(as_text=True)
+    assert 'class="doc-wrapper"' in body
+    assert 'Inline card' in body

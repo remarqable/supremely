@@ -1,4 +1,5 @@
-"""One map for what an organization does with each content type
+"""One map for what an organization does with each content type, and content
+that lives inside other content
 
 Settings about a content type were keyed by slug in their own map
 (settings['section_visibility']), and the work that follows wanted two more
@@ -22,6 +23,19 @@ same answer from. The downgrade rebuilds it, and leaves the new map in place
 rather than deleting it: the code this reverts to ignores keys it does not
 know, and throwing away which sections an organization had turned off would
 republish them the moment anybody rolled forward again.
+
+The same revision also gives content a parent. A block inside an article -- a
+recipe card, a lesson in a course -- is an ordinary content row with
+content.parent_id set, ordered by content.position, and it has no address of
+its own, so content.slug becomes nullable. One registry, one field system,
+one renderer: an inline block is not a second kind of thing.
+
+That gives content two address spaces rather than one, so the single unique
+rule over (org_id, type, slug) becomes two partial ones: standalone rows stay
+unique across the organization, and blocks are unique inside the item they
+belong to. Without the split, two courses could not each hold a lesson called
+"one", and folding parent_id into one constraint instead would let two
+articles share an address, because nulls never compare equal.
 
 Revision ID: c41d7a9e3b52
 Revises: a13451eb2b44
@@ -88,6 +102,35 @@ def _types_in_use(bind):
 
 
 def upgrade():
+    # Batch mode because making slug nullable is an ALTER SQLite cannot do
+    # in place: Alembic rebuilds the table and copies the rows.
+    with op.batch_alter_table('content', schema=None) as batch:
+        batch.add_column(sa.Column(
+            'parent_id',
+            sa.BigInteger().with_variant(sa.Integer(), 'sqlite'),
+            nullable=True))
+        batch.add_column(sa.Column('position', sa.Integer(), nullable=True))
+        batch.alter_column('slug', existing_type=sa.String(length=200),
+                           nullable=True)
+        # Deleting a course deletes its lessons. Named, because an unnamed
+        # constraint cannot be dropped again on a downgrade.
+        batch.create_foreign_key('fk_content_parent_id', 'content',
+                                 ['parent_id'], ['id'], ondelete='CASCADE')
+        batch.drop_constraint('uq_content_org_type_slug', type_='unique')
+    # Every render of a parent asks for its children in order, and every
+    # listing asks for rows that have no parent.
+    op.create_index('ix_content_parent_position', 'content',
+                    ['org_id', 'parent_id', 'position'])
+    # The old single rule, now applying only where it was ever right.
+    op.create_index('uq_content_org_type_slug', 'content',
+                    ['org_id', 'type', 'slug'], unique=True,
+                    sqlite_where=sa.text('parent_id IS NULL'),
+                    postgresql_where=sa.text('parent_id IS NULL'))
+    op.create_index('uq_content_parent_type_slug', 'content',
+                    ['org_id', 'parent_id', 'type', 'slug'], unique=True,
+                    sqlite_where=sa.text('parent_id IS NOT NULL'),
+                    postgresql_where=sa.text('parent_id IS NOT NULL'))
+
     bind = op.get_bind()
     in_use = _types_in_use(bind)
     # Read every row before writing any: updating a table while a select on
@@ -120,6 +163,23 @@ def downgrade():
     throw away which sections an organization had turned off, and rolling
     forward again would republish every one of them.
     """
+    # Children have no address, so there is nowhere to put them: a schema
+    # without parent_id cannot hold them at all. Deleting them is the only
+    # honest downgrade, and it happens before slug goes back to NOT NULL,
+    # which would otherwise fail on their empty slugs.
+    op.drop_index('ix_content_parent_position', table_name='content')
+    op.drop_index('uq_content_parent_type_slug', table_name='content')
+    op.drop_index('uq_content_org_type_slug', table_name='content')
+    op.execute('DELETE FROM content WHERE parent_id IS NOT NULL')
+    with op.batch_alter_table('content', schema=None) as batch:
+        batch.create_unique_constraint('uq_content_org_type_slug',
+                                       ['org_id', 'type', 'slug'])
+        batch.drop_constraint('fk_content_parent_id', type_='foreignkey')
+        batch.drop_column('position')
+        batch.drop_column('parent_id')
+        batch.alter_column('slug', existing_type=sa.String(length=200),
+                           nullable=False)
+
     bind = op.get_bind()
     for org_id, settings in list(_rows(bind)):
         entries = settings.get(SETTINGS_KEY) or {}

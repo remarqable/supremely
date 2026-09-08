@@ -36,6 +36,7 @@ from app.platform.content_types import (
     ContentType,
     active_types,
     get_content_type,
+    nestable_types,
     offerable_sections,
     site_entry_types,
     submitted_fields,
@@ -273,7 +274,9 @@ def _render_content_form(content, ct, submitted=None):
                            content_type=ct, image_uploads=image_uploads,
                            file_uploads=file_uploads,
                            list_row_cap=LIST_ROW_CAP, submitted=submitted,
+                           block_types=nestable_types(content),
                            categories=Category.query.order_by(Category.name).all())
+
 
 
 @bp.route('/content/<type_slug>/new', methods=['GET', 'POST'])
@@ -354,9 +357,54 @@ def edit_content(content_id):
 def delete_content(content_id):
     content = _active_content_or_404(content_id)
     type_slug = content.type
+    parent_id = content.parent_id
     content.delete()
     flash(t('manage.content_deleted'), 'success')
+    if parent_id is not None:
+        # Back to the item it was written inside, which is where the author
+        # is working. A block has no listing of its own to return to.
+        return redirect(url_for('manage.edit_content', content_id=parent_id))
     return redirect(url_for('manage.content_list', type_slug=type_slug))
+
+
+@bp.route('/content/<int:content_id>/blocks', methods=['POST'])
+@org_required
+@require('content.write')
+def add_block(content_id: int) -> ResponseReturnValue:
+    """Start a block inside this item and open it for writing.
+
+    A block is an ordinary content row, so it is written in the ordinary
+    editor rather than in a second one nested inside this form. That is the
+    point of blocks being content: there is one place that knows how to
+    edit a type's fields, and adding blocks did not have to build another.
+    """
+    parent = _active_content_or_404(content_id)
+    type_slug = request.form.get('block_type', '')
+    if parent.is_child or type_slug not in {ct.slug for ct
+                                            in nestable_types(parent)}:
+        abort(404)
+    block = Content(type=type_slug, parent_id=parent.id,
+                    title=t('manage.untitled_block'), body='')
+    block.stamp_audit()
+    block.save()
+    return redirect(url_for('manage.edit_content', content_id=block.id))
+
+
+@bp.route('/content/<int:content_id>/blocks/move', methods=['POST'])
+@org_required
+@require('content.write')
+def move_block(content_id: int) -> ResponseReturnValue:
+    """Move one block up or down inside its parent.
+
+    How the order is kept is the model's rule, not this page's.
+    """
+    parent = _active_content_or_404(content_id)
+    try:
+        parent.move_child(request.form.get('block_id', type=int),
+                          -1 if request.form.get('direction') == 'up' else 1)
+    except ValidationError:
+        abort(404)
+    return redirect(url_for('manage.edit_content', content_id=parent.id))
 
 
 def _render_preview(content: Content, ct: ContentType) -> str:
@@ -1049,6 +1097,11 @@ def send_content_newsletter(content_id):
     from app.platform.mailer import is_email_configured
 
     content = _active_content_or_404(content_id)
+    if content.is_child:
+        # A block is read inside the thing it belongs to. Mailing one would
+        # hand it a delivery record and a line in the newsletter archive --
+        # an address for something that has none by design.
+        abort(404)
     if not is_email_configured():
         flash(t('newsletter.email_required_to_send'), 'error')
         return redirect(url_for('manage.edit_content', content_id=content.id))
