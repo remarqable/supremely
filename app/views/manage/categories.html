@@ -51,9 +51,17 @@
             </div>
             <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
           </div>
-          <div>
-            <span class="label">{{ _('manage.category_icon') }}</span>
-            <div class="mt-1.5">{{ icon_picker('icon', icons, category.icon) }}</div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <span class="label">{{ _('manage.category_icon') }}</span>
+              <div class="mt-1.5">{{ icon_picker('icon', icons, category.icon) }}</div>
+            </div>
+            <div>
+              <label for="tpl-{{ category.id }}" class="label">{{ _('manage.category_template') }}</label>
+              <textarea id="tpl-{{ category.id }}" name="body_template" rows="4"
+                        class="textarea mt-1 font-mono text-xs"
+                        placeholder="{{ _('manage.category_template_hint') }}">{{ category.body_template or '' }}</textarea>
+            </div>
           </div>
         </form>
         <div class="mt-2 flex items-center gap-3">
@@ -85,9 +93,17 @@
         </div>
         <button type="submit" class="btn-primary">{{ _('common.create') }}</button>
       </div>
-      <div>
-        <span class="label">{{ _('manage.category_icon') }}</span>
-        <div class="mt-1.5">{{ icon_picker('icon', icons) }}</div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <span class="label">{{ _('manage.category_icon') }}</span>
+          <div class="mt-1.5">{{ icon_picker('icon', icons) }}</div>
+        </div>
+        <div>
+          <label for="body_template" class="label">{{ _('manage.category_template') }}</label>
+          <textarea id="body_template" name="body_template" rows="4"
+                    class="textarea mt-1 font-mono text-xs"
+                    placeholder="{{ _('manage.category_template_hint') }}"></textarea>
+        </div>
       </div>
     </form>
   </div>

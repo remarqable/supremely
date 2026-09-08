@@ -390,7 +390,8 @@ def categories():
     if request.method == 'POST':
         category = Category(name=request.form.get('name', ''),
                             slug=request.form.get('slug', ''),
-                            icon=request.form.get('icon', ''))
+                            icon=request.form.get('icon', ''),
+                            body_template=request.form.get('body_template', ''))
         try:
             category.save()
             flash(t('common.saved'), 'success')
@@ -416,6 +417,7 @@ def edit_category(category_id):
     category.name = request.form.get('name', '')
     category.slug = request.form.get('slug', '')
     category.icon = request.form.get('icon', '')
+    category.body_template = request.form.get('body_template', '')
     try:
         category.save()
         flash(t('common.saved'), 'success')

@@ -27,7 +27,21 @@
    before 119 ignore preventDefault() here, and an empty returnValue means
    "do not prompt", so the two together are what arm the dialog everywhere. #}
 <form method="POST" enctype="multipart/form-data" class="grid gap-5 lg:grid-cols-3"
-      x-data="{ dirty: false }"
+      x-data="{ dirty: false,
+                {#- Offer the category's skeleton, never impose it: only when
+                    the body is still empty and exactly one category is
+                    picked, so it can neither overwrite writing nor guess
+                    between two templates. -#}
+                fillTemplate() {
+                  {#- document, not $el: this runs from the checkbox's own
+                      change handler, so $el is that checkbox. -#}
+                  const body = document.querySelector('#body');
+                  if (!body || body.value.trim()) return;
+                  const picked = document.querySelectorAll('input[name=category_ids]:checked');
+                  if (picked.length !== 1) return;
+                  const template = picked[0].dataset.template;
+                  if (template) { body.value = template; this.dirty = true; }
+                } }"
       @input="dirty = true" @change="dirty = true"
       @submit="if ($event.submitter?.formTarget !== '_blank') dirty = false"
       @beforeunload.window="if (dirty) { $event.preventDefault(); $event.returnValue = true }">
@@ -130,6 +144,8 @@
           {% for category in categories %}
           <label class="flex items-center gap-2 text-sm">
             <input type="checkbox" name="category_ids" value="{{ category.id }}"
+                   data-template="{{ category.body_template or '' }}"
+                   @change="fillTemplate()"
                    {{ 'checked' if content and category in content.categories }}>
             {{ category.name }}
           </label>

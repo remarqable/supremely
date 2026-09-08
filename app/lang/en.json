@@ -202,6 +202,8 @@
   "manage.categories": "Categories",
   "manage.categories_intro": "Categories group your posts. Each one can carry an icon, which a post shows on its card when it has no picture of its own.",
   "manage.category_icon": "Icon",
+  "manage.category_template": "New item template",
+  "manage.category_template_hint": "Markdown headings a new item in this category starts from. Filled in only when the body is still empty.",
   "manage.category_icon_none": "No icon",
   "manage.new_of": "New {name}",
   "manage.no_content": "No {name} yet.",

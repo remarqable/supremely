@@ -1060,7 +1060,10 @@ def test_the_editor_warns_before_leaving_with_unsaved_changes(app, client,
     for path in ('/manage/content/article/new',
                  f'/manage/content/{saved_id}/edit'):
         html = client.get(path, base_url=ACME).get_data(as_text=True)
-        assert 'x-data="{ dirty: false }"' in html, path
+        # The flag, not the whole attribute: x-data also carries the
+        # category template helper, and pinning the attribute whole made an
+        # unrelated addition look like this feature breaking.
+        assert 'x-data="{ dirty: false,' in html, path
         assert '@input="dirty = true"' in html, path
         assert '@change="dirty = true"' in html, path
         # Preview submits to a second tab, so it must leave the flag alone:

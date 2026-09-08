@@ -192,3 +192,40 @@ def test_a_card_without_a_picture_shows_the_category_icon(app, client, acme,
     body = client.get('/blog', base_url=ACME).data.decode()
     assert 'band-' in body                      # the tinted panel
     assert 'pill-on-band' in body               # the chip sitting on it
+
+
+def test_a_category_carries_a_body_template(app, client, acme, globex, user):
+    category = make_category(app, acme, 'Reviews', 'reviews')
+    login_as(client, user)
+    client.post(f'/manage/categories/{category.id}',
+                data={'name': 'Reviews', 'slug': 'reviews', 'icon': 'star',
+                      'body_template': '## TL;DR\n\n## Takeaways\n'},
+                base_url=ACME, follow_redirects=True)
+    with app.test_request_context():
+        g.org = acme
+        again = db.session.get(Category, category.id)
+        assert again.body_template.startswith('## TL;DR')
+
+
+def test_the_editor_offers_the_template_to_the_body(app, client, acme, globex,
+                                                    user):
+    """The skeleton reaches the page as data for the editor to offer, not as
+    something already written into the item."""
+    category = make_category(app, acme, 'Reviews', 'reviews')
+    with app.test_request_context():
+        g.org = acme
+        category.body_template = '## TL;DR'
+        category.save()
+    login_as(client, user)
+    body = client.get('/manage/content/article/new', base_url=ACME).data.decode()
+    assert 'data-template="## TL;DR"' in body
+    assert 'fillTemplate()' in body
+
+
+def test_a_blank_template_is_stored_as_none(app, acme):
+    with app.test_request_context():
+        g.org = acme
+        category = Category(org_id=acme.id, name='X', slug='x',
+                            body_template='   ')
+        category.save()
+        assert category.body_template is None

@@ -53,6 +53,11 @@ class Category(OrgScoped, BaseModel):
     # drawing lives in the category_icon macro, so a value from the database
     # can never put SVG on a page.
     icon = db.Column(db.String(30), nullable=True)
+    # A starting skeleton for a new item in this category -- the headings a
+    # review or an interview always has. Offered in the editor, never
+    # imposed: it fills an empty body and is then the author's text like any
+    # other, so changing it here does not touch anything already written.
+    body_template = db.Column(db.Text, nullable=True)
 
     __table_args__ = (
         db.UniqueConstraint('org_id', 'slug', name='uq_category_org_slug'),
@@ -75,6 +80,10 @@ class Category(OrgScoped, BaseModel):
         self.icon = (self.icon or '').strip() or None
         if self.icon is not None and self.icon not in self.ICONS:
             raise ValidationError('Unknown icon')
+        self.body_template = (self.body_template or '').strip() or None
+        # Bounded for the same reason a body is: it becomes one.
+        if self.body_template and len(self.body_template) > BODY_MAX:
+            raise ValidationError('Template too long')
         existing = scoped_to_own_org(
             Category.query.filter_by(slug=self.slug), self).first()
         if existing and existing.id != self.id:
