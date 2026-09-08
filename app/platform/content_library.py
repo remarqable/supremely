@@ -7,9 +7,9 @@ library type registers for every organization; per-org enablement and
 "community type" presets (a named selection of these at org setup) build on
 top of this list.
 
-Types that need platform features we don't have yet (file/select field
-types, child content) are declared in COMING_SOON: visible in Manage as
-placeholders, never registered, never routable.
+A type that needs a platform feature we don't have yet is declared in
+COMING_SOON: visible in Manage as a placeholder, never registered, never
+routable. The list is empty today.
 """
 
 from dataclasses import dataclass
@@ -33,7 +33,7 @@ def register_library_types() -> None:
         slug='recording', singular='Video', plural='Videos',
         description='Talks, webinars and member deep dives, linked from '
                     'wherever the video is hosted.',
-        base='/recordings', group='learn',
+        base='/recordings', group='learn', icon='video', enabled_by_default=True,
         # One field. Duration, speakers and a recorded-on date were three
         # more things to type for something the video page already shows,
         # and nothing rendered them.
@@ -47,7 +47,7 @@ def register_library_types() -> None:
         slug='episode', singular='Episode', plural='Podcast',
         description='Podcast episodes, linked from wherever the audio is '
                     'hosted.',
-        base='/podcast', group='learn',
+        base='/podcast', group='learn', icon='podcast', enabled_by_default=True,
         fields=(
             FieldSpec(key='audio_url', type='url', label='Audio URL',
                       required=True),
@@ -56,13 +56,16 @@ def register_library_types() -> None:
     register_content_type(ContentType(
         slug='announcement', singular='Announcement', plural='Announcements',
         description='Official updates from the team.',
-        base='/announcements',
+        base='/announcements', icon='announcement', enabled_by_default=True,
     ))
     register_content_type(ContentType(
         slug='team_member', singular='Team member', plural='Team',
         description='The people behind the organization: name, role, photo, '
                     'and a short bio.',
-        base='/team', group='meet',
+        base='/team', group='meet', enabled_by_default=True,
+        # A roster reads by name, not by who was added last. Origin and
+        # Supremely were both sorting this back into shape in Jinja.
+        ordering='alphabetical',
         # A roster is site furniture, not community activity: the archive
         # presents through the theme like a brochure page.
         presentation='site',
@@ -74,7 +77,7 @@ def register_library_types() -> None:
     register_content_type(ContentType(
         slug='resource', singular='Resource', plural='Resources',
         description='Reports, guides, and documents members can download.',
-        base='/resources', group='learn',
+        base='/resources', group='learn', enabled_by_default=True,
         fields=(
             FieldSpec(key='resource_url', type='url', label='Resource URL',
                       required=True,
@@ -82,6 +85,115 @@ def register_library_types() -> None:
                            'or an external URL.'),
             FieldSpec(key='kind', type='string', label='Kind',
                       help='Report, guide, whitepaper, template, ...'),
+        ),
+    ))
+
+
+    register_content_type(ContentType(
+        slug='recipe', singular='Recipe', plural='Recipes',
+        description='The classic vertical: ingredients, steps and times.',
+        base='/recipes', group='learn', icon='document',
+        fields=(
+            FieldSpec(key='servings', type='number', label='Servings',
+                      in_summary=True),
+            FieldSpec(key='prep_time', type='datetime', label='Prep starts',
+                      help='Optional. Useful for a class or a cook-along.'),
+            FieldSpec(key='cook_time', type='datetime', label='Cook starts'),
+            # One row per ingredient rather than a block of text, so a theme
+            # can lay them out and a reader can tick them off.
+            FieldSpec(key='ingredients', type='list', label='Ingredients',
+                      of=(FieldSpec(key='amount', type='string',
+                                    label='Amount'),
+                          FieldSpec(key='item', type='string', label='Item',
+                                    required=True))),
+            FieldSpec(key='steps', type='list', label='Method',
+                      of=(FieldSpec(key='step', type='text', label='Step',
+                                    required=True),)),
+        ),
+    ))
+    register_content_type(ContentType(
+        slug='job', singular='Job', plural='Jobs',
+        description='A job board: openings with company, location and an '
+                    'application link.',
+        base='/jobs', group='community', icon='document',
+        fields=(
+            FieldSpec(key='company', type='string', label='Company',
+                      in_summary=True),
+            FieldSpec(key='location', type='string', label='Location',
+                      in_summary=True),
+            FieldSpec(key='employment', type='select', label='Employment',
+                      in_summary=True,
+                      choices=(('full_time', 'Full time'),
+                               ('part_time', 'Part time'),
+                               ('contract', 'Contract'),
+                               ('internship', 'Internship'))),
+            FieldSpec(key='workplace', type='select', label='Workplace',
+                      choices=(('on_site', 'On site'),
+                               ('hybrid', 'Hybrid'),
+                               ('remote', 'Remote'))),
+            FieldSpec(key='apply_url', type='url', label='Application link',
+                      required=True),
+        ),
+    ))
+    register_content_type(ContentType(
+        slug='opportunity', singular='Opportunity', plural='Opportunities',
+        description='Deals and offers with a status and a deadline.',
+        base='/opportunities', group='community', icon='document',
+        fields=(
+            FieldSpec(key='status', type='select', label='Status',
+                      in_summary=True,
+                      choices=(('open', 'Open'),
+                               ('closing_soon', 'Closing soon'),
+                               ('closed', 'Closed'))),
+            FieldSpec(key='deadline', type='datetime', label='Deadline',
+                      in_summary=True),
+            FieldSpec(key='claim_url', type='url', label='How to claim'),
+        ),
+    ))
+    register_content_type(ContentType(
+        slug='gallery', singular='Gallery', plural='Galleries',
+        description='Photo sets from events and meetups.',
+        base='/galleries', group='meet', icon='document',
+        fields=(
+            FieldSpec(key='photos', type='list', label='Photos',
+                      of=(FieldSpec(key='image', type='image', label='Photo',
+                                    required=True),
+                          FieldSpec(key='caption', type='string',
+                                    label='Caption'))),
+        ),
+    ))
+    register_content_type(ContentType(
+        slug='course', singular='Course', plural='Courses',
+        description='Structured learning: a course made of ordered lessons.',
+        base='/courses', group='community', icon='document',
+        fields=(
+            FieldSpec(key='level', type='select', label='Level',
+                      in_summary=True,
+                      choices=(('beginner', 'Beginner'),
+                               ('intermediate', 'Intermediate'),
+                               ('advanced', 'Advanced'))),
+            FieldSpec(key='duration', type='string', label='Length',
+                      in_summary=True,
+                      help='How long it takes, e.g. "4 weeks"'),
+        ),
+    ))
+    register_content_type(ContentType(
+        # Lessons are written inside a course and read there, so a lesson
+        # gets an address under the course it belongs to. It keeps an
+        # archive of its own for the lesson that outgrows its course: a
+        # block promoted to standalone has a URL and an archive row waiting,
+        # with nothing to convert.
+        slug='lesson', singular='Lesson', plural='Lessons',
+        description='One lesson of a course. Written inside the course it '
+                    'belongs to.',
+        base='/lessons', group='community', icon='document',
+        child_routable=True,
+        fields=(
+            FieldSpec(key='duration', type='string', label='Length',
+                      in_summary=True,
+                      help='How long it takes, e.g. "20 minutes"'),
+            FieldSpec(key='video_url', type='url', label='Video',
+                      help='Where the video is hosted (YouTube, Vimeo, ...).'),
         ),
     ))
 
@@ -97,30 +209,10 @@ class PlannedType:
     needs: str
 
 
-COMING_SOON: tuple[PlannedType, ...] = (
-    PlannedType(
-        slug='job', singular='Job', plural='Jobs',
-        description='A job board: openings with company, location, and '
-                    'an application link.',
-        needs='select field type (employment type, remote/on-site)'),
-    PlannedType(
-        slug='course', singular='Course', plural='Courses',
-        description='Structured learning: a course made of ordered lessons.',
-        needs='child content (lessons that belong to a course)'),
-    PlannedType(
-        slug='opportunity', singular='Opportunity', plural='Opportunities',
-        description='Member-only deals and offers with a status and a '
-                    'deadline.',
-        needs='select field type (status) and deadline-driven visibility'),
-    PlannedType(
-        slug='gallery', singular='Gallery', plural='Galleries',
-        description='Photo sets from events and meetups.',
-        needs='multi-image field type'),
-    PlannedType(
-        slug='recipe', singular='Recipe', plural='Recipes',
-        description='The classic vertical: ingredients, steps, and times.',
-        needs='repeating list field type (ingredients)'),
-)
+# Empty, and that is the intended end state rather than an oversight: every
+# type the library had been holding back is now buildable. The mechanism
+# stays because the next type that needs a platform feature will want it.
+COMING_SOON: tuple[PlannedType, ...] = ()
 
 
 def validate_planned_types() -> None:

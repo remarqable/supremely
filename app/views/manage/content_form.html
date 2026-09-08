@@ -1,12 +1,19 @@
 {% extends 'manage/_layout.html' %}
 {% from 'partials/_ui.html' import back_link, image_chooser, status_badge with context %}
+{% from 'manage/_field_widgets.html' import widget with context %}
 
 {% block manage_content %}
 {# The only way out used to be Cancel, at the foot of the sidebar under the
    publish controls, which is the last place someone looks for one. #}
 <p class="mb-2">
+  {% if content and content.parent %}
+  {# A block has no listing to go back to. It goes back to what it is inside. #}
+  {{ back_link(url_for('manage.edit_content', content_id=content.parent.id),
+               content.parent.title) }}
+  {% else %}
   {{ back_link(url_for('manage.content_list', type_slug=content_type.slug),
                content_type.plural) }}
+  {% endif %}
 </p>
 <div class="mb-5 flex items-center gap-2.5">
   <h1 class="page-title">{{ content.title if content and content.title else _('manage.new_of', name=content_type.singular) }}</h1>
@@ -83,6 +90,10 @@
              maxlength="200" value="{{ content.title if content else '' }}"
              @input="from($event.target.value)">
     </div>
+    {# A block is read inside the thing it belongs to, so it has no address
+       of its own and no slug to choose -- unless its type takes pages, and
+       then the address sits under the parent's. #}
+    {% if not (content and content.is_child) or content_type.child_routable %}
     <div>
       <label for="slug" class="label">{{ _('orgs.slug_label') }}</label>
       <input type="text" id="slug" name="slug" class="input mt-1"
@@ -90,25 +101,76 @@
              :placeholder="preview" aria-describedby="slug-hint">
       <p id="slug-hint" class="mt-1 text-xs text-slate-500">{{ _('manage.slug_hint') }}</p>
     </div>
+    {% endif %}
 
     {% for spec in content_type.fields %}
-    <div>
-      <label for="field_{{ spec.key }}" class="label">{{ spec.label or spec.key }}{% if spec.required %} *{% endif %}</label>
-      {% set value = content.fields.get(spec.key, '') if content and content.fields else '' %}
-      {% if spec.type == 'text' %}
-      <textarea id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="textarea mt-1">{{ value }}</textarea>
-      {% elif spec.type == 'boolean' %}
-      <input type="checkbox" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="mt-1" {{ 'checked' if value }}>
-      {% elif spec.type == 'number' %}
-      <input type="number" step="any" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}">
-      {% elif spec.type == 'date' %}
-      <input type="date" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}">
-      {% else %}
-      <input type="text" id="field_{{ spec.key }}" name="field_{{ spec.key }}" class="input mt-1" value="{{ value }}"
-             {% if spec.type == 'url' %}placeholder="https://"{% endif %}>
-      {% endif %}
+    {# A refused save hands back what was posted, not what is stored: the
+       values are the author's and losing them is losing their work. #}
+    {% set value = submitted.get(spec.key) if submitted is not none
+                   else (content.fields.get(spec.key) if content and content.fields else none) %}
+    {% if spec.type == 'list' %}
+    {# A repeating field. Each row names its own index, so a row is a row
+       rather than a position in three parallel lists: an unticked checkbox
+       posts nothing, and by position that slides every later value onto the
+       wrong row. `rows` is seeded from what was submitted, so a save refused
+       for an unrelated reason gives the author their rows back. #}
+    <div x-data="{ rows: {{ (value or [])|tojson|forceescape }},
+                   cap: {{ list_row_cap }},
+                   blank() { return { {% for sub in spec.of %}'{{ sub.key }}': ''{{ ',' if not loop.last }}{% endfor %} }; },
+                   move(from, to) {
+                     if (to < 0 || to >= this.rows.length) return;
+                     this.rows.splice(to, 0, this.rows.splice(from, 1)[0]);
+                   } }">
+      <span class="label">{{ spec.label or spec.key }}{% if spec.required %} *{% endif %}</span>
+      <template x-for="(row, index) in rows" :key="index">
+        <div class="mt-1.5 flex items-end gap-2 rounded-md bg-slate-50 p-2">
+          {# flex-wrap, not a constructed grid-cols class: Tailwind cannot
+             scan a class name built at render time, so it would ship
+             uncompiled. #}
+          <div class="flex flex-1 flex-wrap gap-2">
+            {% for sub in spec.of %}
+            <label class="block min-w-[8rem] flex-1">
+              <span class="text-xs text-slate-500">{{ sub.label or sub.key }}</span>
+              {{ widget(sub, none, none,
+                        file_uploads if sub.type == 'file' else image_uploads,
+                        model="row['" ~ sub.key ~ "']",
+                        name_expr="'field_" ~ spec.key ~ "__' + index + '__" ~ sub.key ~ "'") }}
+            </label>
+            {% endfor %}
+          </div>
+          <div class="flex shrink-0 gap-1">
+            <button type="button" class="btn-secondary px-2 py-1"
+                    @click="move(index, index - 1)" :disabled="index === 0">
+              <span aria-hidden="true">&uarr;</span>
+              <span class="sr-only">{{ _('manage.field_row_up') }}</span></button>
+            <button type="button" class="btn-secondary px-2 py-1"
+                    @click="move(index, index + 1)"
+                    :disabled="index === rows.length - 1">
+              <span aria-hidden="true">&darr;</span>
+              <span class="sr-only">{{ _('manage.field_row_down') }}</span></button>
+            <button type="button" class="btn-danger px-2 py-1"
+                    @click="rows.splice(index, 1)">
+              <span aria-hidden="true">&times;</span>
+              <span class="sr-only">{{ _('manage.field_row_remove') }}</span></button>
+          </div>
+        </div>
+      </template>
+      <button type="button" class="btn-secondary mt-2"
+              @click="rows.push(blank())" x-show="rows.length < cap">
+        {{ _('manage.field_row_add') }}</button>
+      <p class="mt-1 text-xs text-slate-500" x-show="rows.length >= cap" x-cloak>
+        {{ _('manage.field_row_cap', n=list_row_cap) }}</p>
       {% if spec.help %}<p class="mt-1 text-xs text-slate-500">{{ spec.help }}</p>{% endif %}
     </div>
+    {% else %}
+    <div>
+      <label for="field_{{ spec.key }}" class="label">{{ spec.label or spec.key }}{% if spec.required %} *{% endif %}</label>
+      {{ widget(spec, value, 'field_' ~ spec.key,
+                file_uploads if spec.type == 'file' else image_uploads,
+                id='field_' ~ spec.key) }}
+      {% if spec.help %}<p class="mt-1 text-xs text-slate-500">{{ spec.help }}</p>{% endif %}
+    </div>
+    {% endif %}
     {% endfor %}
 
     <div>
@@ -199,6 +261,15 @@
       </div>
       {% endif %}
 
+      {# Shown on the members-only gate in place of the body. The column
+         was kept when the editor stopped offering it as a summary; this is
+         the one clear job it has. #}
+      <div>
+        <label for="excerpt" class="label">{{ _('manage.gate_teaser') }}</label>
+        <textarea id="excerpt" name="excerpt" class="textarea mt-1"
+                  maxlength="500" aria-describedby="excerpt-hint">{{ content.excerpt or '' if content else '' }}</textarea>
+        <p id="excerpt-hint" class="mt-1 text-xs text-slate-500">{{ _('manage.gate_teaser_hint') }}</p>
+      </div>
       <div>
         <label for="seo_title" class="label">{{ _('manage.seo_title') }}</label>
         <input type="text" id="seo_title" name="seo_title" class="input mt-1"
@@ -231,7 +302,11 @@
               class="btn-secondary w-full">{{ _('manage.preview') }}
         <span class="sr-only">({{ _('manage.preview_new_tab') }})</span></button>
       {% if content and content.id %}
-      {% if not content_type.is_page %}
+      {# Not for a page, and not for a block: sending one as a newsletter
+         would give it a delivery record and a line in the members'
+         newsletter archive, which is a second address for something whose
+         whole point is that it has none. #}
+      {% if not content_type.is_page and not content.is_child %}
       <button type="submit" name="action" value="save"
               formaction="{{ url_for('manage.send_content_newsletter', content_id=content.id) }}"
               class="btn-secondary w-full">{{ _('newsletter.send_by_email') }}</button>
@@ -243,4 +318,66 @@
     </div>
   </div>
 </form>
+
+{# Blocks: the content written inside this item. Its own forms, after the
+   editor's, because a form cannot be nested inside another one and because
+   adding a block should not depend on the edits above being saved first.
+
+   There is no nested field editor here on purpose. A block is a content row
+   like any other, so it is written in the ordinary editor for its type --
+   one place that knows how to edit a type's fields, rather than a second
+   one reimplemented inside this form. #}
+{% if block_types %}
+<div class="card mt-5 space-y-3">
+  <h2 class="text-sm font-semibold tracking-tight">{{ _('manage.blocks') }}</h2>
+  <p class="text-xs text-slate-600">{{ _('manage.blocks_hint') }}</p>
+
+  {% if content.children %}
+  <div>
+    {% for block in content.children %}
+    <div class="flex items-center gap-2 border-b border-slate-100 py-1.5 last:border-0">
+      <a href="{{ url_for('manage.edit_content', content_id=block.id) }}"
+         class="flex-1 truncate text-sm font-medium hover:text-brand-700">{{ block.title }}</a>
+      <span class="badge-slate shrink-0">{{ block.content_type.singular }}</span>
+      {{ status_badge(block.status) }}
+      {% for direction, glyph, label in (('up', '&uarr;', _('manage.field_row_up')),
+                                         ('down', '&darr;', _('manage.field_row_down'))) %}
+      <form method="POST" class="shrink-0"
+            action="{{ url_for('manage.move_block', content_id=content.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="block_id" value="{{ block.id }}">
+        <input type="hidden" name="direction" value="{{ direction }}">
+        <button type="submit" class="btn-secondary px-2 py-1">
+          <span aria-hidden="true">{{ glyph|safe }}</span>
+          <span class="sr-only">{{ label }}</span></button>
+      </form>
+      {% endfor %}
+      {# A block has no listing of its own, so this is the only place it can
+         be removed from. Not marked .btn-admin: removing a block from your
+         own item is editing your own item. #}
+      <form method="POST" class="shrink-0"
+            action="{{ url_for('manage.delete_content', content_id=block.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn-secondary px-2 py-1 text-red-700">
+          <span aria-hidden="true">&times;</span>
+          <span class="sr-only">{{ _('manage.block_remove') }}</span></button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="POST" class="flex flex-wrap items-center gap-2"
+        action="{{ url_for('manage.add_block', content_id=content.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="block_type" class="sr-only">{{ _('manage.add_block') }}</label>
+    <select id="block_type" name="block_type" class="input w-auto">
+      {% for block_type in block_types %}
+      <option value="{{ block_type.slug }}">{{ block_type.singular }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-secondary">{{ _('manage.add_block') }}</button>
+  </form>
+</div>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,20 @@
+{% from 'fields/_macros.html' import field_row, link_out with context %}
+{# A video field renders as a player, which is the point of declaring the
+   field. The embed URL is built from an id parsed out of a known host
+   (fields.video_embed), never from the author's URL: an iframe src is a
+   document loaded beside this page. A host we do not know, or a URL that is
+   not a link at all, falls back to text. #}
+{% set embed = video_embed(value) %}
+{% set href = safe_url(value) %}
+{% if embed %}
+<div class="mt-4 aspect-video overflow-hidden rounded-xl bg-slate-900">
+  <iframe src="{{ embed }}" title="{{ content.title if content else label }}"
+          class="h-full w-full border-0" loading="lazy"
+          allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture"
+          allowfullscreen></iframe>
+</div>
+{% else %}
+{% call field_row(label) %}
+{% if href %}{{ link_out(href, href) }}{% else %}{{ value }}{% endif %}
+{% endcall %}
+{% endif %}

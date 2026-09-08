@@ -32,6 +32,12 @@
       </p>
       {% if not locked %}
       <p class="mt-2 text-slate-700">{{ item.excerpt_or_summary() }}</p>
+      {# The fields the type marked for listings, same as the community
+         archive. Withheld while locked, for the same reason the summary is. #}
+      {% set summary_fields = render_fields(item, surface='summary') %}
+      {% if summary_fields %}
+      <p class="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-slate-500">{{ summary_fields }}</p>
+      {% endif %}
       {% endif %}
     </div>
   </article>

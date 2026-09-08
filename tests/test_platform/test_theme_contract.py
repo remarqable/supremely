@@ -24,7 +24,7 @@ from app.platform.theming import (
     scan_themes,
     validate_manifest,
 )
-from tests.conftest import login_as, make_png, make_user
+from tests.conftest import enable_types, login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
 
@@ -216,6 +216,7 @@ def test_the_memo_does_not_outlive_its_request(app, client, acme, globex):
 
 def test_a_type_specific_single_is_used(app, client, acme, globex):
     """Acceptance 3, and the symmetry archives already had."""
+    enable_types(acme, 'team_member')
     with app.test_request_context(base_url=ACME):
         g.org = acme
         publish(acme, 'Meet Ada', type_slug='team_member')
@@ -488,3 +489,253 @@ def test_a_package_carrying_an_unsupported_file_is_refused(app):
     assert 'unsupported file' in str(caught.value)
     assert 'sneaky' not in AVAILABLE_THEMES
     assert not (Path(app.config['DATA_DIR']) / 'themes' / 'sneaky').exists()
+
+
+def test_a_theme_asks_which_sections_the_site_shows(app, client, acme):
+    """The window is a theme verb, not a section the application draws.
+
+    site_entries() answers which types this organization advertises and in
+    what order; the theme decides entirely what one looks like. A theme that
+    never calls it has no window, which is what Origin had before this.
+    """
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        publish(acme, 'An article')
+    acme.set_type_settings('article', site_entry=True)
+    install(app, acme, **{'front-page.html': """{% extends site_layout %}
+{% block content %}
+{% for ct in site_entries() %}<h2 class="section">{{ ct.plural }}</h2>
+{% for item in latest_content(ct.slug, 3) %}<a href="{{ item.permalink }}">{{ item.title }}</a>{% endfor %}
+{% endfor %}
+{% endblock %}"""})
+
+    body = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'class="section"' in body
+    assert 'An article' in body
+    assert '/blog/an-article' in body      # the community address, not a copy
+
+
+def test_a_theme_can_restyle_one_section_without_touching_the_rest(app, client,
+                                                                   acme):
+    """The override the partial exists to allow: site-feed-{type}.html for
+    one type, and everything else keeps the default."""
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        publish(acme, 'An article')
+        publish(acme, 'An episode', type_slug='episode')
+    acme.set_type_settings('article', site_entry=True)
+    acme.set_type_settings('episode', site_entry=True)
+
+    install(app, acme, **{
+        'site-feed-episode.html':
+            '<div class="my-podcast">{{ content_type.plural }}</div>',
+    })
+    body = client.get('/', base_url=ACME).get_data(as_text=True)
+    assert 'class="my-podcast"' in body        # the theme's own section
+    assert 'Latest Articles' in body           # the default, still there
+
+
+def test_the_order_is_the_organizations(app, client, acme, globex):
+    """Two organizations can advertise the same types in different orders,
+    and a site with no opinion still shows them the same way every time."""
+    from app.platform.content_types import site_entry_types
+    acme.set_type_settings('episode', site_entry=True, site_entry_position=0)
+    acme.set_type_settings('article', site_entry=True, site_entry_position=1)
+    globex.set_type_settings('article', site_entry=True, site_entry_position=0)
+    globex.set_type_settings('episode', site_entry=True, site_entry_position=1)
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert [ct.slug for ct in site_entry_types()] == ['episode', 'article']
+    with app.test_request_context(base_url='http://globex.example.test'):
+        g.org = globex
+        assert [ct.slug for ct in site_entry_types()] == ['article', 'episode']
+    # Neither organization's choice reached the other, and one that has made
+    # no choice at all still advertises nothing.
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        acme.set_type_settings('episode', site_entry=None,
+                               site_entry_position=None)
+        acme.set_type_settings('article', site_entry=None,
+                               site_entry_position=None)
+        assert site_entry_types() == []
+    with app.test_request_context(base_url='http://globex.example.test'):
+        g.org = globex
+        assert [ct.slug for ct in site_entry_types()] == ['article', 'episode']
+
+
+def test_every_bundled_theme_can_show_the_window(app, client, acme):
+    """A theme that ships its own front page has to offer the window too,
+    or that site simply has none. Origin was updated and the two themes with
+    their own front-page.html were not, so half the bundled themes had no
+    shop window at all."""
+    from app.platform.theming import AVAILABLE_THEMES
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        publish(acme, 'A shopfront article')
+    acme.set_type_settings('article', site_entry=True)
+
+    for slug in AVAILABLE_THEMES:
+        acme.theme = slug
+        acme.save()
+        body = client.get('/', base_url=ACME).get_data(as_text=True)
+        assert 'A shopfront article' in body, slug
+
+
+def test_a_theme_can_replace_the_block_section_and_one_block(app, client, acme):
+    """Both block seams go through the theme chain.
+
+    The wrapper used to be a literal include path, so a theme shipping its
+    own _content_blocks.html was ignored unless it also overrode
+    single.html -- which is not what the theme contract promises.
+    """
+    acme.set_type_settings('recipe', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        host = publish(acme, 'Host article')
+        card = Content(type='recipe', title='A card', body='Mix it.',
+                       org_id=acme.id, fields={}, tags=[],
+                       visibility='public', parent_id=host.id)
+        card.save()
+        card.publish()
+
+    install(app, acme, **{
+        '_content_blocks.html':
+            '<div class="my-blocks">'
+            '{% for block in content.visible_children() %}'
+            '{% include block_template(block) with context %}'
+            '{% endfor %}</div>',
+        'content-block-recipe.html':
+            '<p class="my-recipe">{{ block.title }}</p>',
+    })
+    body = client.get('/blog/host-article', base_url=ACME).get_data(as_text=True)
+    assert 'class="my-blocks"' in body        # the theme's own wrapper
+    assert 'class="my-recipe"' in body        # and its own block
+    assert 'A card' in body
+
+
+def test_every_bundled_theme_renders_the_blocks_in_a_page(app, client, acme):
+    """A theme that ships its own page template has to draw blocks too.
+
+    The blocks section was added to the community templates and to Origin
+    and not to the Supremely theme's own page.html, so a page's blocks were
+    silently dropped for anyone using it. Same shape of miss as the front
+    page window, so it gets the same shape of test: vary the theme.
+    """
+    from app.platform.theming import AVAILABLE_THEMES
+    acme.set_type_settings('recipe', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        page = Content(type='page', title='About us', slug='about-us',
+                       body='Who we are.', org_id=acme.id, fields={}, tags=[],
+                       visibility='public')
+        page.save()
+        page.publish()
+        card = Content(type='recipe', title='Inline card', body='Mix it.',
+                       org_id=acme.id, fields={}, tags=[],
+                       visibility='public', parent_id=page.id)
+        card.save()
+        card.publish()
+
+    for slug in AVAILABLE_THEMES:
+        acme.theme = slug
+        acme.save()
+        body = client.get('/about-us', base_url=ACME).get_data(as_text=True)
+        assert 'Who we are.' in body, slug
+        assert 'Inline card' in body, slug
+
+
+def test_the_documented_theme_recipe_is_the_one_that_works(app, client, acme):
+    """A theme following docs/themes/README.md verbatim gets what the doc
+    promises. The recipe used to be a literal include path, which quietly
+    ignored the theme's own wrapper."""
+    acme.set_type_settings('recipe', enabled=True)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        host = publish(acme, 'Host article')
+        card = Content(type='recipe', title='Inline card', body='Mix it.',
+                       org_id=acme.id, fields={}, tags=[],
+                       visibility='public', parent_id=host.id)
+        card.save()
+        card.publish()
+
+    install(app, acme, **{
+        # Exactly the two snippets the documentation gives.
+        'single.html': """{% extends site_layout %}
+{% block content %}<div>{{ content.html | safe }}</div>
+{% include blocks_template() with context %}{% endblock %}""",
+        '_content_blocks.html':
+            '<div class="doc-wrapper">'
+            '{% for block in content.visible_children() %}'
+            '{% include block_template(block) with context %}'
+            '{% endfor %}</div>',
+    })
+    body = client.get('/blog/host-article', base_url=ACME).get_data(as_text=True)
+    assert 'class="doc-wrapper"' in body
+    assert 'Inline card' in body
+
+
+def test_no_theme_sorts_an_archive_for_itself(app):
+    """The archive query answers in the type's declared order, so a theme
+    has nothing left to correct. A template that sorts is a theme working
+    around the model, and the next type with the same problem would need
+    the same workaround written again.
+
+    Themes only. The community shell and the console are application
+    templates and may sort a list in Jinja for their own reasons; a theme
+    may not, because a theme is a renderer.
+    """
+    import re
+    from pathlib import Path
+    themes = Path(__file__).parents[2] / 'app' / 'views' / 'themes'
+    # Any sort filter, not only the one spelling that was there: `| sort`
+    # and `| sort(reverse=True)` are the same workaround.
+    sorting = re.compile(r'\|\s*sort\b')
+    offenders = [str(path.relative_to(themes))
+                 for path in themes.rglob('*.html')
+                 if sorting.search(path.read_text(encoding='utf-8'))]
+    assert offenders == []
+
+
+def test_every_partial_seam_finds_a_mobile_variant(app, client, acme):
+    """All four partial seams resolve the same way, the application's own
+    fallback included.
+
+    Each seam used to spell its fallback as a bare `partials/x.html`, which
+    skips device resolution, so shipping `partials/mobile/_embed.html` would
+    never have been found on a phone. There are four of these and they must
+    not drift apart again.
+    """
+    from pathlib import Path
+
+    from app.platform.theming import (
+        block_template,
+        blocks_template,
+        embed_template,
+        site_feed_template,
+    )
+    views = Path(__file__).parents[2] / 'app' / 'views' / 'partials'
+    mobile = views / 'mobile'
+    mobile.mkdir(exist_ok=True)
+    written = []
+    try:
+        for name in ('_site_feed.html', '_embed.html', '_content_block.html',
+                     '_content_blocks.html'):
+            path = mobile / name
+            path.write_text('<p>phone</p>', encoding='utf-8')
+            written.append(path)
+
+        with app.test_request_context('/?device=mobile', base_url=ACME):
+            g.org = acme
+            from app.platform.content_types import get_content_type
+            article = get_content_type('article')
+            item = type('T', (), {'type': 'article'})()
+            resolved = [site_feed_template(article), embed_template(item),
+                        block_template(item), blocks_template()]
+        for name in resolved:
+            assert '/mobile/' in name, name
+    finally:
+        for path in written:
+            path.unlink()
+        if not any(mobile.iterdir()):
+            mobile.rmdir()

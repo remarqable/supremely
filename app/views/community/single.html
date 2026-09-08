@@ -48,6 +48,12 @@
     {{ content.html | safe }}
   </div>
 
+  {# Everything the type declares, drawn by app/platform/fields.py. A video
+     shows a player here; before this, its URL was stored and shown nowhere. #}
+  {{ render_fields(content) }}
+
+  {% include blocks_template() with context %}
+
   {% if content.tags %}
   <p class="mt-8 flex flex-wrap gap-2">
     {% for tag in content.tags %}

@@ -2,6 +2,8 @@
 members, so every surface that lists gated items has to stop at the title:
 never a body, an excerpt, or a structured field."""
 
+from flask import g
+
 from app.extensions import db
 from app.models import Content
 from app.platform.authz import can_view
@@ -76,7 +78,7 @@ def test_a_locked_section_teases_nothing_anywhere(app, client, acme):
         article = _publish(acme, 'article', title='SECTION-LOCKED-TITLE',
                            visibility='public')
         permalink = article.permalink
-        acme.update_settings(section_visibility={'article': 'members'})
+        acme.set_type_settings('article', visibility='members')
         db.session.commit()
 
     assert 'SECTION-LOCKED-TITLE' not in client.get('/blog', base_url=ACME).data.decode()
@@ -114,8 +116,47 @@ def test_a_locked_page_section_teases_nothing_at_the_page_url(app, client, acme)
         g.org = acme
         _publish(acme, 'page', slug='about', title='PAGE-SECTION-LOCKED',
                  visibility='public')
-        acme.update_settings(section_visibility={'page': 'members'})
+        acme.set_type_settings('page', visibility='members')
         db.session.commit()
 
     body = client.get('/about', base_url=ACME).data.decode()
     assert 'PAGE-SECTION-LOCKED' not in body
+
+
+def test_one_type_can_answer_differently_from_the_rest(app, client, acme,
+                                                       globex, user):
+    """A community can advertise its articles and say nothing at all about
+    its jobs board. The organization setting is the default, and a type
+    overrides it without changing who may read either.
+    """
+    from tests.conftest import enable_types
+    enable_types(acme, 'job')
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        for kind, slug, title in (('article', 'teased', 'Teased Article'),
+                                  ('job', 'hidden', 'Hidden Job')):
+            item = Content(type=kind, title=title, slug=slug,
+                           body='Members only.', org_id=acme.id,
+                           visibility='members', tags=[],
+                           fields={'apply_url': 'https://example.com/a'}
+                           if kind == 'job' else {})
+            item.save()
+            item.publish()
+
+    # Teasing on for the organization, off for jobs alone.
+    acme.update_settings(gated_teasers=True)
+    acme.set_type_settings('job', tease=False)
+
+    articles = client.get('/blog', base_url=ACME)
+    assert b'Teased Article' in articles.data       # a locked title
+
+    jobs = client.get('/jobs', base_url=ACME)
+    assert b'Hidden Job' not in jobs.data           # not even the title
+    # A direct hit does not confirm it exists either.
+    assert client.get('/jobs/hidden', base_url=ACME).status_code in (302, 404)
+
+    # Who may read is untouched by any of that: a member still reads both.
+    from tests.conftest import login_as
+    member = app.test_client()
+    login_as(member, user)
+    assert b'Hidden Job' in member.get('/jobs', base_url=ACME).data

@@ -27,7 +27,8 @@ from app.platform.errors import ValidationError
 from app.platform.logger import get_logger
 
 if TYPE_CHECKING:                       # circular at runtime, fine for hints
-    from app.models import Organization
+    from app.models import Content, Organization
+    from app.platform.content_types import ContentType
 
 log = get_logger()
 
@@ -128,6 +129,25 @@ def init_theming(app) -> None:
     app.jinja_env.globals['theme_content'] = lambda: resolve_content(current_theme())
     app.jinja_env.globals['community_tokens'] = community_tokens
     app.jinja_env.globals['theme_capabilities'] = theme_capabilities
+    # Field rendering belongs with the other theme-facing verbs: registered
+    # on the environment rather than a context processor, so it is reachable
+    # from a field partial too (those are fetched from the environment, and
+    # context processors never run for them).
+    # video_embed is deliberately not here: the only template that wants it
+    # is fields/url-video_url.html, and every field partial already gets it
+    # in its render context.
+    from app.platform.fields import render_fields, render_lead_field
+    app.jinja_env.globals['render_fields'] = render_fields
+    app.jinja_env.globals['render_lead_field'] = render_lead_field
+    # Which sections the public site advertises, in order. A theme verb like
+    # the rest: the theme decides how a section looks, the organization
+    # decides which ones there are.
+    from app.platform.content_types import site_entry_types
+    app.jinja_env.globals['site_entries'] = site_entry_types
+    app.jinja_env.globals['site_feed_template'] = site_feed_template
+    app.jinja_env.globals['block_template'] = block_template
+    app.jinja_env.globals['blocks_template'] = blocks_template
+    app.jinja_env.globals['embed_template'] = embed_template
 
 
 def scan_themes() -> None:
@@ -209,7 +229,10 @@ def current_theme() -> str:
     if (preview in AVAILABLE_THEMES and has_request_context()
             and request.endpoint == PREVIEW_ENDPOINT):
         return preview
-    return saved_theme(getattr(g, 'org', None))
+    # current_org rather than g.org, so a job resolves the organization's
+    # own theme instead of quietly falling back to Origin.
+    from app.platform.tenant import current_org
+    return saved_theme(current_org())
 
 
 # Capabilities a theme is assumed to have unless its theme.json says
@@ -432,7 +455,8 @@ def shell_layout() -> str:
     return 'layouts/community.html'
 
 
-def render_gate(title: str, kind: str | None = None):
+def render_gate(title: str, kind: str | None = None,
+                type_slug: str | None = None, teaser: str | None = None):
     """The members-only gate: a friendly 200 page for an object the visitor
     may know exists but cannot read. Tease-don't-hide is the default stance —
     gated items appear in public lists as locked titles, and clicking one
@@ -440,18 +464,26 @@ def render_gate(title: str, kind: str | None = None):
     body never reaches this template; access was already denied by the
     object's own visibility policy (authz.can_view) before rendering.
 
-    Orgs can turn teasing off (Manage → Settings → Privacy). Then this is
-    the single point where the gate degrades to hiding: anonymous visitors
-    are sent to login (members reach the content after signing in) and
-    signed-in non-members get a 404 — the title never renders."""
+    Orgs can turn teasing off (Manage → Settings → Privacy), and a single
+    type can answer differently (Manage → Content types): a community may
+    advertise its articles and say nothing at all about its jobs board.
+    Then this is the single point where the gate degrades to hiding:
+    anonymous visitors are sent to login (members reach the content after
+    signing in) and signed-in non-members get a 404 — the title never
+    renders."""
     from flask import abort, g, redirect, request, url_for
     from flask_login import current_user
-    if not g.org.teases_gated_content():
+    teases = (g.org.type_teases(type_slug) if type_slug
+              else g.org.teases_gated_content())
+    if not teases:
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login', next=request.path))
         abort(404)
+    # The teaser is author-written and offered on purpose. Truncating the
+    # gated body instead would advertise membership with the first two
+    # sentences of something, cut mid-word.
     return render_site(['gate.html'], gate_title=title, gate_kind=kind,
-                       login_next=request.path)
+                       gate_teaser=teaser, login_next=request.path)
 
 
 # Surfaces that are not part of an organization's site at all. They render
@@ -526,6 +558,50 @@ def themed(name: str) -> str:
             if _template_exists(f'{root}/{candidate}'):
                 return f'{root}/{candidate}'
     return name
+
+
+def _partial(*names: str) -> str:
+    """The first of these partials that resolves, theme first.
+
+    Every partial seam in the application asks the same question: the
+    specific name, then the general one, each through themed() so a theme's
+    override and its mobile/ variant are both found. Written once, because
+    four copies of it drifted: each of the four spelled its own fallback as
+    a bare `partials/x.html`, which skips device_candidates, so a theme
+    could ship partials/mobile/_embed.html and never see it.
+
+    The last name is the application's own, and it goes through the same
+    resolution as the rest rather than being returned as a literal.
+    """
+    for name in names:
+        resolved = themed(name)
+        if _template_exists(resolved):
+            return resolved
+    fallback = f'partials/{names[-1]}'
+    for candidate in device_candidates([fallback]):
+        if _template_exists(candidate):
+            return candidate
+    return fallback
+
+
+def site_feed_template(content_type: 'ContentType') -> str:
+    """Which partial draws one section of the public site's shop window."""
+    return _partial(f'site-feed-{content_type.slug}.html', '_site_feed.html')
+
+
+def embed_template(item: 'Content') -> str:
+    """Which partial draws an item pulled into a body by :::embed."""
+    return _partial(f'embed-{item.type}.html', '_embed.html')
+
+
+def blocks_template() -> str:
+    """Which partial draws the whole run of blocks under an item's body."""
+    return _partial('_content_blocks.html')
+
+
+def block_template(block: 'Content') -> str:
+    """Which partial draws one block inside its parent."""
+    return _partial(f'content-block-{block.type}.html', '_content_block.html')
 
 
 def _template_exists(name: str) -> bool:

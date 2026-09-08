@@ -13,18 +13,30 @@ def test_page_requires_permission(app, client, acme):
     assert client.get('/manage/content-types', base_url=ACME).status_code == 403
 
 
-def test_page_lists_active_and_coming_soon(app, client, acme, user):
+def test_page_lists_every_type_the_library_offers(app, client, acme, user):
     login_as(client, user)
     response = client.get('/manage/content-types', base_url=ACME)
     assert response.status_code == 200
     assert b'Videos' in response.data
     assert b'Podcast' in response.data
     assert b'Resources' in response.data
-    assert b'Coming soon' in response.data
+    # Jobs and Courses are real types, listed here whether or not this
+    # organization publishes them. They are off until asked for, so the
+    # lists behind them do not answer yet.
     assert b'Jobs' in response.data
     assert b'Courses' in response.data
-    # Planned types are placeholders: no manage list behind them.
-    assert client.get('/manage/content/job', base_url=ACME).status_code == 404
+    for slug in ('job', 'course'):
+        assert client.get(f'/manage/content/{slug}',
+                          base_url=ACME).status_code == 404, slug
+
+
+def test_nothing_is_coming_soon_so_nothing_says_so(app, client, acme, user):
+    """The placeholder list is empty now that every type it was holding back
+    has shipped. An empty section with a heading over it says a thing is on
+    the way when nothing is."""
+    login_as(client, user)
+    response = client.get('/manage/content-types', base_url=ACME)
+    assert b'Coming soon' not in response.data
 
 
 def test_publish_and_view_recording(app, client, acme, globex, user):

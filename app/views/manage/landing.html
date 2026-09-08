@@ -81,4 +81,52 @@
   </div>
 </form>
 {% endif %}
+
+{# Which sections the public front page advertises. Its own form, outside
+   the theme-copy one: a theme is not obliged to declare any editable copy,
+   and which sections a site shows is the organization's decision either
+   way. The site shows a list and links inward, so this never creates a
+   second address for anything. #}
+{% if offered_sections %}
+<form method="POST" action="{{ url_for('manage.landing_sections') }}"
+      class="card mt-5 space-y-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <h2 class="text-sm font-semibold tracking-tight">{{ _('landing.sections') }}</h2>
+  <p class="text-xs text-slate-600">{{ _('landing.sections_hint') }}</p>
+  {# Every row is rendered here, not by Alpine. The browser posts checked
+     boxes in the order they sit in the document, so the order of these rows
+     is the order of the sections, and the arrows only have to move a row to
+     change it. Rendering the rows in JavaScript instead meant a submit with
+     scripting unavailable posted an empty list, which reads as "turn every
+     section off" and quietly wiped the page. #}
+  <div x-data="{ move(row, delta) {
+                   const rows = Array.from(row.parentNode.children);
+                   const to = rows.indexOf(row) + delta;
+                   if (to < 0 || to >= rows.length) return;
+                   if (delta < 0) row.parentNode.insertBefore(row, rows[to]);
+                   else row.parentNode.insertBefore(rows[to], row);
+                 } }">
+    {% for content_type in offered_sections %}
+    <div data-section-row
+         class="flex items-center gap-2 border-b border-slate-100 py-1.5 last:border-0">
+      <label class="flex flex-1 items-center gap-2 text-sm">
+        <input type="checkbox" name="site_entries" value="{{ content_type.slug }}"
+               {% if content_type.slug in chosen_sections %}checked{% endif %}>
+        <span>{{ content_type.plural }}</span>
+      </label>
+      <button type="button" class="btn-secondary px-2 py-1"
+              @click="move($el.closest('[data-section-row]'), -1)">
+        <span aria-hidden="true">&uarr;</span>
+        <span class="sr-only">{{ _('manage.field_row_up') }}</span></button>
+      <button type="button" class="btn-secondary px-2 py-1"
+              @click="move($el.closest('[data-section-row]'), 1)">
+        <span aria-hidden="true">&darr;</span>
+        <span class="sr-only">{{ _('manage.field_row_down') }}</span></button>
+    </div>
+    {% endfor %}
+  </div>
+  <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+</form>
+{% endif %}
+
 {% endblock %}

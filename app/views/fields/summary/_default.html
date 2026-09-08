@@ -1,0 +1,4 @@
+{# The listing-card version. Inline and unlabelled: a card is a strip, not a
+   table, and dropping a page row into it breaks the line. #}
+{% from 'fields/summary/_macros.html' import chip with context %}
+{% call chip() %}{{ value }}{% endcall %}

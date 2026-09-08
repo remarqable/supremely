@@ -1,0 +1,8 @@
+{% from 'fields/_macros.html' import field_row, link_out with context %}
+{# safe_url, not the raw value: escaping quotes a javascript: URL, it does
+   not disarm it, and a stored value has not always been through
+   FieldSpec.clean (see app/platform/fields.py). #}
+{% set href = safe_url(value) %}
+{% call field_row(label) %}
+{% if href %}{{ link_out(href, href) }}{% else %}{{ value }}{% endif %}
+{% endcall %}

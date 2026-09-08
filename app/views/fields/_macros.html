@@ -1,0 +1,17 @@
+{# One shape for a plain field row on an item's page, so a theme that
+   overrides a single field type still matches the ones it did not. #}
+{% macro field_row(label) %}
+<div class="mt-3 flex gap-2 text-[15px]">
+  <span class="shrink-0 font-medium text-slate-500">{{ label }}</span>
+  <span class="min-w-0 text-slate-900">{{ caller() }}</span>
+</div>
+{% endmacro %}
+
+{# A link out. Shared so a field type that mostly renders as something else
+   still falls back to the same anchor rather than including a partial by
+   its core path, which would skip the theme's override of it. #}
+{% macro link_out(href, label) %}
+<a href="{{ href }}" target="_blank" rel="noopener noreferrer"
+   class="break-all text-brand-700 hover:underline">{{ label }}
+  <span class="sr-only">({{ _('common.opens_new_tab') }})</span></a>
+{% endmacro %}

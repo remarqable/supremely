@@ -30,6 +30,23 @@ Request → tenant resolution → access policy → presentation context → HTM
 
 ## One content graph
 
+Everything you publish is a **page** or a **post**, and a **post type**
+customises what a post is.
+
+> **Page** — a standalone thing at its own URL. Home, About, Contact.
+> **Post** — a thing that belongs to a collection with an archive. An
+> article at `/blog`, a recipe at `/recipes`.
+> **Post type** — what kind of post: article, recipe, recording, event.
+> Declared in code, shipped in the library, or added by a plugin.
+> **Field** — a typed slot on a post type. A recording has a video URL; an
+> event has a date and a location.
+
+That is the whole vocabulary, and it is vocabulary rather than storage. Both
+are rows in one `content` table with a `type` column, which is also how
+WordPress works: `wp_posts` with a `post_type`, where `page` is simply one
+of the types. A type declares `kind = 'page' | 'post'` and everything else
+follows from it.
+
 There is no separate "website content" and "community content" — they are
 the same objects.
 
@@ -46,10 +63,32 @@ where that plugin is enabled**.
 
 **Discussions** are a separate model family (`app/models/discussion.py`):
 `DiscussionGroup → Post → Reply`, with reactions, follows, pinning,
-locking, and moderation flags. Vocabulary is deliberate: a *post* is what a
-member writes in a discussion group; published content goes by its type
-name (an article, a recipe). The word "post" never refers to published
-content anywhere in the product.
+locking, and moderation flags. Content is editorial: slugged, authored by
+staff, drafted and published, emailable, archived at a URL. Discussion is
+conversational: member-written, unslugged, high-volume, threaded, moderated.
+Folding them would force a post type to describe things with no URL, no
+archive and no template, which is most of what a post type is for.
+
+### Two words that carry two senses
+
+Both are unavoidable, so they are written down rather than left to be
+conflated.
+
+**Post.** In the publishing model above, a post is a thing in a collection
+with an archive. In discussions, a `Post` is what a member writes in a
+group. The publishing sense is the user-facing one, and the discussion sense
+is confined to discussions: elsewhere, published things go by their type
+name. The storage-layer model is called `Content` precisely so the code has
+a name that is neither.
+
+**Parent.** `Content.parent_id` means **containment** — a recipe card inside
+an article, a lesson inside a course. It never means type hierarchy: a
+recipe does not inherit from a post, it *is* a post type. That phrasing
+contains no hierarchy, so there is nothing to conflate.
+
+The containment column would also allow nested pages (`/about/team`). That
+is not offered in v1.0: pages are not among the types that can be nested,
+and only types that ask for it get an address under their parent.
 
 ## Visibility: who may see an object
 

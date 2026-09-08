@@ -18,6 +18,8 @@ class GlossaryPlugin(Plugin):
             slug='definition', singular='Definition', plural='Definitions',
             description='A glossary definition, publishable as content.',
             base='/definitions', group='learn',
+            # A glossary reads A to Z, not newest first.
+            ordering='alphabetical',
             fields=(
                 FieldSpec(key='term', type='string', label='Term',
                           required=True),

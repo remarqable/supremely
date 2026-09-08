@@ -1,0 +1,28 @@
+{# One block. `block` is the child content row.
+
+   Gated blocks arrive here as locked titles where the organization teases
+   its gated content, the same as a gated item in any list. Nothing below
+   decides who may read anything: can_view answers, and the body, the
+   summary and the fields are all behind it. #}
+{% from 'partials/_ui.html' import lock_badge with context %}
+{% set locked = not can_view(block) %}
+<section class="rounded-lg border border-slate-200 p-5">
+  <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+    {% if block.content_type.child_routable and block.slug %}
+    <a href="{{ block.permalink }}" class="hover:text-brand-700">{{ block.title }}</a>
+    {% else %}
+    {{ block.title }}
+    {% endif %}
+    {% if locked %}{{ lock_badge() }}{% endif %}
+  </h2>
+  {% if not locked %}
+  {% set summary = render_fields(block, surface='summary') %}
+  {% if summary %}
+  <p class="mt-1 flex flex-wrap gap-3 text-sm text-slate-600">{{ summary }}</p>
+  {% endif %}
+  {% if block.html %}
+  <div class="prose-supremely mt-3 text-[15px]">{{ block.html | safe }}</div>
+  {% endif %}
+  {{ render_fields(block) }}
+  {% endif %}
+</section>

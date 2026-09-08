@@ -1,0 +1,17 @@
+{# A resource is something to take away, so it gets a button rather than a
+   line of URL text. #}
+{% set href = safe_url(value) %}
+{% if href %}
+<div class="mt-4">
+  <a href="{{ href }}" target="_blank" rel="noopener noreferrer"
+     class="btn-primary inline-flex items-center gap-2">
+    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+         aria-hidden="true">
+      <path d="M10 3v10m0 0l-3.5-3.5M10 13l3.5-3.5M4 16h12"/>
+    </svg>
+    {{ _('content.download') }}
+    <span class="sr-only">({{ _('common.opens_new_tab') }})</span>
+  </a>
+</div>
+{% endif %}

@@ -31,15 +31,26 @@ def test_videos_are_labelled_videos_but_still_live_at_recordings(app):
     assert ct.base == '/recordings'
 
 
-def test_site_presented_types_stay_out_of_the_community_nav(app):
+def test_site_presented_types_stay_out_of_the_community_nav(app, acme):
     """The sidebar asks each type whether it belongs there rather than
     naming one, so a type that presents as site furniture drops out by
-    declaring what it is, and a type added later needs no nav change."""
-    assert not CONTENT_TYPES['team_member'].in_community_nav
-    assert CONTENT_TYPES['recording'].in_community_nav
-    assert CONTENT_TYPES['event'].in_community_nav
+    declaring what it is, and a type added later needs no nav change.
+
+    Asked through community_types rather than off the type, because an
+    organization can disagree with the type: reading the declaration alone
+    would be a second answer, and the one that is wrong for that
+    organization.
+    """
+    from flask import g
+
+    from app.platform.content_types import community_types
+    with app.test_request_context(base_url='http://acme.example.test'):
+        g.org = acme
+        listed = {ct.slug for ct in community_types()}
+    assert 'team_member' not in listed          # site furniture
+    assert {'recording', 'event'} <= listed
     # A page has no archive to link to, so it is not a nav destination.
-    assert not CONTENT_TYPES['page'].in_community_nav
+    assert 'page' not in listed
 
 
 def test_no_base_collisions(app):
@@ -48,8 +59,17 @@ def test_no_base_collisions(app):
 
 
 def test_planned_types_are_valid_and_unregistered(app):
+    """What is left in the library's waiting room, and why.
+
+    Everything that only needed a richer field type has shipped. Course is
+    the one entry that does not: a course is an ordered set of lessons, and
+    a lesson is content that belongs to another item rather than standing at
+    its own address, which nothing in the model can express yet.
+    """
     validate_planned_types()
-    assert len(COMING_SOON) >= 3
+    # Empty now that course and lesson ship. The mechanism stays for the
+    # next type that needs a platform feature we don't have yet.
+    assert [planned.slug for planned in COMING_SOON] == []
 
 
 def test_a_video_asks_for_a_url_and_nothing_else(app):

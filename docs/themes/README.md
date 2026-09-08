@@ -99,7 +99,7 @@ exist and may change without warning — build on what is written down.
 
 | Name | What it is |
 |---|---|
-| `latest_content(type, limit=None)` | Published items of that type, newest first (see below) |
+| `latest_content(type, limit=None)` | Published items of that type, in the order the type declares (see below) |
 | `content_count(type)` | How many published items of that type the visitor may see |
 | `nav_items('primary')` / `nav_items('footer')` | Navigation configured under Manage → Navigation (`.label`, `.href`, `.is_group`, `.children`) |
 | `content_types()` | The content types active for this organization |
@@ -110,6 +110,14 @@ exist and may change without warning — build on what is written down.
 |---|---|
 | `theme_settings` | Your `theme.json` settings, validated, with org overrides |
 | `theme_content()` | Your declared content fields, filled in under Manage → Theme editor |
+| `render_fields(item, surface='web')` | The fields that item's type declares, drawn as HTML. `surface='summary'` for a listing card |
+| `render_lead_field(item)` | The one field the type leads its listing card with (a date block, say), or nothing |
+| `site_entries()` | The content types this organization advertises on its front page, in its chosen order |
+| `site_feed_template(type)` | Which partial draws one of those sections, resolved through your theme first |
+| `item.visible_children()` | The blocks written inside an item that this visitor may read |
+| `blocks_template()` | Which partial draws the whole run of blocks under an item's body |
+| `block_template(block)` | Which partial draws one block, resolved through your theme first |
+| `embed_template(item)` | Which partial draws an item pulled into a body by `:::embed` |
 | `theme_asset('theme.css')` | URL for a file in your `static/` |
 | `themed('header.html')` | Resolve a part through the theme chain |
 | `theme_capabilities()` / `current_theme()` | Your declared capabilities; the active theme's slug |
@@ -171,7 +179,7 @@ Page-specific context:
 | Template | Receives |
 |---|---|
 | `archive*.html` | `content_type`, `items`, `pagination`, `archive_title` |
-| `single*.html`, `page.html` | `content`, `content_type` (`content.title`, `.html`, `.excerpt_or_summary()`, `.fields`, `.author`, `.published_at`) |
+| `single*.html`, `page.html` | `content`, `content_type` (`content.title`, `.html`, `.excerpt_or_summary()`, `.author`, `.published_at`; call `render_fields(content)` for the type's own fields) |
 | `discussions.html` | `groups`, `recent_posts`, `q` |
 | `discussion-group.html` | `group`, `posts`, `q` |
 | `discussion-post.html` | `group`, `post`, `top_level`, `children`, `reactions`, `following`, `emoji_set` |
@@ -179,6 +187,166 @@ Page-specific context:
 Everything in `items`/`posts`/`groups` is **already authorized and
 filtered** for the current visitor. A members-only group simply never
 reaches a visitor's template.
+
+
+## Field partials
+
+A content type declares typed fields — a video's URL, an event's date. Call
+`render_fields(item)` and each one is drawn by a partial chosen from its
+type and key, so your template never has to know which types have which
+fields.
+
+Override one by shipping a file. Most specific wins:
+
+```
+fields/url-video_url.html     this key on this type
+fields/url.html               every URL field
+fields/_default.html          anything with no partial of its own
+```
+
+Yours are looked at before the ones Supremely ships, so `fields/url.html`
+in your theme replaces every URL field including the video embed. `_default`
+is the exception: it is consulted after every typed partial anywhere, so
+adding one gives you a fallback without switching off the players.
+
+Four surfaces, and a partial is per surface:
+
+| Directory | Drawn where |
+|---|---|
+| `fields/` | the item's own page |
+| `fields/summary/` | a listing card, inline and unlabelled |
+| `fields/lead/` | the block a card leads with, in place of the author avatar |
+| `fields/email/` | a newsletter. Inline styles only: no stylesheet reaches an email client, and these never fall back to your web partials |
+
+Each partial receives `value`, `label`, `spec` and `content`, plus `_()` for
+translation. They are trusted template output rather than sanitized Markdown,
+which is how a video field can emit an `<iframe>` when a body never can —
+and why a partial must never put a value into markup unescaped. Use
+`safe_url(value)` for anything that becomes an `href` or a `src`.
+
+
+## The front page window
+
+A community's content lives in the community. The public site advertises it:
+a section per content type, linking inward. There is no second address for
+an item, so nothing is published twice and a search engine has nothing to
+choose between.
+
+Which types appear, and in what order, is the organization's decision
+(Manage -> Home page). Nothing appears until somebody opens a window, so a
+front page you designed stays as you designed it.
+
+Your front page asks for the sections and draws them:
+
+```html
+{% for content_type in site_entries() %}
+{% include site_feed_template(content_type) with context %}
+{% endfor %}
+```
+
+Each section partial receives `content_type`, and may set `limit` before
+including to ask for a different number of items. Override one type's
+section by shipping `site-feed-{type}.html`, or all of them with your own
+`_site_feed.html`; both resolve through your theme before the defaults, and
+a `mobile/` sibling of either is picked up on a phone.
+
+Inside a section, `latest_content(slug, limit)` and `content_count(slug)`
+give you the items and the total. Both already account for who is looking:
+a members-only item arrives as a locked title where the organization teases
+its gated content, and is simply absent where it does not. Nothing in your
+template decides who may read anything.
+
+
+## Blocks inside an item
+
+Some content is written inside other content: a recipe card in an article, a
+lesson in a course. A block is an ordinary content row with a parent, so it
+has the same fields, the same renderer and the same visibility rules as
+anything else. It simply has no address of its own, and appears in no
+archive, feed or count.
+
+Your single and page templates draw them after the body:
+
+```html
+{% include blocks_template() with context %}
+```
+
+Override the whole section with your own `_content_blocks.html`, or one
+type's block with `content-block-{type}.html`. Both resolve through your
+theme first, and a `mobile/` sibling of either is picked up on a phone.
+
+If you replace the wrapper, call the loop variable `block` — that is the
+name a block partial reads:
+
+```html
+{% for block in content.visible_children() %}
+{% include block_template(block) with context %}
+{% endfor %}
+```
+
+Two things are already decided before your template runs.
+`item.visible_children()` has applied the organization's gating rules, so a
+members-only lesson arrives as a locked title where that organization teases
+its gated content and is absent where it does not; and blocks arrive in the
+order their author put them in. Ask `can_view(block)` before drawing a body,
+exactly as you would for any item in a list. Nothing in a template decides
+who may read what.
+
+Blocks go one level deep, and they render after the body rather than
+somewhere inside it. Both are deliberate: blocks are content, not layout,
+and Supremely is not a site builder.
+
+
+## Directives in a body
+
+An author can reference other content from inside a body. A directive is a
+paragraph of its own and nothing else:
+
+```
+:::embed episode/why-we-build      one published item
+:::feed episode limit=3            a type's latest items
+```
+
+Anything else on the line is not a directive, and a directive in backticks
+or in a code block is code, which is where anyone writing *about* the syntax
+would put it.
+
+The first part is the content type. Either its slug or the address its
+archive lives at will do, so `episode/why-we-build` and
+`podcast/why-we-build` find the same item. The second spelling is the one an
+author reads off the address bar, and no type in the library has a base
+equal to its slug.
+
+`:::feed` draws the **same partial as the front page window**, so a section
+an author places mid-article and one a theme places on the front page are
+the same thing: override `site-feed-{type}.html` or `_site_feed.html` and
+both change together. `:::embed` has its own seam — ship `embed-{type}.html`
+for one type or `_embed.html` for all of them.
+
+An embed partial receives `item`, `content_type`, and `locked`. Draw the
+body from `item.html_flat`, never `item.html`: the flat form leaves any
+directives inside the embedded item as plain text, which is what stops an
+embed following what it pulled in. The renderer enforces that too, so
+getting it wrong costs you a missing embed rather than a hung server.
+
+As everywhere else, the access decision is already made. A gated target
+arrives as `locked` where the organization teases its gated content and
+never arrives at all where it does not, and its body is not rendered either
+way. A whole section that is members-only renders nothing rather than a
+locked title, the same as its archive does: one gate, no item titles teased.
+
+A directive that cannot be honoured leaves nothing behind. That covers a
+typo in the target, a draft, a type the organization does not publish, and
+a body that has used its ten. Ten is the cap, because each directive is a
+query and a template render, and no page should be able to cost thousands
+of either. Bodies are typed by hand, so a mistake leaves a gap rather than
+an error message or a line of raw `:::embed` in a published page.
+
+Two places directives are inert by design. They do nothing in **discussion
+posts and replies**, which share this renderer but are written by any member
+rather than by somebody publishing the site. And they do nothing in a
+**newsletter**, which is sent by a background job with no reader to answer
+`can_view` for; the prose around them still sends.
 
 ## theme.json
 

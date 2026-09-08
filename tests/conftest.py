@@ -91,6 +91,18 @@ def configure_email(app, from_address='news@acme.test'):
     mailer._outbox.clear()
 
 
+def enable_types(org, *slugs):
+    """Turn library types on for a test.
+
+    Everything Supremely shipped before types became a choice is on for a
+    new organization; everything added to the library since is off. A test
+    that publishes a recipe has to ask for one, the same as a person would.
+    """
+    for slug in slugs:
+        org.set_type_settings(slug, enabled=True)
+    return org
+
+
 def make_png(width=600, height=400, color=(120, 90, 200)) -> bytes:
     import io
 

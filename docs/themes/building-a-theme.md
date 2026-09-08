@@ -209,12 +209,17 @@ date styling:
 <h1 class="font-serif text-4xl text-[var(--trail-heading)]">{{ archive_title }}</h1>
 {% for item in items %}
   <a href="{{ item.permalink }}">{{ item.title }}</a>
-  <span>{{ item.fields.get('starts_on') }} · {{ item.fields.get('location') }}</span>
+  <span>{{ render_fields(item, surface='summary') }}</span>
 {% else %}
   <p>Nothing scheduled yet.</p>
 {% endfor %}
 {% endblock %}
 ```
+
+`render_fields` draws whatever that type declared, so this template does not
+need to know that an event has a date and a location. Reading
+`item.fields.get('starts_on')` directly still works, but it only works for
+events: the moment the same template serves another type, it goes blank.
 
 Everything in `items` is already filtered for the current visitor — a
 members-only item simply isn't in the list.

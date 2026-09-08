@@ -1,0 +1,4 @@
+{% from 'fields/_macros.html' import field_row with context %}
+{# The label, not the stored key: the key is an identifier, and rewording a
+   label should not mean rewriting every row that chose it. #}
+{% call field_row(label) %}{{ choice_label(spec, value) }}{% endcall %}

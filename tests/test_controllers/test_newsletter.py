@@ -188,3 +188,37 @@ def test_subscribers_tenant_isolated(app, client, acme, globex):
     with app.test_request_context(base_url=ACME):
         g.org = acme
         assert Subscriber.query.count() == 1
+
+
+def test_a_sent_newsletter_carries_the_types_fields(app, client, acme, globex,
+                                                    user):
+    """A podcast email that omitted the episode link was a title and a
+    paragraph. Asserted through a real send rather than on compose_email, so
+    the wiring between the two is covered as well as the rendering."""
+    configure_email(app)
+    add_subscribers(app, acme, ['listener@example.com'])
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item = Content(type='episode', title='Episode five',
+                       slug='episode-five', body='Show notes.',
+                       org_id=acme.id, tags=[],
+                       fields={'audio_url': 'https://cdn.example.com/ep5.mp3'})
+        item.save()
+        item.publish()
+        item_id = item.id
+
+    login_as(client, user)
+    client.post(f'/manage/content/{item_id}/send-newsletter', base_url=ACME)
+    run_pending_jobs()
+
+    sent = [message for message in mailer._outbox
+            if message['Subject'] == 'Episode five']
+    assert sent, 'the newsletter sent nothing'
+    # Each half separately. as_string() concatenates them, so one assertion
+    # over the whole message passes when either half has the link and the
+    # other has lost it.
+    parts = {part.get_content_type(): part.get_content()
+             for part in sent[0].walk() if not part.is_multipart()}
+    assert 'cdn.example.com/ep5.mp3' in parts['text/plain']
+    assert 'cdn.example.com/ep5.mp3' in parts['text/html']
+    assert '<table' in parts['text/html']

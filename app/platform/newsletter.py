@@ -15,14 +15,40 @@ log = get_logger()
 BATCH_LIMIT = 200       # per job execution; the job re-enqueues if more remain
 
 
-def compose_email(content, org, subscriber) -> tuple[str, str, str]:
-    """(subject, text, html) for one recipient."""
+def render_fields_for_email(content) -> tuple[str, str]:
+    """(html table, plain text) for this item's fields.
+
+    Rendered once per batch by the caller and passed in, not cached on the
+    row: the worker does not remove the session between jobs, so anything
+    stashed on an instance outlives the job that put it there and a resend
+    after an edit would send the old render.
+    """
+    from app.platform.fields import render_fields, render_fields_text
+    rows = render_fields(content, surface='email')
+    table = (f'<table role="presentation" cellpadding="0" cellspacing="0" '
+             f'style="margin:16px 0">{rows}</table>') if rows else ''
+    return table, render_fields_text(content)
+
+
+def compose_email(content, org, subscriber, fields=None) -> tuple[str, str, str]:
+    """(subject, text, html) for one recipient.
+
+    `fields` is the type's rendered fields, which are the same for every
+    recipient of one delivery; the caller renders them once for the batch.
+    Left out, they are rendered here, so a single send stays a single call.
+    """
     from app.platform.tenant import org_url
     content_url = org_url(org, content.permalink)
     unsubscribe_url = org_url(org, f'/unsubscribe/{subscriber.token}')
 
+    # The type's own fields, on both halves. A podcast email that omitted
+    # the episode link was sending a title and a paragraph.
+    field_table, field_text = (fields if fields is not None
+                               else render_fields_for_email(content))
+
     subject = content.title
     text = (f'{content.title}\n\n{content.excerpt_or_summary(400)}\n\n'
+            f'{field_text}\n'
             f'Read online: {content_url}\n\n--\n'
             f'You receive this because you subscribed to {org.name}.\n'
             f'Unsubscribe: {unsubscribe_url}\n')
@@ -33,6 +59,7 @@ def compose_email(content, org, subscriber) -> tuple[str, str, str]:
     html = (
         f'<h1 style="font-family:sans-serif">{_escape(content.title)}</h1>'
         f'<div style="font-family:sans-serif;line-height:1.6">{body_html}</div>'
+        f'{field_table}'
         f'<p style="font-family:sans-serif"><a href="{content_url}">Read online</a></p>'
         f'<hr><p style="font-family:sans-serif;font-size:12px;color:#666">'
         f'You receive this because you subscribed to {_escape(org.name)}. '
@@ -74,6 +101,9 @@ def send_delivery(payload: dict) -> None:
     unsent = (DeliveryRecipient.query
               .filter_by(delivery_id=delivery.id, sent_at=None, error=None)
               .limit(BATCH_LIMIT).all())
+    # Once for the batch: the fields do not vary by recipient, and this
+    # loop runs up to BATCH_LIMIT times.
+    rendered_fields = render_fields_for_email(content)
     for recipient in unsent:
         subscriber = recipient.subscriber
         if subscriber is None or subscriber.status != 'subscribed':
@@ -81,7 +111,8 @@ def send_delivery(payload: dict) -> None:
             db.session.commit()
             continue
         try:
-            subject, text, html = compose_email(content, org, subscriber)
+            subject, text, html = compose_email(content, org, subscriber,
+                                                fields=rendered_fields)
             send_email(subscriber.email, subject, text, html=html)
             recipient.sent_at = utcnow()
         except Exception as e:      # noqa: BLE001 -- one bad address must not stop the batch

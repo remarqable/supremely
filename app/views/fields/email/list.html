@@ -1,0 +1,12 @@
+{% from 'fields/email/_macros.html' import field_row with context %}
+{# Sub-values go through the summary partials rather than being printed:
+   raw, a select shows its stored key and an image shows its id. #}
+{% call field_row(label) %}
+<ul style="margin:0;padding-inline-start:18px">
+  {% for row in value %}
+  <li style="font-family:sans-serif;font-size:14px;color:#0f172a">
+    {% for sub in spec.of %}{% if row.get(sub.key) is not none %}{{ render_field(sub, row[sub.key], 'summary', content=content) }} {% endif %}{% endfor %}
+  </li>
+  {% endfor %}
+</ul>
+{% endcall %}

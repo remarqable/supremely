@@ -1,0 +1,21 @@
+{# The blocks written inside this item, in the order the author put them.
+
+   A block is an ordinary content row with a parent, so it renders through
+   the same field renderer everything else does. Nothing here decides who
+   may read what: visible_children() has already dropped the blocks this
+   visitor may not see, which is how lesson one of a course is public while
+   the rest are not.
+
+   Below the body, always. Placing a block inside the prose is a layout
+   decision, and blocks are content, not layout.
+
+   A theme replaces this whole section with its own _content_blocks.html,
+   or one type's with content-block-{type}.html. #}
+{% set blocks = content.visible_children() %}
+{% if blocks %}
+<div class="mt-10 space-y-6">
+  {% for block in blocks %}
+  {% include block_template(block) with context %}
+  {% endfor %}
+</div>
+{% endif %}

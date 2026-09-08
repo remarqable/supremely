@@ -1,0 +1,23 @@
+{# A gallery is pictures, so it gets a grid rather than the list default.
+   This is the key override the field renderer exists to allow: nothing in
+   the platform knows what a gallery is. #}
+<div class="mt-4">
+  <h3 class="sr-only">{{ label }}</h3>
+  <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+    {% for row in value %}
+    {% set upload = upload_for(row.get('image')) %}
+    {% if upload %}
+    <li>
+      <figure>
+        <img src="{{ upload.url('medium' if upload.has_variants else 'original') }}"
+             alt="{{ upload.alt or row.get('caption') or '' }}" loading="lazy"
+             class="aspect-square w-full rounded-lg object-cover ring-1 ring-slate-900/5">
+        {% if row.get('caption') %}
+        <figcaption class="mt-1 text-sm text-slate-500">{{ row.caption }}</figcaption>
+        {% endif %}
+      </figure>
+    </li>
+    {% endif %}
+    {% endfor %}
+  </ul>
+</div>

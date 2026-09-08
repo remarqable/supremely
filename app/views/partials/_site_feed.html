@@ -1,0 +1,47 @@
+{# One section of the public site's shop window: the newest items of a type,
+   linking inward.
+
+   A list, never a second copy of a page. The site advertises what the
+   community holds; clicking lands on the item's own address, so there is no
+   duplicate URL and nothing for a search engine to have to choose between.
+
+   Gated items are already handled: latest_content routes through
+   visible_query, so a members-only item arrives here as a locked title when
+   the organization teases and is simply absent when it does not. Nothing in
+   this partial decides who may read anything.
+
+   A theme overrides one type's section by shipping site-feed-{type}.html,
+   or all of them by shipping its own _site_feed.html. #}
+{% from 'partials/_ui.html' import lock_badge with context %}
+{# A theme that wants a different number sets `limit` before including
+   this; on its own the partial picks one, so including it needs no setup. #}
+{% set shown = limit|default(3, true) %}
+{% set items = latest_content(content_type.slug, shown) %}
+{% if items %}
+<section class="border-t border-slate-200 py-12">
+  <div class="flex items-baseline justify-between gap-4">
+    <h2 class="text-2xl font-bold tracking-tight">{{ _('site.latest_of', name=content_type.plural) }}</h2>
+    <a href="{{ content_type.base }}" class="text-sm font-medium text-brand-700 hover:underline">
+      {{ _('site.see_all', n=content_count(content_type.slug)) }}</a>
+  </div>
+  <ul class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    {% for item in items %}
+    {% set locked = not can_view(item) %}
+    <li class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+      <h3 class="flex flex-wrap items-center gap-2 font-semibold tracking-tight">
+        <a href="{{ item.permalink }}" class="hover:text-brand-600">{{ item.title }}</a>
+        {% if locked %}{{ lock_badge() }}{% endif %}
+      </h3>
+      {% if not locked %}
+      {% set summary = item.excerpt_or_summary(140) %}
+      {% if summary %}<p class="mt-2 text-sm text-slate-600">{{ summary }}</p>{% endif %}
+      {% set summary_fields = render_fields(item, surface='summary') %}
+      {% if summary_fields %}
+      <p class="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">{{ summary_fields }}</p>
+      {% endif %}
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}

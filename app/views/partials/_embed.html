@@ -1,0 +1,40 @@
+{# One item pulled into a body by :::embed.
+
+   `item` is the target, `locked` says whether this reader may read it. The
+   decision was made before this template ran: a locked item arrives here
+   only where the organization teases its gated content, and its body is not
+   rendered at all. Nothing here decides who may read anything.
+
+   The body is drawn from html_flat, which leaves any directives inside it
+   as plain text. That is the recursion guard: an embed shows what it pulled
+   in, never what that in turn points at.
+
+   A theme replaces this with its own _embed.html, or one type's with
+   embed-{type}.html. #}
+{% from 'partials/_ui.html' import lock_badge with context %}
+{# A figure, not an aside: an aside is a landmark, and a body may hold
+   several of these with nothing to tell them apart in a screen
+   reader's list. A figure is also valid where this can land, including
+   inside a blockquote. #}
+<figure class="embed-card my-8 rounded-lg border border-slate-200 bg-slate-50 p-5">
+  <p class="text-xs font-medium uppercase tracking-wide text-slate-500">
+    {{ content_type.singular }}</p>
+  <h3 class="mt-1 flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
+    <a href="{{ item.permalink }}" class="hover:text-brand-700">{{ item.title }}</a>
+    {% if locked %}{{ lock_badge() }}{% endif %}
+  </h3>
+  {% if locked %}
+  {% if item.excerpt %}
+  <p class="mt-2 text-sm text-slate-600">{{ item.excerpt }}</p>
+  {% endif %}
+  {% else %}
+  {% set summary = render_fields(item, surface='summary') %}
+  {% if summary %}
+  <p class="mt-2 flex flex-wrap gap-3 text-sm text-slate-600">{{ summary }}</p>
+  {% endif %}
+  {% if item.html_flat %}
+  <div class="prose-supremely mt-3 text-[15px]">{{ item.html_flat | safe }}</div>
+  {% endif %}
+  {{ render_fields(item) }}
+  {% endif %}
+</figure>

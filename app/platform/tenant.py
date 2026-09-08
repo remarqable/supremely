@@ -14,7 +14,14 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from urllib.parse import quote
 
-from flask import abort, current_app, g, has_request_context, request
+from flask import (
+    abort,
+    current_app,
+    g,
+    has_app_context,
+    has_request_context,
+    request,
+)
 from flask_login import current_user
 from sqlalchemy import event
 from sqlalchemy import inspect as sa_inspect
@@ -241,6 +248,32 @@ def org_scope(org_id):
         yield
     finally:
         _ambient_org.reset(token)
+
+
+def current_org():
+    """The organization in force, from a request or from org_scope().
+
+    Asked the same way the tenant filter asks it, so a job knows which
+    organization it is working for. Deciding on g.org alone answers "no
+    tenant" inside a worker, which runs under org_scope with the tenant
+    perfectly well known: a newsletter would then build its links against
+    no address at all, and resolve its templates against no theme.
+
+    Memoized per request, because every content type asks it and every
+    section on a page asks every type.
+    """
+    org_id = current_org_id()
+    if org_id is None:
+        return None
+    cached = getattr(g, '_active_org', None) if has_app_context() else None
+    if cached is not None and cached.id == org_id:
+        return cached
+    from app.models import Organization
+    with unscoped():
+        org = Organization.query.filter_by(id=org_id).first()
+    if has_app_context():
+        g._active_org = org
+    return org
 
 
 def current_org_id():

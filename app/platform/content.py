@@ -1,20 +1,54 @@
-"""Content rendering: Markdown to sanitized HTML.
+"""Content rendering: Markdown to sanitized HTML, then directives.
 
-Authors are org admins, but their output is served to members and the public:
-sanitize on render so content can never carry script.
+Authors of published content are org admins, but their output is served to
+members and the public: sanitize on render so content can never carry script.
 
 One renderer serves two trust levels -- editorial Content and member-written
 discussion posts (app/models/base.py, MarkdownBody) -- so the allowlist below
 is the strict one either surface can live with. That is why a video is a
 directive rather than an `iframe` tag: see the video embed section.
+
+Three directives, each a line or paragraph of its own:
+
+    :::video https://www.youtube.com/watch?v=...   a player
+    :::embed episode/why-we-build                  one published item
+    :::feed episode limit=3                        a type's latest items
+
+Video is available in any body, because it resolves to a frame built here
+from an id parsed here and reaches no further. Embed and feed resolve only
+where somebody with content.write was publishing, and not in discussion
+posts and replies, which share this renderer and are written by any member:
+each one runs a query, an authorization check and a template render on the
+server, and a forum post is not the place to hand that to everyone. Opt in
+with `MarkdownBody.resolves_directives`.
+
+All three are spliced in *after* sanitizing, never before, and the order is
+the whole security argument. Sanitize what the author wrote, then add what we
+wrote. The other way round strips our markup and trusts theirs.
+
+They get there by two routes, and both preserve that order. A video is
+stashed behind an unguessable per-render token before the Markdown runs and
+restored afterwards, so nothing an author can type is mistaken for ours. An
+embed or a feed is matched in the cleaned document, where Markdown has left
+it as the plain text it always was.
 """
 
 import re
 import secrets
+import threading
 from html import escape
+from typing import TYPE_CHECKING
 
 import markdown as md
 import nh3
+
+from app.platform.logger import get_logger
+
+if TYPE_CHECKING:
+    from app.platform.content_types import ContentType
+
+log = get_logger()
+
 
 _ALLOWED_TAGS = {
     'a', 'abbr', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'figure',
@@ -52,7 +86,7 @@ _ALLOWED_ATTRIBUTES = {
 
 VIDEO_FRAME_HOSTS = ('https://www.youtube-nocookie.com', 'https://player.vimeo.com')
 
-_DIRECTIVE_RE = re.compile(r'^[ \t]*:::video[ \t]+(\S+)[ \t]*$', re.MULTILINE)
+_VIDEO_DIRECTIVE_RE = re.compile(r'^[ \t]*:::video[ \t]+(\S+)[ \t]*$', re.MULTILINE)
 
 # Ids are substituted into a URL, so they are matched strictly rather than
 # trimmed: anything that is not a plain id is left alone as ordinary text.
@@ -85,6 +119,7 @@ def _embed_html(src: str) -> str:
     )
 
 
+
 def video_link(url: str) -> str | None:
     """The watch page for a supported video link, or None.
 
@@ -95,23 +130,91 @@ def video_link(url: str) -> str | None:
     return url if _embed_src(url) else None
 
 
-def render_markdown(text: str, embed_videos: bool = True) -> str:
-    """Body Markdown as sanitized HTML.
+# Match the paragraph, then read what is inside it in Python.
+# Whether this thread is already resolving directives. One level is the cap,
+# and it is enforced here rather than left to callers: the embed partial is
+# theme-overridable, so a theme rendering the target's `html` instead of its
+# `html_flat` would otherwise follow a body that references itself until the
+# worker died.
+_resolving = threading.local()
 
-    `embed_videos=False` renders a :::video directive as a link rather than a
-    frame, for surfaces that cannot show one. Email is the case: every mail
-    client drops an iframe, so an embedded video would be a blank space in a
-    newsletter rather than a video.
+_PARAGRAPH_RE = re.compile(r'<p>([^<]*)</p>')
+
+# How many directives one body may resolve. Each one is a query and a
+# template render, so an unbounded count turns one saved body into a page
+# that costs thousands of both. Past the cap they render as nothing, the
+# same as any other directive that cannot be honoured.
+_MAX_DIRECTIVES = 10
+
+# What a type slug and a content slug are allowed to look like. Narrow on
+# purpose: these arrive from a body somebody typed.
+_TARGET_RE = re.compile(r'(?P<type>[a-z][a-z0-9_]{0,49})'
+                        r'/(?P<slug>[a-z0-9][a-z0-9-]{0,199})\Z')
+_FEED_RE = re.compile(r'(?P<type>[a-z][a-z0-9_]{0,49})'
+                      r'(?:\s+limit=(?P<limit>\d{1,3}))?\Z')
+
+
+DIRECTIVE_MODES = ('resolve', 'drop', 'ignore')
+
+
+def render_markdown(text: str, *, embed_videos: bool = True,
+                    directives: str = 'resolve') -> str:
+    """This body as sanitized HTML.
+
+    `embed_videos=False` renders a :::video directive as a link rather than
+    a frame, for a surface that cannot show one. Email is the case: every
+    mail client drops an iframe, so an embedded video would be a blank space
+    in a newsletter rather than a video.
+
+    What happens to a :::embed or a :::feed depends on what kind of body
+    this is, and the three answers are genuinely different things rather
+    than degrees of one:
+
+    'resolve' -- honour them. A published body.
+
+    'drop' -- remove them, honour none. What an embedded item renders and
+    what a listing summarises. A card inside a card must not show the words
+    ":::embed episode/x", and neither should a one-line archive summary.
+    This is also the recursion guard: an embed inside an embedded item is
+    never looked at, so a body that embeds itself terminates rather than
+    descending. One level, matching blocks.
+
+    'ignore' -- leave the text exactly as written, because directives are
+    not a feature of this kind of body at all. A discussion post is somebody
+    talking, and ":::embed" in a sentence is a sentence. Dropping it there
+    would delete a member's own words on the grounds that they resemble
+    syntax they were never offered.
     """
     if not text:
         return ''
+    # Videos are taken out before the Markdown and put back after the
+    # cleaner, so what goes through the cleaner is only ever what the author
+    # wrote. Embeds and feeds are matched after it, in the cleaned document.
     placeholders: list[str] = []
     text = (_stash_videos(text, placeholders) if embed_videos
             else _link_videos(text))
     html = md.markdown(text, extensions=['extra', 'sane_lists'])
     html = nh3.clean(html, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRIBUTES,
                      link_rel='noopener noreferrer')
-    return _restore_videos(html, placeholders)
+    html = _restore_videos(html, placeholders)
+
+    if directives == 'ignore' or ':::' not in html:
+        return html
+    from flask import has_request_context
+    # Two more reasons a directive is dropped rather than honoured, both
+    # meaning the same thing as an explicit 'drop': we are already inside an
+    # embed and one level is the cap, or this is a job, where there is
+    # nobody to answer can_view for and so no safe answer.
+    nested = getattr(_resolving, 'active', False)
+    resolver = _Resolver(active=(directives == 'resolve' and not nested
+                                 and has_request_context()))
+    _resolving.active = True
+    try:
+        return _PARAGRAPH_RE.sub(resolver, html)
+    finally:
+        # Restored rather than cleared, so a nested call cannot end the
+        # guard for the render still running around it.
+        _resolving.active = nested
 
 
 def _link_videos(text: str) -> str:
@@ -122,7 +225,7 @@ def _link_videos(text: str) -> str:
             return match.group(0)
         return f'[{url}]({url})'
 
-    return _DIRECTIVE_RE.sub(swap, text)
+    return _VIDEO_DIRECTIVE_RE.sub(swap, text)
 
 
 def _stash_videos(text: str, placeholders: list[str]) -> str:
@@ -140,7 +243,7 @@ def _stash_videos(text: str, placeholders: list[str]) -> str:
         placeholders.append(_embed_html(src))
         return f'\n\nsupremelyvideo{token}{len(placeholders) - 1}\n\n'
 
-    swapped = _DIRECTIVE_RE.sub(swap, text)
+    swapped = _VIDEO_DIRECTIVE_RE.sub(swap, text)
     if placeholders:
         placeholders.append(token)      # the tail entry is the token itself
     return swapped
@@ -156,3 +259,126 @@ def _restore_videos(html: str, placeholders: list[str]) -> str:
         # too, or the frame lands inside a <p> it is not allowed to sit in.
         html = html.replace(f'<p>{marker}</p>', embed).replace(marker, embed)
     return html
+
+
+class _Resolver:
+    """Replaces one paragraph at a time, counting as it goes.
+
+    A class rather than a closure so the cap is state the substitution owns
+    rather than something the module remembers between calls.
+    """
+
+    def __init__(self, active: bool) -> None:
+        self.active = active
+        self.used = 0
+
+    def __call__(self, match: 're.Match[str]') -> str:
+        whole = match.group(0)
+        text = match.group(1).strip()
+        if not text.startswith(':::'):
+            return whole
+        name, _, args = text[3:].partition(' ')
+        if name not in ('embed', 'feed'):
+            return whole
+        args = args.strip()
+        parsed = (_TARGET_RE.match(args) if name == 'embed'
+                  else _FEED_RE.match(args))
+        if parsed is None or not self.active or self.used >= _MAX_DIRECTIVES:
+            # A directive that cannot be honoured leaves nothing behind,
+            # whatever stopped it: a typo in the target, no reader to answer
+            # for, or a body that has already had its ten. Never the raw
+            # text, which is machinery showing through in a published page,
+            # and never an error message in the middle of somebody's
+            # article. An author writing *about* directives puts them in
+            # backticks like any other code, and then they are code.
+            return ''
+        self.used += 1
+        try:
+            return (_render_embed(parsed) if name == 'embed'
+                    else _render_feed(parsed))
+        except Exception as exc:
+            from werkzeug.exceptions import HTTPException
+
+            from app.platform.errors import TenantViolation
+            if isinstance(exc, HTTPException | TenantViolation):
+                # An abort inside a partial, or the tenant filter refusing a
+                # read. Both are meant to stop the request, and swallowing
+                # either would turn a loud failure into a quiet wrong page.
+                raise
+            # Otherwise a body must still render. Logged at debug: a typo in
+            # an article is not an operational event, and this runs on every
+            # page view.
+            log.debug('directive_failed', directive=name, args=args)
+            return ''
+
+
+def _render_embed(target: 're.Match[str]') -> str:
+    from flask import render_template
+
+    from app.models import Content
+    from app.platform.authz import can_view
+    from app.platform.theming import embed_template
+    content_type = _active_type(target.group('type'))
+    if content_type is None:
+        return ''
+    item = Content.published_by_slug(content_type.slug, target.group('slug'))
+    if item is None or not Content.section_readable_by_current_visitor(
+            content_type.slug):
+        return ''
+    locked = not can_view(item)
+    if locked:
+        # Gated, so the same tease-or-hide answer the rest of the product
+        # gives: a locked title where this organization teases, and no sign
+        # the item exists where it does not. Never the body, either way.
+        from flask import g
+        org = getattr(g, 'org', None)
+        if org is None or not org.type_teases(content_type.slug):
+            return ''
+    return render_template(embed_template(item), item=item,
+                           content_type=content_type, locked=locked)
+
+
+def _render_feed(wanted: 're.Match[str]') -> str:
+    from flask import render_template
+
+    from app.platform.theming import site_feed_template
+    content_type = _active_type(wanted.group('type'))
+    if content_type is None:
+        return ''
+    limit = int(wanted.group('limit')) if wanted.group('limit') else None
+    # The same partial the front page window draws, so a section an author
+    # places in a body and one a theme places on the front page are the same
+    # thing rendered the same way. One data verb, two callers.
+    return render_template(site_feed_template(content_type),
+                           content_type=content_type, limit=limit)
+
+
+def _active_type(name: str) -> 'ContentType | None':
+    """The type a directive is naming, if this organization publishes it.
+
+    Accepts either the type's slug or the segment its archive lives at, so
+    both of these find the same thing:
+
+        :::embed resource/setup-guide
+        :::embed resources/setup-guide
+
+    The second is what an author will write, because it is what the address
+    bar shows them: the item is at /resources/setup-guide. Not one type in
+    the library has a URL base equal to its slug -- article publishes at
+    /blog, episode at /podcast, team_member at /team -- so accepting only
+    the slug means the obvious spelling silently renders nothing, on every
+    type, forever.
+
+    The slug wins where a name could be both, so adding a type can never
+    change what an existing body points at.
+
+    None for a type this organization does not publish, so a directive is
+    not a way in through a door the archive closed.
+    """
+    from app.platform.content_types import active_types
+    active = active_types()
+    if name in active:
+        return active[name]
+    return next((content_type for content_type in active.values()
+                 if content_type.has_archive
+                 and content_type.base.strip('/') == name), None)

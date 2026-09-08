@@ -19,13 +19,15 @@ from flask import (
     send_file,
     send_from_directory,
 )
+from flask.typing import ResponseReturnValue
+from werkzeug.routing import BaseConverter, ValidationError
 
 from app.extensions import db
 from app.models import Content, Upload
-from app.models.content import Category
+from app.models.content import RESERVED_PAGE_SLUGS, Category
 from app.models.upload import VARIANTS
 from app.platform.authz import is_member_or_platform_admin, org_required
-from app.platform.content_types import type_for_base
+from app.platform.content_types import type_for_base, type_presentation
 from app.platform.theming import (
     AVAILABLE_THEMES,
     page_template_allowed,
@@ -63,9 +65,11 @@ def _render_page(content):
     ct = content.content_type
     if not Content.section_readable_by_current_visitor(ct.slug):
         # Section locked: gate the section, the way the archive does.
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     if not content.visible_to_current_visitor():
-        return render_gate(content.title, kind=ct.singular)
+        return render_gate(content.title, kind=ct.singular,
+                           type_slug=ct.slug,
+                           teaser=content.excerpt)
     # A row written before this rule existed can still hold anything.
     tmpl = (content.template
             if page_template_allowed(content.template) else None) or ct.template
@@ -87,14 +91,14 @@ def _render_archive(ct, title=None, category=None, query=None):
     """
     if not Content.section_readable_by_current_visitor(ct.slug):
         # The whole section is locked: one gate, no item titles teased.
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     page_number = request.args.get('page', 1, type=int)
     listing = Content.visible_query(ct.slug) if query is None else query
     pagination = listing.paginate(page=page_number, per_page=PER_PAGE,
                                   error_out=False)
     return render_site([f'archive-{ct.slug}.html', ct.list_template + '.html',
                         'archive.html'],
-                       force_theme=(ct.presentation == 'site'),
+                       force_theme=(type_presentation(ct) == 'site'),
                        content_type=ct, items=pagination.items,
                        pagination=pagination,
                        categories=Category.for_type(ct.slug),
@@ -105,16 +109,18 @@ def _render_archive(ct, title=None, category=None, query=None):
 def _render_single(ct, content):
     if not Content.section_readable_by_current_visitor(ct.slug):
         # Section locked: gate the section, the way the archive does.
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     if not content.visible_to_current_visitor():
-        return render_gate(content.title, kind=ct.singular)
+        return render_gate(content.title, kind=ct.singular,
+                           type_slug=ct.slug,
+                           teaser=content.excerpt)
     # Specificity order, and symmetric with archives: this item, then this
     # type, then the generic single. A theme shipping single-recipe.html has
     # it used for recipes without registering anything.
     return render_site(
         [f'single-{content.slug}.html', f'single-{ct.slug}.html',
          f'{ct.template}.html', 'single.html'],
-        force_theme=(ct.presentation == 'site'),
+        force_theme=(type_presentation(ct) == 'site'),
         content_type=ct, content=content)
 
 
@@ -137,7 +143,7 @@ def archive_category(seg, cslug):
     if ct is None:
         abort(404)
     if not Content.section_readable_by_current_visitor(ct.slug):
-        return render_gate(ct.plural)
+        return render_gate(ct.plural, type_slug=ct.slug)
     category = Category.get_by_slug(cslug)
     if category is None:
         abort(404)
@@ -152,7 +158,9 @@ def archive_tag(seg, tag):
     if ct is None:
         abort(404)
     if not Content.section_readable_by_current_visitor(ct.slug):
-        return render_gate(ct.plural)
+        # type_slug, so a single type's own teasing switch decides how
+        # this refusal looks, not only the organization-wide one.
+        return render_gate(ct.plural, type_slug=ct.slug)
     return _render_archive(ct, title=f'#{tag}',
                            query=Content.with_tag(ct.slug, tag))
 
@@ -167,6 +175,63 @@ def single(seg, slug):
     if content is None:
         abort(404)
     return _render_single(ct, content)
+
+
+@bp.route('/<published:pseg>/<pslug>/<cseg>/<cslug>')
+@org_required
+def child_single(pseg: str, pslug: str, cseg: str, cslug: str) -> ResponseReturnValue:
+    """A block that has an address of its own: /courses/intro/lessons/one.
+
+    Under its parent, not beside it, because that is where it belongs and
+    the URL should say so. Only types that ask for this get it; a recipe
+    card inside an article is read in the article and has no address here.
+
+    The parent is resolved first and has to be readable in its own right: a
+    lesson inside a members-only course is not reachable by knowing its
+    address, whatever the lesson itself says.
+
+    The first segment goes through the `published` converter so this rule
+    cannot swallow four-segment application URLs: without it a GET to a
+    POST-only /manage/... address matched here and answered 404 instead of
+    letting the real rule answer "wrong method".
+    """
+    parent_type = type_for_base('/' + pseg)
+    child_type = type_for_base('/' + cseg)
+    if (parent_type is None or child_type is None
+            or not child_type.child_routable):
+        abort(404)
+    parent = Content.published_by_slug(parent_type.slug, pslug)
+    if parent is None:
+        abort(404)
+    if not Content.section_readable_by_current_visitor(parent_type.slug):
+        return render_gate(parent_type.plural, type_slug=parent_type.slug)
+    if not parent.visible_to_current_visitor():
+        return render_gate(parent.title, kind=parent_type.singular,
+                           type_slug=parent_type.slug, teaser=parent.excerpt)
+    child = Content.query.filter_by(
+        parent_id=parent.id, type=child_type.slug, status='published',
+        slug=(cslug or '').strip().lower()).first()
+    if child is None:
+        abort(404)
+    return _render_single(child_type, child)
+
+
+class PublishedSegment(BaseConverter):
+    """A first URL segment that could belong to published content.
+
+    Rejecting the application's own prefixes is the whole job: those names
+    are already the single list a page slug may not use, so a URL rule and
+    a page slug agree about what is off limits without a second list to
+    keep in step. Raising ValidationError makes the rule not match at all,
+    which leaves the application's own rules to answer -- including with
+    405 where that is the honest answer.
+    """
+    regex = r'[a-z0-9][a-z0-9-]*'
+
+    def to_python(self, value: str) -> str:
+        if value in RESERVED_PAGE_SLUGS:
+            raise ValidationError()
+        return value
 
 
 # --- Files & theme assets ------------------------------------------------------

@@ -1,0 +1,4 @@
+{# The email version. Inline styles and a table row, because no stylesheet
+   reaches an email client and no layout survives without a table. #}
+{% from 'fields/email/_macros.html' import field_row with context %}
+{% call field_row(label) %}{{ value }}{% endcall %}

@@ -168,10 +168,33 @@ class OrgScoped:
 class MarkdownBody:
     """Mixin: renders this row's `body` column as sanitized markdown."""
 
+    # Do :::embed and :::feed mean anything in this kind of body?
+    #
+    # Off here, on for Content. This mixin is shared with discussion posts
+    # and replies, which any member writes, and a directive costs a query,
+    # an authorization check and a template render on the server. That is
+    # reasonable to hand to somebody publishing the site and not to everyone
+    # who can start a thread, so it is opted into rather than inherited.
+    resolves_directives = False
+
     @property
     def html(self) -> str:
         from app.platform.content import render_markdown
-        return render_markdown(self.body)
+        return render_markdown(
+            self.body,
+            directives='resolve' if self.resolves_directives else 'ignore')
+
+    @property
+    def html_flat(self) -> str:
+        """The same body with its directives removed.
+
+        What an embedded item renders, and what a listing summarises. An
+        embed that resolved the embeds inside what it pulled in would follow
+        a body that referenced itself forever, so one level is where it
+        stops -- the same depth blocks go to, for the same reason.
+        """
+        from app.platform.content import render_markdown
+        return render_markdown(self.body, directives='drop')
 
 
 class AuditMixin:

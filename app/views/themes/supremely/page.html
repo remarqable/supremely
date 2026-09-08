@@ -21,6 +21,8 @@
     <div class="prose-supremely">
       {{ page.html | safe }}
     </div>
+
+    {% with content = page %}{% include blocks_template() with context %}{% endwith %}
   </article>
 </main>
 {% endblock %}

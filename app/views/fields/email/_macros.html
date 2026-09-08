@@ -1,0 +1,10 @@
+{# Physical padding, not logical: Outlook and several webmail clients
+   still do not support padding-inline-end, and an email that reflows
+   wrongly in them is worse than one that pads the wrong side in RTL.
+   The rest of the application uses logical properties. #}
+{% macro field_row(label) %}
+<tr>
+  <td style="padding:4px 12px 4px 0;font-family:sans-serif;font-size:14px;color:#64748b;white-space:nowrap;vertical-align:top">{{ label }}</td>
+  <td style="padding:4px 0;font-family:sans-serif;font-size:14px;color:#0f172a">{{ caller() }}</td>
+</tr>
+{% endmacro %}

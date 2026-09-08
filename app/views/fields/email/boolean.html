@@ -1,0 +1,2 @@
+{% from 'fields/email/_macros.html' import field_row with context %}
+{% call field_row(label) %}{{ _('common.yes') if value else _('common.no') }}{% endcall %}

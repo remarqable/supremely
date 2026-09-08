@@ -6,41 +6,115 @@
   {{ page_header(_('manage.content_types'), _('manage.content_types_intro')) }}
   <div class="space-y-6">
 
+  {# Grouped the way the product talks about them: everything an
+     organization publishes is a page or a post. The grouping is the whole
+     model on one screen, which a single flat list of thirteen never was. #}
+  {% for kind, heading, blurb in (
+       ('page', _('manage.kind_pages'), _('manage.kind_pages_intro')),
+       ('post', _('manage.kind_posts'), _('manage.kind_posts_intro'))) %}
+  {% set of_kind = types | selectattr('kind', 'equalto', kind) | list %}
+  {% if of_kind %}
   <div class="space-y-4">
-    {% for ct in types %}
-    <div class="card">
-      {% set locked = ct.base and section_visibility(ct.slug) == 'members' %}
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 class="text-sm font-semibold tracking-tight">{{ ct.plural }}
-            {% if ct.base %}<span class="ms-2 font-mono text-xs font-normal text-slate-400">{{ ct.base }}</span>
-            {% else %}<span class="badge-slate ms-2">{{ _('manage.ct_standalone') }}</span>{% endif %}
-            {% if locked %}<span class="badge-slate ms-2">{{ _('manage.visibility_members') }}</span>{% endif %}
-          </h3>
-          {% if ct.description %}<p class="text-sm text-slate-600">{{ ct.description }}</p>{% endif %}
-          {% if ct.fields %}
-          <p class="mt-1 text-xs text-slate-500">
-            {% for spec in ct.fields %}{{ spec.label or spec.key }}{{ ', ' if not loop.last }}{% endfor %}
-          </p>
-          {% endif %}
+    <div>
+      <h2 class="section-title">{{ heading }}</h2>
+      <p class="mt-1 text-sm text-slate-500">{{ blurb }}</p>
+    </div>
+    {% for ct in of_kind %}
+    {% set enabled = org.type_enabled(ct) %}
+    {% set stored = org.type_settings(ct.slug) %}
+    {% set count = counts.get(ct.slug, 0) %}
+    <div class="card {{ '' if enabled else 'bg-slate-50' }}">
+      {# One form per type: what this organization does with it, all in one
+         place. Turning it off never deletes anything, which is why the row
+         still says how many items are waiting. #}
+      <form method="POST" action="{{ url_for('manage.update_content_type', type_slug=ct.slug) }}"
+            x-data="{ enabled: {{ 'true' if enabled else 'false' }} }">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold tracking-tight">{{ ct.plural }}
+              {% if ct.base %}<span class="ms-2 font-mono text-xs font-normal text-slate-400">{{ ct.base }}</span>
+              {% else %}<span class="badge-slate ms-2">{{ _('manage.ct_standalone') }}</span>{% endif %}
+              {% if not enabled %}<span class="badge-slate ms-2">{{ _('manage.ct_disabled') }}</span>{% endif %}
+            </h3>
+            {% if ct.description %}<p class="text-sm text-slate-600">{{ ct.description }}</p>{% endif %}
+            {% if ct.fields %}
+            <p class="mt-1 text-xs text-slate-500">
+              {% for spec in ct.fields %}{{ spec.label or spec.key }}{{ ', ' if not loop.last }}{% endfor %}
+            </p>
+            {% endif %}
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            {% if enabled %}
+            <a href="{{ url_for('manage.content_list', type_slug=ct.slug) }}" class="btn-secondary">
+              {{ count }} {{ _('manage.ct_items') }}</a>
+            {% else %}
+            {# The list behind a disabled type does not answer, so this says
+               what is waiting rather than linking to a refusal. #}
+            <span class="text-sm text-slate-500">{{ count }} {{ _('manage.ct_items') }}</span>
+            {% endif %}
+          </div>
         </div>
-        <div class="flex items-center gap-2">
+
+        {# A type that is neither optional nor gateable has nothing to
+           decide, so it gets no controls and no button that would do
+           nothing. Pages are the only one. #}
+        {% if not (ct.essential and not ct.has_archive) %}
+        <div class="mt-3 flex flex-wrap items-end gap-4 border-t border-slate-100 pt-3">
+          <label class="flex items-center gap-2 text-sm">
+            {% if ct.essential %}
+            {# Not a choice: without pages and articles there is nothing to
+               publish at all. #}
+            <input type="checkbox" checked disabled>
+            <span class="text-slate-500">{{ _('manage.ct_always_on') }}</span>
+            {% else %}
+            <input type="checkbox" name="enabled" x-model="enabled" {{ 'checked' if enabled }}>
+            {{ _('manage.ct_enabled') }}
+            {% endif %}
+          </label>
+
           {% if ct.base %}
-          {# Section lock: gates every item in the section for non-members. #}
-          <form method="POST" action="{{ url_for('manage.toggle_section_visibility', type_slug=ct.slug) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="btn-secondary">
-              {{ _('manage.unlock_section') if locked else _('manage.lock_section') }}</button>
-          </form>
+          <label class="block text-sm" x-show="enabled" x-cloak>
+            <span class="text-xs text-slate-500">{{ _('manage.ct_who_can_read') }}</span>
+            <select name="visibility" class="select mt-0.5">
+              {% for level in visibility_levels %}
+              <option value="{{ level }}" {{ 'selected' if org.type_visibility(ct.slug) == level }}>{{ _('manage.visibility_' ~ level) }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="block text-sm" x-show="enabled" x-cloak>
+            <span class="text-xs text-slate-500">{{ _('manage.ct_where_it_renders') }}</span>
+            <select name="presentation" class="select mt-0.5">
+              <option value="" {{ 'selected' if stored.get('presentation') is none }}>{{ _('manage.ct_presentation_default', name=_('manage.presentation_' ~ ct.presentation)) }}</option>
+              <option value="community" {{ 'selected' if stored.get('presentation') == 'community' }}>{{ _('manage.presentation_community') }}</option>
+              <option value="site" {{ 'selected' if stored.get('presentation') == 'site' }}>{{ _('manage.presentation_site') }}</option>
+            </select>
+          </label>
+
+          {# Who may read and how a refusal looks are separate questions.
+             Inherit is a real answer, not a default value pinned on save. #}
+          <label class="block text-sm" x-show="enabled" x-cloak>
+            <span class="text-xs text-slate-500">{{ _('manage.ct_when_gated') }}</span>
+            <select name="tease" class="select mt-0.5">
+              <option value="inherit" {{ 'selected' if stored.get('tease') is none }}>{{ _('manage.ct_tease_inherit') }}</option>
+              <option value="yes" {{ 'selected' if stored.get('tease') is true }}>{{ _('manage.ct_tease_yes') }}</option>
+              <option value="no" {{ 'selected' if stored.get('tease') is false }}>{{ _('manage.ct_tease_no') }}</option>
+            </select>
+          </label>
           {% endif %}
-          <a href="{{ url_for('manage.content_list', type_slug=ct.slug) }}" class="btn-secondary">
-            {{ counts.get(ct.slug, 0) }} {{ _('manage.ct_items') }}</a>
+
+          <button type="submit" class="btn-secondary ms-auto">{{ _('common.save') }}</button>
         </div>
-      </div>
+        {% endif %}
+      </form>
     </div>
     {% endfor %}
   </div>
+  {% endif %}
+  {% endfor %}
 
+  {% if coming_soon %}
   <div class="pt-2">
     <h2 class="section-title">{{ _('manage.coming_soon') }}</h2>
     <p class="mt-1 text-sm text-slate-500">{{ _('manage.coming_soon_intro') }}</p>
@@ -57,6 +131,7 @@
     </div>
     {% endfor %}
   </div>
+  {% endif %}
   </div>
 </div>
 {% endblock %}

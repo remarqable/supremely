@@ -12,7 +12,8 @@ from app.models import (
     Upload,
     User,
 )
-from tests.conftest import login_as, make_png, make_user
+from app.platform.content import VIDEO_FRAME_HOSTS
+from tests.conftest import enable_types, login_as, make_png, make_user
 
 ACME = 'http://acme.example.test'
 # The back arrow's path, rendered only by the back_link macro.
@@ -248,14 +249,19 @@ def test_invalid_brand_color_rejected(app, client, acme, globex, user):
 
 
 PLAUSIBLE_URL = 'https://plausible.io/js/pa-abc12345.js'
-# frame-src is part of the baseline everywhere, including the console: a
-# body can carry a :::video embed, and the console renders one too when an
-# author previews an unsaved draft (manage.preview_content).
-BASELINE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-eval'; "
-                "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
-                "frame-src https://www.youtube-nocookie.com "
-                "https://player.vimeo.com; "
-                "object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+# frame-src and media-src are part of the baseline everywhere, the console
+# included: a body can carry a :::video directive and a type can declare a
+# video or audio field, and the console renders both when an author previews
+# an unsaved draft (manage.preview_content).
+#
+# Built from the same list the renderer builds embed URLs from, so the two
+# cannot drift: a policy that forgot a host would block the player rather
+# than fail this test.
+BASELINE_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-eval'; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; "
+    f"frame-src 'self' {' '.join(VIDEO_FRAME_HOSTS)}; media-src 'self' https:; "
+    "object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 
 
 def save_analytics(client, **data):
@@ -641,6 +647,49 @@ def test_landing_editor_saves_copy(app, client, acme, globex, user):
     assert len(saved['features']) == 4          # always the four fixed slots
 
 
+def test_the_sections_form_survives_a_browser_without_javascript(app, client,
+                                                                 acme, user):
+    """Every checkbox is in the served HTML, not built by a script.
+
+    A form whose rows exist only once Alpine has run posts nothing at all
+    when it has not, and an empty list reads as "turn every section off":
+    one submit and the front page was blank with nothing to say why.
+    """
+    import re
+
+    from app.platform.content_types import get_content_type
+    login_as(client, user)
+    page = client.get('/manage/landing', base_url=ACME).get_data(as_text=True)
+    offered = re.findall(r'name="site_entries" value="([a-z_]+)"', page)
+    assert 'article' in offered and 'episode' in offered
+
+    # Posting exactly what that page rendered, checked boxes only, in the
+    # order they appeared.
+    response = client.post('/manage/landing/sections', base_url=ACME,
+                           data={'site_entries': ['episode', 'article']})
+    assert response.status_code == 302
+    saved = db.session.get(Organization, acme.id)
+    assert saved.type_site_entry(get_content_type('episode')) is True
+    assert saved.type_site_entry_position(get_content_type('episode'), 9) == 0
+    assert saved.type_site_entry_position(get_content_type('article'), 9) == 1
+
+
+def test_saving_sections_leaves_the_theme_copy_alone(app, client, acme, user):
+    """Two things that save separately submit separately. Sharing one
+    address meant saving the sections ran the copy save over a form carrying
+    no copy, and the headline somebody had written was gone."""
+    acme.theme = 'supremely'
+    acme.save()
+    login_as(client, user)
+    client.post('/manage/landing', base_url=ACME,
+                data={'headline_lead': 'The open-source'})
+    client.post('/manage/landing/sections', base_url=ACME,
+                data={'site_entries': ['article']})
+    saved = db.session.get(Organization, acme.id)
+    assert saved.setting('theme_content')['supremely']['headline_lead'] == (
+        'The open-source')
+
+
 def test_theme_editor_is_always_in_the_nav(app, client, acme, globex, user):
     """The entry does not come and go with the active theme: a theme that
     declares no editable copy still has the page, which explains itself."""
@@ -946,57 +995,62 @@ def test_uploading_a_featured_image_inline_creates_a_media_upload(
         f'value="{upload.id}"'.encode() in form.data
 
 
-def test_the_editor_no_longer_offers_an_excerpt(app, client, acme, globex,
+def test_the_editor_offers_a_teaser_for_the_gate(app, client, acme, globex,
                                                 user):
-    """Every item summarises the same way now, from its own body. Checked
-    on a new form, on an edit form, and on a second content type, since the
-    field was universal and could return to any of them."""
+    """The excerpt column is back in the editor with one clear job.
+
+    It was removed as a summary, because every item summarises the same way
+    now, from its own body. This is not that: it is what a non-member sees
+    in place of a gated item, where a body truncated mid-sentence is a poor
+    argument for joining.
+    """
     login_as(client, user)
-    for path in ('/manage/content/article/new', '/manage/content/recording/new',
-                 '/manage/content/page/new'):
+    for path in ('/manage/content/article/new', '/manage/content/page/new'):
         form = client.get(path, base_url=ACME)
         assert form.status_code == 200, path
-        assert b'name="excerpt"' not in form.data, path
+        assert b'name="excerpt"' in form.data, path
 
     client.post('/manage/content/article/new', base_url=ACME, data={
         'title': 'A post', 'slug': 'a-post', 'body': 'Body.',
-        'visibility': 'public', 'action': 'publish'})
+        'visibility': 'public', 'action': 'publish',
+        'excerpt': 'Why this is worth reading.'})
     with app.test_request_context(base_url=ACME):
         g.org = acme
-        item_id = Content.published_by_slug('article', 'a-post').id
-    edit = client.get(f'/manage/content/{item_id}/edit', base_url=ACME)
-    assert edit.status_code == 200
-    assert b'name="excerpt"' not in edit.data
+        item = Content.published_by_slug('article', 'a-post')
+        assert item.excerpt == 'Why this is worth reading.'
+        # And still not what a listing shows: summaries come from the body.
+        assert item.excerpt_or_summary().startswith('Body.')
 
 
-def test_an_excerpt_written_before_the_field_was_removed_survives(app, client,
-                                                                  acme, globex,
-                                                                  user):
-    """The form no longer posts the field, and a form that does not post a
-    field is not asking for it to be cleared. The column keeps what an
-    organization wrote; listings simply stop using it."""
+def test_a_gated_item_shows_its_teaser_and_never_its_body(app, client, acme,
+                                                          globex, user):
+    """What the teaser is for. The gate has to make membership worth having
+    without giving away the thing behind it."""
     login_as(client, user)
     client.post('/manage/content/article/new', base_url=ACME, data={
-        'title': 'Old post', 'slug': 'old-post', 'body': 'The body text.',
-        'visibility': 'public', 'action': 'publish'})
-    with app.test_request_context(base_url=ACME):
-        g.org = acme
-        item = Content.published_by_slug('article', 'old-post')
-        item.excerpt = 'A hand-written summary.'
-        item.save()
-        item_id = item.id
+        'title': 'The inner circle', 'slug': 'inner', 'body': 'The secret.',
+        'visibility': 'members', 'action': 'publish',
+        'excerpt': 'Six months of numbers, in full.'})
 
-    client.post(f'/manage/content/{item_id}/edit', base_url=ACME, data={
-        'title': 'Old post edited', 'slug': 'old-post',
-        'body': 'The body text.', 'visibility': 'public', 'action': 'save'})
+    visitor = app.test_client()
+    gate = visitor.get('/blog/inner', base_url=ACME)
+    assert gate.status_code == 200
+    assert b'Six months of numbers, in full.' in gate.data
+    assert b'The secret.' not in gate.data
 
-    with app.test_request_context(base_url=ACME):
-        g.org = acme
-        saved = db.session.get(Content, item_id)
-        assert saved.title == 'Old post edited'
-        assert saved.excerpt == 'A hand-written summary.'   # not wiped
-        # but no longer what a listing shows
-        assert saved.excerpt_or_summary().startswith('The body text.')
+
+def test_an_item_with_no_teaser_shows_its_title_alone(app, client, acme,
+                                                      globex, user):
+    """Blank is a real answer: the gate falls back to the title rather than
+    advertising with the first sentence of something."""
+    login_as(client, user)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Quiet one', 'slug': 'quiet', 'body': 'The body text.',
+        'visibility': 'members', 'action': 'publish'})
+    gate = app.test_client().get('/blog/quiet', base_url=ACME)
+    assert gate.status_code == 200
+    assert b'Quiet one' in gate.data
+    assert b'The body text.' not in gate.data
 
 
 def test_the_editor_offers_one_way_out_at_the_top(app, client, acme, user):
@@ -1641,3 +1695,465 @@ def test_a_file_that_is_not_an_image_is_not_offered_a_description(app, client,
     assert b'Edit description' not in page
     assert b'Make members only' in page
     assert b'/delete"' in page
+
+# --- the widened field vocabulary, through the editor -------------------------
+
+def publish_recipe(client, **overrides):
+    """Recipes are off until an organization asks for them, so anything
+    publishing one turns it on first."""
+    data = {
+        'title': 'Garlic soup', 'slug': 'garlic-soup',
+        'body': 'A good one.', 'visibility': 'public', 'action': 'publish',
+        'field_servings': '4',
+        # Each row names its own index, as the editor posts it.
+        'field_ingredients__0__amount': '2',
+        'field_ingredients__0__item': 'onions',
+        'field_ingredients__1__amount': '1 tsp',
+        'field_ingredients__1__item': 'salt',
+        'field_ingredients__2__amount': '',      # the blank row on offer
+        'field_ingredients__2__item': '',
+        'field_steps__0__step': 'Chop.',
+        'field_steps__1__step': 'Simmer.',
+    }
+    data.update(overrides)
+    return client.post('/manage/content/recipe/new', base_url=ACME, data=data)
+
+
+def test_a_repeating_field_saves_its_rows_in_order(app, client, acme, user):
+    """The editor posts one list per sub-field and the rows are zipped back
+    out, so what the author saw top to bottom is what is stored."""
+    enable_types(acme, 'recipe')
+    login_as(client, user)
+    assert publish_recipe(client).status_code == 302
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        recipe = Content.published_by_slug('recipe', 'garlic-soup')
+        assert recipe.fields['servings'] == 4
+        assert recipe.fields['ingredients'] == [
+            {'amount': '2', 'item': 'onions'},
+            {'amount': '1 tsp', 'item': 'salt'},
+        ]
+        assert recipe.fields['steps'] == [{'step': 'Chop.'},
+                                          {'step': 'Simmer.'}]
+
+
+def test_the_blank_row_an_editor_offers_is_not_saved(app, client, acme, user):
+    """The row nobody filled in comes back on every post. Refusing the save
+    for it would make the field unusable."""
+    enable_types(acme, 'recipe')
+    login_as(client, user)
+    publish_recipe(client, **{'field_ingredients__1__amount': '',
+                              'field_ingredients__1__item': '',
+                              'field_ingredients__2__amount': '',
+                              'field_ingredients__2__item': ''})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        recipe = Content.published_by_slug('recipe', 'garlic-soup')
+        assert recipe.fields['ingredients'] == [{'amount': '2',
+                                                 'item': 'onions'}]
+
+
+def test_a_bad_row_is_refused_and_the_rows_come_back(app, client, acme, user):
+    """The case that is easy to get wrong: a save refused for one row must
+    hand the author back everything they typed, not an empty table."""
+    enable_types(acme, 'recipe')
+    login_as(client, user)
+    response = publish_recipe(client, **{
+        'field_ingredients__1__item': '',        # required, missing
+    }, follow_redirects=True)
+    assert b'Item is required' in response.data
+    page = response.get_data(as_text=True)
+    assert 'onions' in page          # the rows are re-rendered, not lost
+    assert '1 tsp' in page
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert Content.query.filter_by(slug='garlic-soup').first() is None
+
+
+def test_a_row_keeps_its_own_values_when_a_column_is_short(app, client, acme,
+                                                           user):
+    """The reason a row names its index rather than taking a position.
+
+    An unticked checkbox posts nothing at all. Zipped by position, that
+    shifts every later value up a row: the tick lands on the wrong row and
+    the author's data is quietly rearranged. Here the middle amount is
+    absent, and the items must stay with the rows they were typed into.
+    """
+    enable_types(acme, 'recipe')
+    login_as(client, user)
+    # Posted whole rather than layered over the helper, so the middle row
+    # genuinely has no amount posted for it at all.
+    client.post('/manage/content/recipe/new', base_url=ACME, data={
+        'title': 'Garlic soup', 'slug': 'garlic-soup', 'body': 'A good one.',
+        'visibility': 'public', 'action': 'publish',
+        'field_ingredients__0__amount': '2',
+        'field_ingredients__0__item': 'onions',
+        'field_ingredients__1__item': 'garlic',      # no amount at all
+        'field_ingredients__2__amount': '1 tsp',
+        'field_ingredients__2__item': 'salt',
+    })
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        rows = Content.published_by_slug('recipe', 'garlic-soup') \
+            .fields['ingredients']
+    assert rows == [{'amount': '2', 'item': 'onions'},
+                    {'item': 'garlic'},
+                    {'amount': '1 tsp', 'item': 'salt'}]
+
+
+def test_an_older_picture_is_still_offered_by_the_chooser(app, client, acme,
+                                                          user):
+    """The chooser shows recent uploads. A picture chosen long ago falls off
+    that window, and with no option matching it the browser posts nothing:
+    re-saving for an unrelated reason would clear the field, or fail its
+    required check. Whatever is referenced is put back into the list.
+    """
+    enable_types(acme, 'gallery')
+    login_as(client, user)
+    client.post('/manage/media', base_url=ACME,
+                data={'file': (io.BytesIO(make_png()), 'first.png')})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        old_id = Upload.query.order_by(Upload.id.desc()).first().id
+
+    client.post('/manage/content/gallery/new', base_url=ACME, data={
+        'title': 'Old shots', 'slug': 'old-shots', 'body': 'Photos.',
+        'visibility': 'public', 'action': 'save',
+        'field_photos__0__image': str(old_id)})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        gallery_id = Content.query.filter_by(slug='old-shots').one().id
+
+    # Push it well past the chooser's window.
+    for n in range(30):
+        client.post('/manage/media', base_url=ACME,
+                    data={'file': (io.BytesIO(make_png()), f'later{n}.png')})
+
+    form = client.get(f'/manage/content/{gallery_id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert f'value="{old_id}"' in form
+
+
+def test_a_select_only_accepts_what_it_offers(app, client, acme, user):
+    enable_types(acme, 'job')
+    login_as(client, user)
+    response = client.post('/manage/content/job/new', base_url=ACME, data={
+        'title': 'Cook', 'slug': 'cook', 'body': 'Come and cook.',
+        'visibility': 'public', 'action': 'publish',
+        'field_apply_url': 'https://example.com/apply',
+        'field_employment': 'moonlighting',
+    }, follow_redirects=True)
+    assert b'is not one of the choices' in response.data
+
+    client.post('/manage/content/job/new', base_url=ACME, data={
+        'title': 'Cook', 'slug': 'cook', 'body': 'Come and cook.',
+        'visibility': 'public', 'action': 'publish',
+        'field_apply_url': 'https://example.com/apply',
+        'field_employment': 'contract',
+    })
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert Content.published_by_slug('job', 'cook').fields['employment'] \
+            == 'contract'
+
+
+def test_a_recipe_renders_its_ingredients_on_the_page_and_in_email(app, client,
+                                                                   acme, user):
+    """The stage's acceptance: a real repeating list, editable, rendering on
+    web and in a newsletter."""
+    enable_types(acme, 'recipe')
+    login_as(client, user)
+    publish_recipe(client)
+
+    page = client.get('/recipes/garlic-soup', base_url=ACME).data
+    assert b'onions' in page
+    assert b'1 tsp' in page
+    assert b'Simmer.' in page
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        from app.platform.newsletter import compose_email
+        recipe = Content.published_by_slug('recipe', 'garlic-soup')
+        subscriber = type('S', (), {'email': 'r@example.com', 'token': 't'})()
+        _, text, html = compose_email(recipe, acme, subscriber)
+    assert 'onions' in html
+    assert '<ul' in html
+    assert 'onions' in text
+
+
+def test_deleting_a_picture_does_not_take_the_page_with_it(app, client, acme,
+                                                           user):
+    """An image field holds an id, and the file behind it can be deleted
+    from the media library at any time."""
+    enable_types(acme, 'gallery')
+    login_as(client, user)
+    client.post('/manage/media', base_url=ACME,
+                data={'file': (io.BytesIO(make_png()), 'shot.png')})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        upload_id = Upload.query.order_by(Upload.id.desc()).first().id
+
+    client.post('/manage/content/gallery/new', base_url=ACME, data={
+        'title': 'Meetup shots', 'slug': 'meetup-shots', 'body': 'Photos.',
+        'visibility': 'public', 'action': 'publish',
+        'field_photos__0__image': str(upload_id),
+        'field_photos__0__caption': 'On the night',
+    })
+    shown = client.get('/galleries/meetup-shots', base_url=ACME)
+    assert shown.status_code == 200
+    assert b'On the night' in shown.data
+    assert b'<img' in shown.data              # a gallery shows photographs
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        gallery_id = Content.published_by_slug('gallery', 'meetup-shots').id
+
+    client.post(f'/manage/media/{upload_id}/delete', base_url=ACME)
+    # The page still renders. The row itself drops out: a gallery is
+    # photographs, and a caption with no photograph above it is a caption
+    # for nothing.
+    after = client.get('/galleries/meetup-shots', base_url=ACME)
+    assert after.status_code == 200
+    assert b'Meetup shots' in after.data
+    assert client.get('/galleries', base_url=ACME).status_code == 200
+    assert client.get(f'/manage/content/{gallery_id}/edit',
+                      base_url=ACME).status_code == 200
+
+    # Asserted on the lookup itself, not only on the page: render_field
+    # swallows a partial that raises, so a page that merely returns 200
+    # proves the swallow rather than the guard.
+    from app.platform.fields import upload_for
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert upload_for(upload_id) is None
+        assert upload_for('not-a-number') is None
+
+
+def test_saving_one_home_page_form_does_not_clear_the_other(app, client, acme,
+                                                            globex, user):
+    """Each form saves itself and nothing else.
+
+    They used to post to the same address, so saving the sections ran the
+    copy save over a form carrying no copy and the headline somebody had
+    written was gone. Separate addresses make that impossible rather than
+    guarded against.
+    """
+    login_as(client, user)
+    client.post('/manage/landing', base_url=ACME, data={
+        'headline': 'A community for makers',
+        'subhead': 'Come and build things.'})
+    stored = acme.setting('theme_content')['origin']
+    assert stored['headline'] == 'A community for makers'
+
+    # Now save the sections, which carries no copy at all.
+    client.post('/manage/landing/sections', base_url=ACME,
+                data={'site_entries': ['episode']})
+
+    kept = acme.setting('theme_content')['origin']
+    assert kept['headline'] == 'A community for makers'
+    assert kept['subhead'] == 'Come and build things.'
+    # And the sections really did save.
+    assert acme.type_settings('episode').get('site_entry') is True
+
+
+def test_the_home_page_puts_the_words_before_the_sections(app, client, acme,
+                                                          globex, user):
+    """The page is called Home page because of the words on it; the sections
+    are what appears underneath them."""
+    login_as(client, user)
+    page = client.get('/manage/landing', base_url=ACME).get_data(as_text=True)
+    assert page.index('Headline') < page.index('Sections on your home page')
+
+
+# --- blocks in the editor ------------------------------------------------------
+
+def test_adding_a_block_opens_the_ordinary_editor_for_it(app, client, acme,
+                                                         user):
+    """No nested field editor. A block is a content row, so it is written in
+    the editor that already knows how to edit its type."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+
+    response = client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                           data={'block_type': 'recipe'})
+    assert response.status_code == 302
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent = db.session.get(Content, parent_id)
+        assert len(parent.children) == 1
+        block = parent.children[0]
+        assert block.type == 'recipe'
+        assert block.parent_id == parent_id
+        assert block.slug is None
+    assert response.headers['Location'].endswith(
+        f'/manage/content/{block.id}/edit')
+
+    # The block's editor offers no address to choose and goes back to the
+    # thing it lives inside.
+    page = client.get(f'/manage/content/{block.id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert 'name="slug"' not in page
+    assert f'/manage/content/{parent_id}/edit' in page
+    # A block cannot hold blocks of its own.
+    assert 'name="block_type"' not in page
+
+
+def test_blocks_keep_the_order_the_author_gives_them(app, client, acme, user):
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    for _ in range(3):
+        client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                    data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        ids = [block.id for block in db.session.get(Content, parent_id).children]
+    assert len(ids) == 3
+
+    client.post(f'/manage/content/{parent_id}/blocks/move', base_url=ACME,
+                data={'block_id': ids[2], 'direction': 'up'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        moved = [block.id for block in db.session.get(Content, parent_id).children]
+    assert moved == [ids[0], ids[2], ids[1]]
+
+    # The top one has nowhere further to go, and saying so is not an error.
+    client.post(f'/manage/content/{parent_id}/blocks/move', base_url=ACME,
+                data={'block_id': moved[0], 'direction': 'up'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert [block.id for block in
+                db.session.get(Content, parent_id).children] == moved
+
+
+def test_deleting_a_block_returns_to_what_it_was_inside(app, client, acme,
+                                                        user):
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        block_id = db.session.get(Content, parent_id).children[0].id
+
+    response = client.post(f'/manage/content/{block_id}/delete', base_url=ACME)
+    assert response.headers['Location'].endswith(
+        f'/manage/content/{parent_id}/edit')
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Content, parent_id).children == []
+
+
+def test_a_block_never_appears_in_a_type_listing(app, client, acme, user):
+    """The console lists what an organization published, and a block was
+    published inside something else."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+
+    listing = client.get('/manage/content/recipe',
+                         base_url=ACME).get_data(as_text=True)
+    assert 'Untitled block' not in listing
+
+
+def test_a_block_can_be_removed_from_its_parent(app, client, acme, user):
+    """The editor's remove control. A block appears in no listing, so the
+    parent's block list is the only place it can be removed from."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        block_id = db.session.get(Content, parent_id).children[0].id
+
+    page = client.get(f'/manage/content/{parent_id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert f'/manage/content/{block_id}/delete' in page
+
+    client.post(f'/manage/content/{block_id}/delete', base_url=ACME)
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        assert db.session.get(Content, parent_id).children == []
+
+
+def test_a_block_cannot_be_sent_as_a_newsletter(app, client, acme, user):
+    """Sending one would give it a delivery record and a line in the
+    members' newsletter archive, which is an address for something whose
+    whole point is that it has none. The route refuses, not just the UI."""
+    login_as(client, user)
+    acme.set_type_settings('recipe', enabled=True)
+    client.post('/manage/content/article/new', base_url=ACME, data={
+        'title': 'Host', 'slug': 'host', 'body': 'Prose.',
+        'visibility': 'public', 'action': 'publish'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        parent_id = Content.published_by_slug('article', 'host').id
+    client.post(f'/manage/content/{parent_id}/blocks', base_url=ACME,
+                data={'block_type': 'recipe'})
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        block_id = db.session.get(Content, parent_id).children[0].id
+
+    page = client.get(f'/manage/content/{block_id}/edit',
+                      base_url=ACME).get_data(as_text=True)
+    assert 'send-newsletter' not in page
+    assert client.post(f'/manage/content/{block_id}/send-newsletter',
+                       base_url=ACME).status_code == 404
+    # ...and the article it lives in still can be sent.
+    assert client.post(f'/manage/content/{parent_id}/send-newsletter',
+                       base_url=ACME).status_code != 404
+
+
+def test_the_content_types_console_groups_pages_and_posts(app, client, acme,
+                                                          user):
+    """Everything an organization publishes is a page or a post, so the
+    screen that lists what it publishes says so. A flat list of thirteen
+    types never showed the model at all."""
+    login_as(client, user)
+    page = client.get('/manage/content-types',
+                      base_url=ACME).get_data(as_text=True)
+    # Anchored on the headings themselves, not on a per-type badge that
+    # happens to contain similar words: an earlier version of this test
+    # matched the badge, and deleting both headings left it green.
+    pages_at = page.index('<h2 class="section-title">Pages</h2>')
+    posts_at = page.index('<h2 class="section-title">Posts</h2>')
+    assert pages_at < posts_at
+
+    # Types land in the right group: the page type between the two
+    # headings, a post type after the second.
+    pages_block = page[pages_at:posts_at]
+    posts_block = page[posts_at:]
+    assert 'A standalone page' in pages_block          # the page type's blurb
+    assert 'The standard blog post.' in posts_block    # the article's
+    assert 'The standard blog post.' not in pages_block

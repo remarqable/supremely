@@ -32,9 +32,14 @@ from app.platform.authz import (
 )
 from app.platform.content_types import (
     CONTENT_TYPES,
+    LIST_ROW_CAP,
     ContentType,
     active_types,
     get_content_type,
+    nestable_types,
+    offerable_sections,
+    site_entry_types,
+    submitted_fields,
 )
 from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
@@ -124,8 +129,10 @@ def content_list(type_slug):
     if type_slug not in active_types():
         abort(404)
     ct = get_content_type(type_slug)
-    items = (Content.of_type(type_slug)
-             .order_by(Content.created_at.desc()).all())
+    # The order the type declares, so the console list and the public
+    # archive agree about what order a roster reads in.
+    items = Content.of_type(type_slug).order_by(
+        *Content.order_for(ct)).all()
     return render_device_template('manage/content_list.html', items=items,
                            content_type=ct)
 
@@ -142,6 +149,7 @@ def _content_from_form(content: Content, *, previewing: bool = False) -> Content
     content.slug = request.form.get('slug', '')
     content.body = request.form.get('body', '')
     content.visibility = request.form.get('visibility', 'public')
+    content.excerpt = request.form.get('excerpt', '').strip() or None
     content.seo_title = request.form.get('seo_title', '').strip() or None
     content.seo_description = request.form.get('seo_description', '').strip() or None
     # `template` reaches render_site()'s candidate list, so a value the rule
@@ -197,13 +205,51 @@ def _content_from_form(content: Content, *, previewing: bool = False) -> Content
     category = (Category.query.filter_by(id=category_id).first()
                 if category_id else None)
     content.categories = [category] if category else []
-    content.set_structured_fields({
-        key[len('field_'):]: value for key, value in request.form.items()
-        if key.startswith('field_')})
+    # Not a comprehension over request.form any more: a repeating field
+    # arrives as one list per sub-field and has to be zipped back into rows.
+    content.set_structured_fields(
+        submitted_fields(content.content_type, request.form))
     return content
 
 
-def _render_content_form(content, ct):
+def _referenced_upload_ids(content, ct) -> set:
+    """Upload ids the stored fields point at, top level and inside rows."""
+    stored = (content.fields or {}) if content is not None else {}
+    ids = set()
+    for spec in ct.fields:
+        value = stored.get(spec.key)
+        if spec.type in ('image', 'file'):
+            ids.add(value)
+        elif spec.type == 'list' and isinstance(value, list):
+            ids.update(row.get(sub.key) for row in value
+                       for sub in spec.of if sub.type in ('image', 'file'))
+    return {value for value in ids if isinstance(value, int)}
+
+
+def _keep_referenced(content, ct, image_uploads, file_uploads) -> None:
+    """Put back any referenced upload the recency window left out."""
+    wanted = _referenced_upload_ids(content, ct)
+    if not wanted:
+        return
+    listed = {upload.id for upload in image_uploads} | {
+        upload.id for upload in file_uploads}
+    missing = wanted - listed
+    if not missing:
+        return
+    for upload in Upload.query.filter(Upload.id.in_(missing)).all():
+        (image_uploads if upload.is_image else file_uploads).insert(0, upload)
+
+
+def _render_content_form(content, ct, submitted=None):
+    """The editor. `submitted` is the form as it was posted, passed only
+    when a save was refused.
+
+    Without it the form re-renders from what is stored, and what is stored
+    is whatever the save did not change: an author whose fifth ingredient
+    was missing its name would get their whole table back empty, having
+    typed the other four. The refused values are theirs and they should get
+    them back.
+    """
     # The featured-image chooser: recent library images, with the currently
     # attached one always present — otherwise re-saving an old item whose
     # image fell off the recency window would silently clear it.
@@ -212,9 +258,27 @@ def _render_content_form(content, ct):
     if (content is not None and content.featured_upload is not None
             and content.featured_upload not in image_uploads):
         image_uploads.insert(0, content.featured_upload)
+    # A file field offers everything in the library, not only pictures, and
+    # only when the type has one: otherwise every editor page paid for a
+    # query nothing rendered.
+    wants_files = any(spec.type == 'file' or
+                      any(sub.type == 'file' for sub in spec.of)
+                      for spec in ct.fields)
+    file_uploads = ((Upload.query.order_by(Upload.created_at.desc())
+                     .limit(48).all()) if wants_files else [])
+    # Anything an image or file field already points at, whether or not it
+    # is still recent enough to be in the list. Without this the chooser
+    # offers no option matching the stored value, so re-saving an older
+    # picture either clears the field or fails its required check. The
+    # featured image has carried the same rule for the same reason.
+    _keep_referenced(content, ct, image_uploads, file_uploads)
     return render_device_template('manage/content_form.html', content=content,
                            content_type=ct, image_uploads=image_uploads,
+                           file_uploads=file_uploads,
+                           list_row_cap=LIST_ROW_CAP, submitted=submitted,
+                           block_types=nestable_types(content),
                            categories=Category.query.order_by(Category.name).all())
+
 
 
 @bp.route('/content/<type_slug>/new', methods=['GET', 'POST'])
@@ -241,7 +305,8 @@ def new_content(type_slug):
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
-            return _render_content_form(content, ct)
+            return _render_content_form(content, ct,
+                                        submitted_fields(ct, request.form))
         except IntegrityError:
             # The friendly duplicate check in Content.validate races: two
             # authors publishing the same title at once, or one impatient
@@ -250,7 +315,8 @@ def new_content(type_slug):
             # constraint said rather than serving a 500.
             db.session.rollback()
             flash(t('manage.slug_taken'), 'error')
-            return _render_content_form(content, ct)
+            return _render_content_form(content, ct,
+                                        submitted_fields(ct, request.form))
     return _render_content_form(None, ct)
 
 
@@ -260,6 +326,7 @@ def new_content(type_slug):
 def edit_content(content_id):
     content = _active_content_or_404(content_id)
     ct = content.content_type
+    posted = None
     if request.method == 'POST':
         try:
             _content_from_form(content)
@@ -278,10 +345,12 @@ def edit_content(content_id):
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
+            posted = submitted_fields(ct, request.form)
         except IntegrityError:
             db.session.rollback()
             flash(t('manage.slug_taken'), 'error')
-    return _render_content_form(content, ct)
+            posted = submitted_fields(ct, request.form)
+    return _render_content_form(content, ct, posted)
 
 
 @bp.route('/content/<int:content_id>/delete', methods=['POST'])
@@ -290,9 +359,54 @@ def edit_content(content_id):
 def delete_content(content_id):
     content = _active_content_or_404(content_id)
     type_slug = content.type
+    parent_id = content.parent_id
     content.delete()
     flash(t('manage.content_deleted'), 'success')
+    if parent_id is not None:
+        # Back to the item it was written inside, which is where the author
+        # is working. A block has no listing of its own to return to.
+        return redirect(url_for('manage.edit_content', content_id=parent_id))
     return redirect(url_for('manage.content_list', type_slug=type_slug))
+
+
+@bp.route('/content/<int:content_id>/blocks', methods=['POST'])
+@org_required
+@require('content.write')
+def add_block(content_id: int) -> ResponseReturnValue:
+    """Start a block inside this item and open it for writing.
+
+    A block is an ordinary content row, so it is written in the ordinary
+    editor rather than in a second one nested inside this form. That is the
+    point of blocks being content: there is one place that knows how to
+    edit a type's fields, and adding blocks did not have to build another.
+    """
+    parent = _active_content_or_404(content_id)
+    type_slug = request.form.get('block_type', '')
+    if parent.is_child or type_slug not in {ct.slug for ct
+                                            in nestable_types(parent)}:
+        abort(404)
+    block = Content(type=type_slug, parent_id=parent.id,
+                    title=t('manage.untitled_block'), body='')
+    block.stamp_audit()
+    block.save()
+    return redirect(url_for('manage.edit_content', content_id=block.id))
+
+
+@bp.route('/content/<int:content_id>/blocks/move', methods=['POST'])
+@org_required
+@require('content.write')
+def move_block(content_id: int) -> ResponseReturnValue:
+    """Move one block up or down inside its parent.
+
+    How the order is kept is the model's rule, not this page's.
+    """
+    parent = _active_content_or_404(content_id)
+    try:
+        parent.move_child(request.form.get('block_id', type=int),
+                          -1 if request.form.get('direction') == 'up' else 1)
+    except ValidationError:
+        abort(404)
+    return redirect(url_for('manage.edit_content', content_id=parent.id))
 
 
 def _render_preview(content: Content, ct: ContentType) -> str:
@@ -366,28 +480,66 @@ def content_types_page():
     """The content-type library: what this organization can publish today,
     and the premade types that are on the way."""
     from app.platform.content_library import COMING_SOON
+    # count_by_type groups every row this organization has, whatever its
+    # type is doing, so a disabled type still reports what is waiting in it.
     counts = dict(Content.count_by_type())
+    # A plugin's types belong to the plugin: installing it is the act of
+    # choosing them, so a type whose plugin is not installed here has no
+    # switch to offer and no row to draw.
+    types = [ct for ct in CONTENT_TYPES.values()
+             if ct.plugin is None or ct.slug in active_types()]
+    from app.platform.authz import VISIBILITY_LEVELS
     return render_device_template('manage/content_types.html',
-                           types=CONTENT_TYPES.values(), counts=counts,
-                           coming_soon=COMING_SOON,
-                           section_visibility=Content.section_visibility)
+                           types=types, counts=counts,
+                           coming_soon=COMING_SOON, org=g.org,
+                           visibility_levels=VISIBILITY_LEVELS)
 
 
-@bp.route('/content-types/<type_slug>/visibility', methods=['POST'])
+@bp.route('/content-types/<type_slug>', methods=['POST'])
 @org_required
 @require('org.settings')
-def toggle_section_visibility(type_slug):
-    """Lock/unlock a whole content section: locked sections gate every item
-    in them for non-members, item settings notwithstanding."""
+def update_content_type(type_slug):
+    """What this organization does with one type: whether it publishes it
+    at all, who may read the section, and whether a gated item of this kind
+    shows as a locked title or not at all.
+
+    Turning a type off never deletes anything. The rows stay, the routes
+    stop answering, and the row here says how many are waiting, so turning
+    it back on restores exactly what was there. The same stance a plugin
+    takes when it is uninstalled.
+    """
+    from app.platform.authz import VISIBILITY_LEVELS
     ct = CONTENT_TYPES.get(type_slug)
-    if ct is None or not ct.base:              # only nav sections lock
+    if ct is None or (ct.plugin is not None
+                      and type_slug not in active_types()):
         abort(404)
-    store = dict(g.org.setting('section_visibility') or {})
-    if store.get(type_slug) == 'members':
-        store.pop(type_slug)
-    else:
-        store[type_slug] = 'members'
-    g.org.update_settings(section_visibility=store)
+    if not ct.has_archive and ct.essential:
+        # Nothing to decide: pages are how a site has an About page at all,
+        # and a type with no archive has no section to gate.
+        abort(404)
+    enabled = True if ct.essential else request.form.get('enabled') == 'on'
+    settings = {'enabled': enabled}
+    # Only a type with an archive has a section to lock or a surface to
+    # move, which is what the form offers. And only what the form actually
+    # carried: a POST missing a field is not a request to clear it, and an
+    # absent value stored as None reads as "no opinion", which would quietly
+    # unlock a locked section.
+    if ct.has_archive:
+        if 'visibility' in request.form:
+            visibility = request.form['visibility']
+            settings['visibility'] = (
+                visibility if visibility in VISIBILITY_LEVELS
+                and visibility != VISIBILITY_LEVELS[0] else None)
+        if 'tease' in request.form:
+            settings['tease'] = {'yes': True, 'no': False}.get(
+                request.form['tease'])
+        if 'presentation' in request.form:
+            # Empty means "whatever the type says", a real answer and not
+            # the same as copying today's answer into storage.
+            presentation = request.form['presentation']
+            settings['presentation'] = (
+                presentation if presentation in ('site', 'community') else None)
+    g.org.set_type_settings(type_slug, **settings)
     flash(t('common.saved'), 'success')
     return redirect(url_for('manage.content_types_page'))
 
@@ -485,6 +637,8 @@ def navigation():
 
     menus = {menu: NavigationItem.items_for(menu) for menu in MENUS}
     # Any published content can be a nav target (pages most commonly).
+    # published_query lists only types this organization publishes, so a
+    # disabled section cannot be offered as a link that would 404.
     linkable = (Content.published_query()
                 .order_by(Content.type, Content.title).all())
     return render_device_template('manage/navigation.html', menus=menus,
@@ -945,6 +1099,11 @@ def send_content_newsletter(content_id):
     from app.platform.mailer import is_email_configured
 
     content = _active_content_or_404(content_id)
+    if content.is_child:
+        # A block is read inside the thing it belongs to. Mailing one would
+        # hand it a delivery record and a line in the newsletter archive --
+        # an address for something that has none by design.
+        abort(404)
     if not is_email_configured():
         flash(t('newsletter.email_required_to_send'), 'error')
         return redirect(url_for('manage.edit_content', content_id=content.id))
@@ -1219,6 +1378,26 @@ def privacy_settings():
 
 # --- Theme editor (theme-declared editable content) ---------------------------
 
+@bp.route('/landing/sections', methods=['POST'])
+@org_required
+@require('content.write')
+def landing_sections() -> ResponseReturnValue:
+    """Which sections the public front page advertises, and in what order.
+
+    Its own address, not a second form posting to the page's. Sharing one
+    meant a save here ran the theme-copy save over a form carrying no copy,
+    and the headline somebody had written was gone. Two things that save
+    separately should submit separately.
+
+    What to store, and in what order, is the organization's rule and lives
+    on the model with the rest of the per-type map.
+    """
+    g.org.set_site_entries(request.form.getlist('site_entries'),
+                           offerable_sections())
+    flash(t('common.saved'), 'success')
+    return redirect(url_for('manage.landing_settings'))
+
+
 @bp.route('/landing', methods=['GET', 'POST'])
 @org_required
 @require('content.write')
@@ -1240,7 +1419,7 @@ def landing_settings():
             store = dict(g.org.setting('theme_content') or {})
             store[theme] = tc.clean(theme, request.form)
             g.org.update_settings(theme_content=store)
-            flash(t('common.saved'), 'success')
+        flash(t('common.saved'), 'success')
         return redirect(url_for('manage.landing_settings'))
 
     fields = tc.editor_view(theme, g.org)
@@ -1270,6 +1449,8 @@ def landing_settings():
         if field['type'] == 'image' and field['value']:
             field['unavailable'] = field['value'] not in still_offered
     return render_device_template('manage/landing.html',
+                           offered_sections=offerable_sections(),
+                           chosen_sections=[ct.slug for ct in site_entry_types()],
                            fields=fields,
                            image_uploads=image_uploads,
                            theme_name=AVAILABLE_THEMES[theme]['name'])

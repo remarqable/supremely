@@ -1,0 +1,4 @@
+{# A listing card links to the item, not away from it: a URL field shows
+   its label rather than a second competing link. #}
+{% from 'fields/summary/_macros.html' import chip with context %}
+{% call chip() %}{{ label }}{% endcall %}
