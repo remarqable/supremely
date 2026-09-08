@@ -99,7 +99,7 @@ exist and may change without warning — build on what is written down.
 
 | Name | What it is |
 |---|---|
-| `latest_content(type, limit=None)` | Published items of that type, newest first (see below) |
+| `latest_content(type, limit=None)` | Published items of that type, in the order the type declares (see below) |
 | `content_count(type)` | How many published items of that type the visitor may see |
 | `nav_items('primary')` / `nav_items('footer')` | Navigation configured under Manage → Navigation (`.label`, `.href`, `.is_group`, `.children`) |
 | `content_types()` | The content types active for this organization |

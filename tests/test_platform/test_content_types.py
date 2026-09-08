@@ -73,8 +73,24 @@ def test_definitions_validated():
     with pytest.raises(ValueError, match='needs a URL base'):
         ContentType(slug='x', singular='X', plural='Xs').validate_definition()
     with pytest.raises(ValueError, match='singular and plural'):
-        ContentType(slug='x', singular='', plural='', has_archive=False
+        ContentType(slug='x', singular='', plural='', kind='page'
                     ).validate_definition()
+    with pytest.raises(ValueError, match='kind'):
+        ContentType(slug='x', singular='X', plural='Xs', kind='pamphlet'
+                    ).validate_definition()
+    with pytest.raises(ValueError, match='no URL base'):
+        ContentType(slug='x', singular='X', plural='Xs', kind='page',
+                    base='/x').validate_definition()
+
+
+def test_a_type_is_a_page_or_a_post_and_says_which():
+    """has_archive and is_page are read off `kind` rather than declared
+    beside it, so the two cannot come to disagree about the same type."""
+    page = ContentType(slug='p', singular='P', plural='Ps', kind='page')
+    post = ContentType(slug='q', singular='Q', plural='Qs', base='/qs')
+    assert page.is_page and not page.has_archive
+    assert post.has_archive and not post.is_page
+    assert post.kind == 'post'                  # the default: most types are
 
 
 def test_base_collision_rejected(cocktail_type):
@@ -498,3 +514,182 @@ def test_a_plugins_types_are_not_switched_here(app, client, acme, globex,
     assert client.post('/manage/content-types/definition',
                        base_url=ACME, data={'enabled': 'on'}).status_code == 404
     assert acme.type_settings('definition') == {}
+
+
+def test_an_archive_reads_in_the_order_its_type_declares(app, acme):
+    """Posts are not all chronological. A roster reads by name, a glossary
+    A to Z, and lessons in the order somebody put them in.
+
+    Ordered in the query, never in a template: a theme sorting an archive
+    back into shape is a theme working around the model, and themes are
+    renderers.
+    """
+    from flask import g
+
+    from app.models import Content
+    with app.test_request_context():
+        g.org = acme
+        # Chosen so that comparing bytes and comparing letters disagree.
+        # SQLite compares bytes, which puts every capital before every
+        # lowercase letter: 'Banana', 'apple', 'cherry'. PostgreSQL compares
+        # by locale and gives 'apple', 'Banana', 'cherry'. Titles that were
+        # all capitalised would sort the same either way, and would have let
+        # one engine's answer stand in for the rule.
+        for slug, title in (('cherry', 'cherry'), ('banana', 'Banana'),
+                            ('apple', 'apple')):
+            member = Content(type='team_member', title=title, slug=slug,
+                             body='', org_id=acme.id, fields={}, tags=[],
+                             visibility='public')
+            member.save()
+            member.publish()
+        titles = [item.title for item
+                  in Content.published_query('team_member').all()]
+    assert titles == ['apple', 'Banana', 'cherry'], titles
+
+
+def test_the_default_is_still_newest_first(app, acme):
+    """Changing what a roster does must not change what a blog does."""
+    from flask import g
+
+    from app.models import Content
+    with app.test_request_context():
+        g.org = acme
+        for slug in ('one', 'two', 'three'):
+            item = Content(type='article', title=slug.title(), slug=slug,
+                           body='', org_id=acme.id, fields={}, tags=[],
+                           visibility='public')
+            item.save()
+            item.publish()
+        newest_first = Content.published_query('article').all()
+    dates = [item.published_at for item in newest_first]
+    assert dates == sorted(dates, reverse=True)
+
+
+def test_manual_orders_by_position_and_puts_the_unarranged_last(app, acme):
+    """The ordering clause itself.
+
+    Nothing in the library declares 'manual', because position is where a
+    block sits inside its parent and every listing is of standalone rows.
+    The clause is still asserted, because the value is offered and the next
+    type to want it should find it working.
+    """
+    from flask import g
+
+    from app.models import Content
+    from app.platform.content_types import get_content_type
+    with app.test_request_context():
+        g.org = acme
+        clause = Content.order_for(get_content_type('team_member'))
+        assert len(clause) == 2                  # alphabetical, then the tiebreak
+        manual = Content.order_for(
+            type('T', (), {'ordering': 'manual'})())
+        rendered = ' '.join(str(part) for part in manual)
+    assert 'position' in rendered
+    assert 'IS NULL' in rendered                 # the unarranged sort last
+    assert rendered.strip().endswith('DESC')     # and the tiebreak is there
+
+
+def test_promoting_a_block_forgets_where_it_used_to_sit(app, acme):
+    """Position means where inside my parent. A row with no parent has no
+    inside, so a promoted block must not keep the number it had in the
+    course it came out of."""
+    from flask import g
+
+    from app.models import Content
+    acme.set_type_settings('course', enabled=True)
+    acme.set_type_settings('lesson', enabled=True)
+    with app.test_request_context():
+        g.org = acme
+        course = Content(type='course', title='Intro', slug='intro', body='',
+                         org_id=acme.id, fields={}, tags=[],
+                         visibility='public')
+        course.save()
+        course.publish()
+        lesson = Content(type='lesson', title='Lesson two', slug='two',
+                         body='', org_id=acme.id, fields={}, tags=[],
+                         visibility='public', parent_id=course.id)
+        lesson.save()
+        assert lesson.position is not None
+
+        lesson.parent_id = None
+        lesson.parent = None
+        lesson.save()
+        assert lesson.position is None
+
+
+def test_an_unknown_ordering_is_refused_when_the_type_is_declared(app):
+    """A plugin declaring a value nobody implements should be told at
+    registration, not fall through to newest-first and look fine."""
+    import pytest
+
+    from app.platform.content_types import ContentType
+    with pytest.raises(ValueError, match='ordering'):
+        ContentType(slug='x', singular='X', plural='Xs', base='/xs',
+                    ordering='by-vibes').validate_definition()
+
+
+def test_every_ordering_ends_in_a_tiebreak(app, acme):
+    """Two items sharing a title or a date must not swap places between
+    page loads. Asserted for each ordering, because the tiebreak is easy to
+    add to one branch and forget in the others."""
+    from flask import g
+
+    from app.models import Content
+    with app.test_request_context():
+        g.org = acme
+        for ordering in ('newest', 'oldest', 'alphabetical', 'manual'):
+            clause = Content.order_for(
+                type('T', (), {'ordering': ordering})())
+            assert 'content.id DESC' in str(clause[-1]), ordering
+        # ...including the mixed feed, which asks for no type at all.
+        assert 'content.id DESC' in str(Content.order_for()[-1])
+
+
+def test_the_console_list_orders_the_same_way_on_either_database(app, client,
+                                                                 acme, user):
+    """The console shows drafts beside published items, and a draft has no
+    published date. SQLite and PostgreSQL disagree about where a null sorts,
+    so without saying where they go the same list reads differently
+    depending on which database an installation happens to run.
+    """
+    from flask import g
+
+    from app.models import Content
+    from tests.conftest import login_as
+    with app.test_request_context():
+        g.org = acme
+        published = Content(type='article', title='Published one',
+                            slug='published-one', body='', org_id=acme.id,
+                            fields={}, tags=[], visibility='public')
+        published.save()
+        published.publish()
+        draft = Content(type='article', title='Still a draft',
+                        slug='still-a-draft', body='', org_id=acme.id,
+                        fields={}, tags=[], visibility='public')
+        draft.save()
+        listed = [item.title for item
+                  in Content.of_type('article').order_by(
+                      *Content.order_for(published.content_type)).all()]
+    # Drafts last, wherever the engine would have put a null.
+    assert listed[-1] == 'Still a draft', listed
+    # Asserted on the clause as well as the rows: SQLite already puts nulls
+    # last in a descending sort and PostgreSQL does not, so the rows alone
+    # would only catch this on one of the two engines CI runs.
+    with app.test_request_context():
+        g.org = acme
+        for ordering in ('newest', 'oldest', 'manual'):
+            clause = ' '.join(str(part) for part in Content.order_for(
+                type('T', (), {'ordering': ordering})()))
+            assert 'published_at IS NULL' in clause, ordering
+
+    login_as(client, user)
+    page = client.get('/manage/content/article',
+                      base_url='http://acme.example.test').get_data(as_text=True)
+    assert page.index('Published one') < page.index('Still a draft')
+
+
+def test_the_glossary_reads_alphabetically(app):
+    """A glossary that read newest-first would be a glossary in name only.
+    Declared by the plugin, so nothing in the core library covers it."""
+    from app.platform.content_types import CONTENT_TYPES
+    assert CONTENT_TYPES['definition'].ordering == 'alphabetical'

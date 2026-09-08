@@ -673,3 +673,25 @@ def test_the_documented_theme_recipe_is_the_one_that_works(app, client, acme):
     body = client.get('/blog/host-article', base_url=ACME).get_data(as_text=True)
     assert 'class="doc-wrapper"' in body
     assert 'Inline card' in body
+
+
+def test_no_theme_sorts_an_archive_for_itself(app):
+    """The archive query answers in the type's declared order, so a theme
+    has nothing left to correct. A template that sorts is a theme working
+    around the model, and the next type with the same problem would need
+    the same workaround written again.
+
+    Themes only. The community shell and the console are application
+    templates and may sort a list in Jinja for their own reasons; a theme
+    may not, because a theme is a renderer.
+    """
+    import re
+    from pathlib import Path
+    themes = Path(__file__).parents[2] / 'app' / 'views' / 'themes'
+    # Any sort filter, not only the one spelling that was there: `| sort`
+    # and `| sort(reverse=True)` are the same workaround.
+    sorting = re.compile(r'\|\s*sort\b')
+    offenders = [str(path.relative_to(themes))
+                 for path in themes.rglob('*.html')
+                 if sorting.search(path.read_text(encoding='utf-8'))]
+    assert offenders == []

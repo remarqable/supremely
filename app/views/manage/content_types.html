@@ -6,8 +6,20 @@
   {{ page_header(_('manage.content_types'), _('manage.content_types_intro')) }}
   <div class="space-y-6">
 
+  {# Grouped the way the product talks about them: everything an
+     organization publishes is a page or a post. The grouping is the whole
+     model on one screen, which a single flat list of thirteen never was. #}
+  {% for kind, heading, blurb in (
+       ('page', _('manage.kind_pages'), _('manage.kind_pages_intro')),
+       ('post', _('manage.kind_posts'), _('manage.kind_posts_intro'))) %}
+  {% set of_kind = types | selectattr('kind', 'equalto', kind) | list %}
+  {% if of_kind %}
   <div class="space-y-4">
-    {% for ct in types %}
+    <div>
+      <h2 class="section-title">{{ heading }}</h2>
+      <p class="mt-1 text-sm text-slate-500">{{ blurb }}</p>
+    </div>
+    {% for ct in of_kind %}
     {% set enabled = org.type_enabled(ct) %}
     {% set stored = org.type_settings(ct.slug) %}
     {% set count = counts.get(ct.slug, 0) %}
@@ -99,7 +111,10 @@
     </div>
     {% endfor %}
   </div>
+  {% endif %}
+  {% endfor %}
 
+  {% if coming_soon %}
   <div class="pt-2">
     <h2 class="section-title">{{ _('manage.coming_soon') }}</h2>
     <p class="mt-1 text-sm text-slate-500">{{ _('manage.coming_soon_intro') }}</p>
@@ -116,6 +131,7 @@
     </div>
     {% endfor %}
   </div>
+  {% endif %}
   </div>
 </div>
 {% endblock %}

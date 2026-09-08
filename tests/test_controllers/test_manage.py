@@ -2133,3 +2133,27 @@ def test_a_block_cannot_be_sent_as_a_newsletter(app, client, acme, user):
     # ...and the article it lives in still can be sent.
     assert client.post(f'/manage/content/{parent_id}/send-newsletter',
                        base_url=ACME).status_code != 404
+
+
+def test_the_content_types_console_groups_pages_and_posts(app, client, acme,
+                                                          user):
+    """Everything an organization publishes is a page or a post, so the
+    screen that lists what it publishes says so. A flat list of thirteen
+    types never showed the model at all."""
+    login_as(client, user)
+    page = client.get('/manage/content-types',
+                      base_url=ACME).get_data(as_text=True)
+    # Anchored on the headings themselves, not on a per-type badge that
+    # happens to contain similar words: an earlier version of this test
+    # matched the badge, and deleting both headings left it green.
+    pages_at = page.index('<h2 class="section-title">Pages</h2>')
+    posts_at = page.index('<h2 class="section-title">Posts</h2>')
+    assert pages_at < posts_at
+
+    # Types land in the right group: the page type between the two
+    # headings, a post type after the second.
+    pages_block = page[pages_at:posts_at]
+    posts_block = page[posts_at:]
+    assert 'A standalone page' in pages_block          # the page type's blurb
+    assert 'The standard blog post.' in posts_block    # the article's
+    assert 'The standard blog post.' not in pages_block

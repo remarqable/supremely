@@ -129,8 +129,10 @@ def content_list(type_slug):
     if type_slug not in active_types():
         abort(404)
     ct = get_content_type(type_slug)
-    items = (Content.of_type(type_slug)
-             .order_by(Content.created_at.desc()).all())
+    # The order the type declares, so the console list and the public
+    # archive agree about what order a roster reads in.
+    items = Content.of_type(type_slug).order_by(
+        *Content.order_for(ct)).all()
     return render_device_template('manage/content_list.html', items=items,
                            content_type=ct)
 

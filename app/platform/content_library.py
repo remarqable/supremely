@@ -63,6 +63,9 @@ def register_library_types() -> None:
         description='The people behind the organization: name, role, photo, '
                     'and a short bio.',
         base='/team', group='meet', enabled_by_default=True,
+        # A roster reads by name, not by who was added last. Origin and
+        # Supremely were both sorting this back into shape in Jinja.
+        ordering='alphabetical',
         # A roster is site furniture, not community activity: the archive
         # presents through the theme like a brochure page.
         presentation='site',

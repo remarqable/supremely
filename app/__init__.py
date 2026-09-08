@@ -258,7 +258,7 @@ def _init_context(app):
             return (g.org.id, _member_view(), type_slug)
 
         def latest_content(type_slug: str, limit: int | None = None) -> list:
-            """Published items of a content type, newest first.
+            """Published items of a content type, in its declared order.
 
             The theme contract's data verb: a theme names what it wants and
             the application decides how to fetch it, so a front page can

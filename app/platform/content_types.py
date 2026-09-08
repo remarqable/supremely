@@ -22,6 +22,22 @@ if TYPE_CHECKING:
 FIELD_TYPES = ('string', 'text', 'url', 'number', 'boolean', 'date',
                'select', 'image', 'file', 'datetime', 'list')
 
+# The two things an organization can publish. A page stands alone at its
+# own address; a post belongs to a collection with an archive.
+KINDS = ('page', 'post')
+
+# How a post type's archive is ordered. Newest-first is right for a blog and
+# wrong for a roster, a glossary and a recipe index, which is most of the
+# library: a third of the shipped types have archives and are not timelines.
+#
+# 'manual' orders by the position column. Position is where a block sits
+# inside the item it belongs to, and a promoted block loses it along with
+# its parent, so nothing in the library declares 'manual' today: a course's
+# lessons are ordered by the course, not by an archive. The value is here
+# because a type whose standalone items are arranged by hand is the obvious
+# next thing to want, and the query already knows how.
+ORDERINGS = ('newest', 'oldest', 'alphabetical', 'manual')
+
 # A repeating field holds rows, not a spreadsheet. Fifty is past what anyone
 # types into a recipe and well short of what would make the editor unusable
 # or the JSON column unwieldy.
@@ -211,11 +227,30 @@ class ContentType:
     template: str = 'single'
     list_template: str = 'archive'
     plugin: str | None = None       # owning plugin slug, if any
-    # Feed types: standalone dated entries with an archive at `base`
-    # (e.g. /blog, /recipes). The `page` type sets has_archive=False and is
-    # served at /<slug> like a standalone page.
-    has_archive: bool = True
-    base: str = ''                  # public URL base for feed types, e.g. /blog
+    # Page or post, which is the whole vocabulary of what an organization
+    # publishes.
+    #
+    # A page stands on its own at its own address: Home, About, Contact. A
+    # post belongs to a collection with an archive: an article at /blog, a
+    # recipe at /recipes. Everything else about a type describes one of
+    # those two, which is why this is declared and has_archive and is_page
+    # are read off it rather than set beside it and left to disagree.
+    #
+    # Storage is unchanged: this is a property of the type, not a column.
+    # Both are rows in `content` with a `type`, exactly as before.
+    kind: str = 'post'
+    base: str = ''                  # public URL base for a post type, e.g. /blog
+    # What order this type's archive reads in.
+    #
+    # "Posts are chronological" is false for a third of what the library
+    # already ships: team members, resources, recipes, glossary definitions
+    # and jobs all have archives and none is a timeline. Origin was working
+    # around it by sorting in Jinja, which is a theme compensating for a
+    # model limitation, and themes are renderers.
+    #
+    # See ORDERINGS for what each value means, and for why nothing in the
+    # library declares 'manual' yet.
+    ordering: str = 'newest'
     show_in_nav: bool = False       # seed a nav entry for this type
     group: str = 'community'        # community-sidebar section (NAV_GROUPS)
     # Where this type's public archive and singles present: 'community'
@@ -280,16 +315,33 @@ class ContentType:
 
     @property
     def is_page(self) -> bool:
-        return not self.has_archive
+        return self.kind == 'page'
+
+    @property
+    def has_archive(self) -> bool:
+        """A post has an archive; a page is the archive of nothing.
+
+        Derived rather than declared, and kept under its old name rather
+        than renamed at twenty-odd callsites: the reading of it never
+        changed, only where the answer comes from.
+        """
+        return self.kind == 'post'
 
     def validate_definition(self):
         if not _SLUG_RE.fullmatch(self.slug):
             raise ValueError(f'Invalid content type slug: {self.slug!r}')
         if not (self.singular and self.plural):
             raise ValueError('Content type needs singular and plural labels')
+        if self.kind not in KINDS:
+            raise ValueError(f'Unknown content type kind: {self.kind!r}')
+        if self.ordering not in ORDERINGS:
+            raise ValueError(f'Unknown ordering: {self.ordering!r}')
         if self.has_archive and not _BASE_RE.fullmatch(self.base or ''):
             raise ValueError(
-                f'Feed content type {self.slug} needs a URL base like /blog')
+                f'Post type {self.slug} needs a URL base like /blog')
+        if self.is_page and self.base:
+            raise ValueError(
+                f'Page type {self.slug} has no archive, so no URL base')
         if self.group not in NAV_GROUPS:
             raise ValueError(f'Unknown nav group: {self.group!r}')
         if self.presentation not in ('community', 'site'):
@@ -611,7 +663,7 @@ def register_core_types() -> None:
     register_content_type(ContentType(
         slug='page', singular='Page', plural='Pages',
         description='A standalone page (Home, About, Contact).',
-        has_archive=False, base='', template='page', essential=True,
+        kind='page', template='page', essential=True,
     ))
     register_content_type(ContentType(
         slug='article', singular='Article', plural='Articles',

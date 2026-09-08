@@ -10,6 +10,7 @@ app/models/discussion.py.)
 import json
 import re
 import secrets
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 
@@ -17,6 +18,9 @@ from app.extensions import db
 from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 from app.platform.theming import PAGE_TEMPLATE_RE
+
+if TYPE_CHECKING:
+    from app.platform.content_types import ContentType
 
 from .base import (
     DERIVED_SLUG_MAX,
@@ -276,6 +280,11 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         # is still None, find nothing taken, and hand back a slug that the
         # uniqueness check then refuses.
         self.slug = (self.slug or '').strip().lower() or None
+        if not self.is_child:
+            # Position means where inside my parent, and a row with no
+            # parent has no inside. A promoted block would otherwise keep
+            # the number it had in the course it came out of.
+            self.position = None
         if self.is_child and not self._wants_an_address():
             # A block read only inside its parent has no address, so there
             # is nothing to derive and nothing to keep unique. Any slug that
@@ -706,6 +715,12 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         Not in count_by_type, deliberately: the console has to say how many
         items are waiting inside a type that is off, or there is no way to
         judge whether to turn it back on.
+
+        Order is the type's own answer where one type is asked for. A
+        roster, a glossary and a recipe index are not timelines, and a theme
+        sorting them back into shape in Jinja is a theme working around the
+        model. Asked for everything at once there is no single type to ask,
+        so newest wins.
         """
         from app.platform.content_types import active_types
         active = active_types()
@@ -714,9 +729,48 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
             if type_slug not in active:
                 return q.filter(sa.false())
             q = q.filter_by(type=type_slug)
-        else:
-            q = q.filter(cls.type.in_(list(active)))
-        return q.order_by(cls.published_at.desc())
+            return q.order_by(*cls.order_for(active[type_slug]))
+        # Everything at once: no single type to ask, so newest wins. Still
+        # tiebroken, because a mixed feed reshuffling between page loads is
+        # no better than a single type's archive doing it.
+        q = q.filter(cls.type.in_(list(active)))
+        return q.order_by(*cls.order_for())
+
+    @classmethod
+    def order_for(cls, content_type: 'ContentType | None' = None) -> tuple:
+        """The columns a listing reads in.
+
+        Alphabetical folds case in the query rather than leaning on the
+        database's own idea of alphabetical. SQLite compares bytes, so every
+        capital letter sorts before every lowercase one and "Zoe" comes
+        before "adam"; PostgreSQL compares by locale and does not. Without
+        the fold, the same roster reads in a different order depending on
+        which engine an installation happens to run, which is exactly what
+        an installation should never have to think about.
+
+        Every ordering ends in a tiebreak on id, so two items sharing a
+        title, a date or a position come back in the same order on every
+        request and on both engines. A list that quietly reshuffles between
+        page loads is worse than one in the wrong order.
+        """
+        ordering = content_type.ordering if content_type is not None else ''
+        # Nulls last, spelled out rather than left to the engine. SQLite and
+        # PostgreSQL disagree about where a null sorts, and every column
+        # ordered on here can hold one: a draft has no published_at, and an
+        # item nobody arranged has no position. Without this the console
+        # list of a type with drafts in it reads in a different order
+        # depending on which database an installation runs.
+        def nulls_last(column):
+            return sa.case((column.is_(None), 1), else_=0)
+
+        by = {
+            'oldest': (nulls_last(cls.published_at), cls.published_at.asc()),
+            'alphabetical': (sa.func.lower(cls.title).asc(),),
+            'manual': (nulls_last(cls.position), cls.position.asc(),
+                       nulls_last(cls.published_at), cls.published_at.desc()),
+        }.get(ordering, (nulls_last(cls.published_at),
+                         cls.published_at.desc()))
+        return (*by, cls.id.desc())
 
     @classmethod
     def visible_query(cls, type_slug: str | None = None):
@@ -745,7 +799,8 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
     @classmethod
     def feed(cls, type_slug: str, limit: int | None = None) -> list['Content']:
-        """Published items of one type, newest first, for a theme template.
+        """Published items of one type for a theme template, in the order
+        that type declares.
 
         Empty is normal: an unregistered type, a locked section or a site
         with nothing published all return [], never an error. The featured

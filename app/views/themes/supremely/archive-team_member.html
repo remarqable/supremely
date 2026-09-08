@@ -11,7 +11,7 @@
   <h1 class="mb-10 text-4xl font-black tracking-tight">{{ archive_title or content_type.plural }}</h1>
 
   <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-    {% for member in items | sort(attribute='published_at') %}
+    {% for member in items %}
     {% set locked = not can_view(member) %}
     <article>
       {% if member.featured_upload and not locked %}
