@@ -179,3 +179,27 @@
 </nav>
 {%- endif -%}
 {% endmacro %}
+
+{# The way into the editor from the item itself, so an author does not have
+   to go looking for their own article in the console.
+
+   Editing content is an admin-only action either way -- a member has no
+   content.write and cannot author an item at all -- so the amber marking
+   here is not about permission but about whose work it is: your own is an
+   ordinary edit, somebody else's is an administrator reaching in. #}
+{% macro edit_content_link(content) %}
+{# The macro asks the question itself rather than trusting each caller to
+   ask it first. A theme that called this without the guard would draw an
+   editor link for every visitor, and it would look like it worked. #}
+{% if content.can_open_editor() %}
+{% set own = content.authored_by_viewer() %}
+<div class="mt-8 border-t border-slate-200 pt-5">
+  <a href="{{ url_for('manage.edit_content', content_id=content.id) }}"
+     class="{{ 'btn-secondary' if own else 'btn-admin' }}"
+     {% if not own %}title="{{ _('community.admin_only_hint') }}"{% endif %}>
+    {{ _('common.edit') }}
+    {%- if not own %} <span class="sr-only">({{ _('community.admin_only') }})</span>{% endif -%}
+  </a>
+</div>
+{% endif %}
+{% endmacro %}

@@ -1,5 +1,5 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import member_name with context %}
+{% from 'partials/_ui.html' import edit_content_link, member_name with context %}
 {% from 'community/_macros.html' import area_header with context %}
 
 {# The member view of a single content item (article, event, recording, …).
@@ -87,5 +87,7 @@
     {% endif %}
   </div>
   {% endif %}
+
+  {{ edit_content_link(content) }}
 </article>
 {% endblock %}

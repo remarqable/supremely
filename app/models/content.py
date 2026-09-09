@@ -868,6 +868,52 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
             return 0
         return cls.visible_query(type_slug).count()
 
+    def can_open_editor(self) -> bool:
+        """Whether the current viewer may open this item in the editor.
+
+        Two things have to be true. The item must have been written down,
+        because the editor is addressed by id and the preview renders a
+        throwaway row that was never saved. And the viewer must hold
+        content.write, which is what the console route asks for: offering
+        an Edit button to somebody the editor would turn away is worse
+        than offering none.
+
+        Named apart from the can_edit() a discussion post carries, which
+        answers a different question: there authorship grants the right,
+        because a member writes their own posts. Here it grants nothing.
+        Nobody without content.write can author an item at all, so an
+        author since demoted to member gets no button, and the editor
+        would have refused them anyway.
+
+        Authorship decides how the button is drawn rather than whether it
+        appears at all -- see authored_by_viewer.
+        """
+        from flask import has_request_context
+
+        from app.platform.authz import can
+        if not has_request_context():
+            return False          # no viewer to answer for: fail closed
+        return bool(self.id) and can('content.write')
+
+    def authored_by_viewer(self) -> bool:
+        """Whether the current viewer wrote this.
+
+        Editing your own article is an ordinary thing to do. Editing
+        somebody else's is an administrator reaching into their work, and
+        the button says which one is happening. Content that nobody is
+        recorded as having written, such as the items provisioning seeds,
+        counts as somebody else's.
+        """
+        from flask import has_request_context
+        from flask_login import current_user
+        if not has_request_context():
+            return False
+        # Content nobody is recorded as having written compares False
+        # here on its own, which is the answer wanted: a seeded item is
+        # not the reader's work.
+        return bool(current_user.is_authenticated
+                    and self.created_by_id == current_user.id)
+
     @classmethod
     def upcoming_event(cls, public_only=False):
         """The next published event dated today or later. Event dates live in
