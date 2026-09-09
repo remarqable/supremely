@@ -25,9 +25,21 @@
   {% block head %}{% endblock %}
   {% include 'partials/_analytics.html' %}
 </head>
+{# While a draft is previewed the site's header and footer are switched
+   off, so a click on the nav does not carry the reader away from the draft
+   they opened.
+
+   The banner that lets them leave sits between the chrome and the content,
+   outside every block, so no child template can drop it by overriding one.
+   Origin's content templates include it too; whichever renders first wins. It and the lock are set in this same file on purpose: a
+   layout carrying neither is merely unlocked, where one carrying only the
+   lock would be a page with nothing on it that goes anywhere.
+
+   Midnight draws its chrome here rather than in header.html and
+   footer.html, so the attribute sits on the elements themselves. #}
 <body class="midnight min-h-screen bg-slate-950 font-sans text-slate-100">
 
-<header class="border-b border-slate-800">
+<header{% if preview %} inert{% endif %} class="border-b border-slate-800">
   <div class="mx-auto flex max-w-5xl items-center gap-6 px-4 py-4">
     <a href="/" class="flex items-center gap-3 text-lg font-semibold text-white">
       {% set logo = g.org.logo() %}
@@ -68,13 +80,14 @@
     </nav>
   </div>
 </header>
+{% include 'partials/_preview_banner.html' %}
 
 <main class="mx-auto max-w-4xl px-4 py-10">
   {% include 'partials/_flash.html' %}
   {% block content %}{% endblock %}
 </main>
 
-<footer class="mt-16 border-t border-slate-800">
+<footer{% if preview %} inert{% endif %} class="mt-16 border-t border-slate-800">
   {% set footer_items = nav_items('footer') %}
   {% set footer_groups = footer_items | selectattr('is_group') | list %}
   {% set footer_links = footer_items | rejectattr('is_group') | list %}

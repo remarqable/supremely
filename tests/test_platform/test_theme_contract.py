@@ -582,6 +582,134 @@ def test_every_bundled_theme_can_show_the_window(app, client, acme):
         assert 'A shopfront article' in body, slug
 
 
+def test_every_bundled_theme_switches_navigation_off_in_a_preview(
+        app, client, acme, user):
+    """A preview must not let the reader click away from the draft, and a
+    theme that draws its own chrome decides that for itself.
+
+    Both halves are checked together because they belong together: the lock
+    without the banner is a page with nothing on it that goes anywhere.
+
+    An article and a page, because those resolve differently. No bundled
+    theme ships single.html, so an article-only loop would look like four
+    cases and exercise one file. Pages are where the themes diverge, and
+    where a missing banner last hid.
+    """
+    from app.platform.theming import AVAILABLE_THEMES
+    from tests.conftest import login_as
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        article = publish(acme, 'A draft to look at')
+        page = publish(acme, 'A draft page', type_slug='page')
+        ids = {'article': article.id, 'page': page.id}
+    client = login_as(client, user)
+
+    for slug in AVAILABLE_THEMES:
+        acme.theme = slug
+        acme.save()
+        for kind, content_id in ids.items():
+            label = f'{slug}/{kind}'
+            body = client.get(f'/manage/content/{content_id}/preview',
+                              base_url=ACME).get_data(as_text=True)
+            # Each end separately: one assertion over both would pass with
+            # the header wide open so long as the footer was shut.
+            assert 'inert' in body.split('<main')[0], f'{label} header'
+            assert 'inert' in body.rsplit('</main>', 1)[-1], f'{label} footer'
+            assert 'Back to the editor' in body, label
+
+
+def test_a_theme_with_its_own_layout_still_says_it_is_a_preview(
+        app, client, acme, user):
+    """A theme the application has never heard of, shipping a layout of its
+    own and nothing else. That is the ordinary shape of a theme, and the
+    layout is the one file nearly all of them replace.
+
+    Such a theme gets no lock, which is a theme author's mistake to make and
+    the docs say so. What it must not lose is the banner, or a draft under
+    it looks exactly like the live site. It keeps it because Origin's
+    content templates carry one too, and the banner shows once per request.
+    """
+    from tests.conftest import login_as
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        item = publish(acme, 'A draft to look at')
+        content_id = item.id
+    install(app, acme)
+    client = login_as(client, user)
+    body = client.get(f'/manage/content/{content_id}/preview',
+                      base_url=ACME).get_data(as_text=True)
+    assert 'A draft to look at' in body
+    assert 'not published yet' in body
+    assert 'Back to the editor' in body
+
+
+def test_the_banner_is_never_shown_twice(app, client, acme, user):
+    """Two places include it so that overriding either one cannot lose it,
+    which is only safe because it renders once."""
+    from app.platform.theming import AVAILABLE_THEMES
+    from tests.conftest import login_as
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        ids = [publish(acme, 'A draft to look at').id,
+               publish(acme, 'A draft page', type_slug='page').id]
+    client = login_as(client, user)
+    for slug in AVAILABLE_THEMES:
+        acme.theme = slug
+        acme.save()
+        for content_id in ids:
+            body = client.get(f'/manage/content/{content_id}/preview',
+                              base_url=ACME).get_data(as_text=True)
+            assert body.count('not published yet') == 1, slug
+
+
+def test_a_theme_part_is_not_a_page_template(app, acme):
+    """`template` is free text on the page form and reaches the theme
+    chain. A layout, a header and a footer are pieces a page is assembled
+    from, not pages: rendered on their own they are fragments with no
+    document around them, and nothing a page should carry reaches them."""
+    from app.platform.theming import page_template_allowed
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        for part in ('layout', 'header', 'footer'):
+            assert not page_template_allowed(part), part
+        # Still a page template, and still not one the application owns.
+        assert page_template_allowed('front-page')
+        assert not page_template_allowed('archive')
+
+
+def test_a_locked_preview_always_carries_the_way_out(app, client, acme, user):
+    """A page names its own template, and the value reaches the theme chain,
+    so a preview can land on a template nobody wrote for previews. Whatever
+    it lands on, it must not be a page with the navigation off and no way to
+    leave.
+
+    Under every theme, because which file a name resolves to depends on the
+    theme, and the assertion is unconditional: a version of this that only
+    checked the exit "if the page was locked" would have gone quiet the
+    moment the lock went missing.
+    """
+    from app.platform.theming import AVAILABLE_THEMES
+    from tests.conftest import login_as
+    login_as(client, user)
+    ids = {}
+    for template in ('front-page', 'gate', 'subscribe', 'layout',
+                     'archive-team_member'):
+        with app.test_request_context(base_url=ACME):
+            g.org = acme
+            # The helper writes the slug from the title, and a title
+            # carrying an underscore would not pass validation.
+            item = publish(acme, 'Draft ' + template.replace('_', ' '),
+                           type_slug='page', template=template)
+            ids[template] = item.id
+    for slug in AVAILABLE_THEMES:
+        acme.theme = slug
+        acme.save()
+        for template, content_id in ids.items():
+            body = client.get(f'/manage/content/{content_id}/preview',
+                              base_url=ACME).get_data(as_text=True)
+            assert 'Back to the editor' in body, f'{slug}/{template}'
+
+
 def test_a_theme_can_replace_the_block_section_and_one_block(app, client, acme):
     """Both block seams go through the theme chain.
 

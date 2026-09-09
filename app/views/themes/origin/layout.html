@@ -23,18 +23,35 @@
   {% block head %}{% endblock %}
   {% include 'partials/_analytics.html' %}
 </head>
+{# While a draft is previewed the site's header and footer are switched
+   off, so a click on the nav does not carry the reader away from the draft
+   they opened.
+
+   The banner that lets them leave sits between the chrome and the content,
+   outside every block, so no child template can drop it by overriding one.
+   Origin's content templates include it too; whichever renders first wins. It and the lock are set in this same file on purpose: a
+   layout carrying neither is merely unlocked, where one carrying only the
+   lock would be a page with nothing on it that goes anywhere.
+
+   The lock's wrapper is `contents`, which draws no box, so the header keeps
+   whatever positioning it had -- Supremely's is sticky. #}
 <body class="{% block body_class %}min-h-screen bg-white font-sans text-slate-900{% endblock %}">
 
 {# WordPress-style parts: a theme may override just header.html or just
    footer.html; themed() resolves active theme -> origin. #}
+{% if preview %}<div inert class="contents">{% endif %}
 {% include themed('header.html') %}
+{% if preview %}</div>{% endif %}
+{% include 'partials/_preview_banner.html' %}
 
 <main class="mx-auto max-w-4xl px-4 py-10">
   {% include 'partials/_flash.html' %}
   {% block content %}{% endblock %}
 </main>
 
+{% if preview %}<div inert class="contents">{% endif %}
 {% include themed('footer.html') %}
+{% if preview %}</div>{% endif %}
 
 {% block scripts %}{% endblock %}
 </body>

@@ -627,6 +627,11 @@ def _template_exists(name: str) -> bool:
 
 PAGE_TEMPLATE_RE = re.compile(r'[a-z0-9][a-z0-9_-]{0,49}')
 
+# Pieces a layout assembles, not pages. Each renders a bare fragment with no
+# document around it, so a page pointed at one gets no stylesheet, no
+# chrome, and none of the notices a page is supposed to carry.
+THEME_PARTS = frozenset({'layout', 'header', 'footer'})
+
 
 def page_template_allowed(name: str | None) -> bool:
     """Is this safe to hand to render_site() as a page template?
@@ -640,6 +645,8 @@ def page_template_allowed(name: str | None) -> bool:
     a row stored before this existed is still read on every request.
     """
     if not name or not PAGE_TEMPLATE_RE.fullmatch(name):
+        return False
+    if name in THEME_PARTS:
         return False
     # Both namespaces: device expansion makes community/mobile/<name>.html a
     # resolvable name too, and one that outranks the theme's.

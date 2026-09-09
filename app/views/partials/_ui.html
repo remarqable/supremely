@@ -57,8 +57,12 @@
 {% macro back_link(href, label) %}
 {#- Return path on a detail view: the browser's back button is not an
     affordance the page can rely on, and a reader who arrived from a link or
-    a search result never had one. -#}
-<a href="{{ href }}" class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-brand-600">
+    a search result never had one.
+
+    It is navigation, so a preview switches it off with the rest. It sits in
+    the content column, where the lock on the header and footer cannot reach
+    it, and it is the one link on a draft that most invites a click. -#}
+<a href="{{ href }}"{% if preview %} inert{% endif %} class="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-brand-600">
   {{ back_arrow() }}{{ label }}</a>
 {% endmacro %}
 
