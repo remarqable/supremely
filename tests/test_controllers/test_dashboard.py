@@ -227,7 +227,7 @@ def test_switcher_appears_with_multiple_memberships(app, client, acme, globex, u
     assert b'/launcher' in page                    # avatar menu shows it now
 
 
-def test_console_keeps_full_navbar(client, acme, user):
+def test_console_offers_the_way_back_to_the_community(client, acme, user):
     login_as(client, user)
     page = client.get('/manage/content/page', base_url=ACME).data
-    assert b'href="/dashboard"' in page            # console navbar unchanged
+    assert b'href="/dashboard"' in page            # the header's Homepage pill

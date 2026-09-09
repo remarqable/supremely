@@ -19,6 +19,9 @@
     {{ _('nav.skip_to_content') }}
   </a>
 
+  {# The app chrome, which is every page outside the community
+     surface. The header reads this to point its pill back. #}
+  {% set off_surface = true %}
   {% include 'partials/_navbar.html' %}
 
   <main id="main" class="{% block main_class %}mx-auto max-w-5xl px-4 py-8{% endblock %}">
