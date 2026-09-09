@@ -131,6 +131,30 @@ class DiscussionGroup(OrgScoped, BaseModel):
         """Every group for this tenant, in display order."""
         return cls.query.order_by(cls.position, cls.name).all()
 
+    @classmethod
+    def readable_ids(cls, groups=None) -> list[int]:
+        """Ids of the groups whose posts the current visitor may read.
+
+        Post titles are gated content, so anything that queries posts across
+        groups asks this first rather than filtering afterwards. The
+        org-wide switch needs no separate test here: each group's own
+        predicate consults it and answers no when the area is closed.
+
+        Empty off-tenant. The installation paths run with no organization
+        resolved, and there the global tenant filter stands down, so a group
+        query would gather up every tenant at once.
+
+        `groups` lets a caller that already holds the listing pass it in
+        rather than pay for the same query twice.
+        """
+        from flask import g
+        if getattr(g, 'org', None) is None:
+            return []
+        if groups is None:
+            groups = cls.in_order()
+        return [group.id for group in groups
+                if group.readable_by_current_visitor()]
+
     def move(self, direction: int):
         """Swap places with the neighbor above (-1) or below (+1) in display
         order. Groups seeded together share a position, so the whole list is
@@ -231,6 +255,35 @@ class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
     def touch(self):
         self.last_activity_at = utcnow()
         return self
+
+    @classmethod
+    def pinned_for_rail(cls, limit: int = 3) -> list['Post']:
+        """Pinned posts across every group the visitor may read.
+
+        The right-rail card. Pinning used to change nothing but the order of
+        one group's own list; this is what gives it a home on the shell.
+
+        Three rules, enforced in the query because a Post carries no
+        visibility of its own for a template to re-check afterwards:
+
+        - Readable groups only. A post title is gated content, and it is not
+          teased the way a gated page is; the discussions directory takes
+          the same line for its recent-activity and search lists.
+        - Hidden posts stay out for everyone, moderators included. The rail
+          is a promotional slot, not a moderation queue.
+        - Newest activity first, then newest post, so two threads that last
+          moved in the same second still come back in a settled order.
+        """
+        group_ids = DiscussionGroup.readable_ids()
+        if not group_ids:
+            return []
+        return (cls.query
+                .options(db.joinedload(cls.group))
+                .filter(cls.group_id.in_(group_ids),
+                        cls.is_pinned.is_(True),
+                        cls.is_hidden.is_(False))
+                .order_by(cls.last_activity_at.desc(), cls.id.desc())
+                .limit(limit).all())
 
     @classmethod
     def recent_by_author(cls, user_id: int, limit: int = 10,

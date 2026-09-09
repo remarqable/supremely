@@ -71,7 +71,7 @@
       {# The rail rides the shell, not individual pages, so it is present on
          every community page. Pages add contextual cards by overriding the
          `rail` block (keep community_rail() first). #}
-      <aside class="w-full shrink-0 px-4 pb-6 sm:px-8 xl:w-80 xl:py-6 xl:ps-0 xl:pe-6">
+      <aside id="rail" class="w-full shrink-0 px-4 pb-6 sm:px-8 xl:w-80 xl:py-6 xl:ps-0 xl:pe-6">
         <div class="space-y-4 xl:sticky xl:top-6">
           {% block rail %}{{ community_rail() }}{% endblock %}
         </div>
