@@ -83,3 +83,24 @@ def test_csp_frame_src_matches_the_hosts_the_renderer_emits(app, client, acme):
     assert 'frame-src' in csp
     for host in VIDEO_FRAME_HOSTS:
         assert host in csp
+
+
+@pytest.mark.parametrize('newline', ['\r\n', '\r', '\n'])
+def test_the_directive_survives_the_line_endings_a_browser_sends(newline):
+    """A textarea is submitted with CRLF, so every body saved through the
+    editor has them. This was live for one deploy: `$` in a multiline
+    pattern stops before \\n and not before \\r, so the carriage return sat
+    between the URL and the end of the line and nothing an author typed in
+    the editor ever matched.
+    """
+    body = newline.join([f':::video {YOUTUBE}', '', '## TL;DR', '', 'Text.'])
+    html = render_markdown(body)
+    assert 'https://www.youtube-nocookie.com/embed/QMH4rPEJ5BI' in html
+    assert ':::video' not in html
+
+
+def test_the_email_link_survives_them_too():
+    body = f':::video {YOUTUBE}\r\n\r\nText.\r\n'
+    html = render_markdown(body, embed_videos=False)
+    assert f'href="{YOUTUBE}"' in html
+    assert ':::video' not in html

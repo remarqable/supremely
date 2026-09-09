@@ -582,3 +582,13 @@ def test_an_embed_is_a_card_and_not_prose(app, acme):
     episode(app, acme)
     out = rendered(app, acme, ':::embed episode/why-we-build')
     assert 'embed-card' in out
+
+
+def test_an_embed_survives_the_line_endings_a_browser_sends(app, acme):
+    """A textarea is submitted with CRLF, so this is what a body written in
+    the editor actually looks like — not the \\n of a Python literal."""
+    episode(app, acme)
+    out = rendered(app, acme,
+                   'Before.\r\n\r\n:::embed episode/why-we-build\r\n\r\nAfter.')
+    assert 'Why We Build' in out
+    assert ':::embed' not in out

@@ -187,6 +187,13 @@ def render_markdown(text: str, *, embed_videos: bool = True,
     """
     if not text:
         return ''
+    # A browser submits a textarea with CRLF line endings, so every body
+    # saved through the editor carries them. A directive is matched a line
+    # at a time and `$` in a multiline pattern stops before \n, not before
+    # \r, which left the carriage return sitting between the URL and the end
+    # of the line and no directive matching anything an author had actually
+    # typed. Normalize once here rather than teaching each pattern about it.
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
     # Videos are taken out before the Markdown and put back after the
     # cleaner, so what goes through the cleaner is only ever what the author
     # wrote. Embeds and feeds are matched after it, in the cleaned document.
