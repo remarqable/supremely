@@ -1,6 +1,7 @@
 """Supremely application factory."""
 
 import contextlib
+import os
 from pathlib import Path
 
 from flask import Flask, abort, g, redirect, request
@@ -14,6 +15,19 @@ from .platform.logger import get_logger, init_logger
 # tests/test_platform/test_version.py). Docker images are tagged
 # with it, and :latest always points at the newest release.
 APP_VERSION = '0.1.0'
+
+
+def version_label() -> str:
+    """What this installation calls itself: 0.1.0+build.51, or 0.1.0-dev
+    from source, which claims no build rather than one it does not have.
+
+    The number is commits since the release tag, worked out by
+    scripts/build-number.sh at image build time and carried in on APP_BUILD.
+    Read when asked, so setting that variable is all it takes to change the
+    answer.
+    """
+    build = os.environ.get('APP_BUILD', '').strip()
+    return f'{APP_VERSION}+build.{build}' if build else f'{APP_VERSION}-dev'
 
 
 def create_app(config_class=Config):
@@ -307,7 +321,7 @@ def _init_context(app):
             'can_view': can_view,
             'is_org_member': is_org_member,
             'is_member_or_platform_admin': is_member_or_platform_admin,
-            'app_version': APP_VERSION,
+            'app_version': version_label(),
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,
             'latest_announcement': latest_announcement,

@@ -43,7 +43,10 @@
    equivalents or carry a lock (tease-don't-hide). #}
 {% set member_view = is_member_or_platform_admin() %}
 <aside class="shrink-0 border-b border-slate-200/70 bg-white px-3.5 py-5 lg:min-h-[calc(100vh-3.5rem)] lg:w-60 lg:border-b-0 lg:border-e">
-  <div class="lg:sticky lg:top-6">
+  {# Bounded, so the rows can never reach the version line pinned below.
+     8rem covers the label and the gap above the nav before it sticks: it
+     sticks late, and the taller unstuck box is what overlapped. #}
+  <div class="lg:sticky lg:top-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
     <nav aria-label="{{ _('community.nav') }}">
       {% call nav_item(_('community.home'),
                        url_for('orgs.dashboard') if member_view else '/',
@@ -94,5 +97,14 @@
       </div>
     </nav>
   </div>
+
+  {# Which build this is, for an operator who has no repository to ask.
+     Fixed, because the alternatives move: the end of the sidebar is the end
+     of the page, and a sticky element shifts when it sticks. Desktop only;
+     the offset tracks the centred shell. #}
+  <p class="hidden text-[10px] text-slate-600
+            lg:fixed lg:bottom-0 lg:block lg:w-60 lg:bg-white
+            lg:px-[1.625rem] lg:py-3
+            lg:start-[max(0px,calc((100vw-1600px)/2))]">{{ app_version }}</p>
 </aside>
 {% endmacro %}

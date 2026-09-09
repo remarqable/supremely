@@ -104,11 +104,17 @@ pull-data: ## Pull the server's DB + uploads for local testing (needs PROD_SSH)
 # IMAGE in Makefile.local to publish under a different repository.
 IMAGE ?= remarqable/supremely
 PLATFORMS ?= linux/amd64,linux/arm64
+# In a script, so the rule that ships is the rule the tests run.
+BUILD ?= $(shell scripts/build-number.sh)
 BUILDER ?= supremely
 image: ## Build the multi-arch image and push it to the registry
+	@test -n "$(BUILD)" || { echo "No build number: run from a full clone with release tags, or pass BUILD=n."; exit 1; }
 	@docker buildx inspect $(BUILDER) >/dev/null 2>&1 || \
 	  docker buildx create --name $(BUILDER) --driver docker-container --bootstrap
-	docker buildx build --builder $(BUILDER) --platform $(PLATFORMS) -t $(IMAGE):latest --push .
+	@echo "Building $(IMAGE) build.$(BUILD)"
+	docker buildx build --builder $(BUILDER) --platform $(PLATFORMS) \
+	  --build-arg APP_BUILD=$(BUILD) \
+	  -t $(IMAGE):latest --push .
 
 deploy: image ## Build + push the image, then update the server (needs PROD_SSH)
 	@test -n "$(PROD_SSH)" || { echo "Set PROD_SSH in Makefile.local (e.g. PROD_SSH = root@example.com)"; exit 1; }

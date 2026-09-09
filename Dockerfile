@@ -8,7 +8,14 @@ RUN uv sync --locked --no-dev
 
 COPY . .
 
+# Which build this image is. Passed by `make image`, which counts the
+# commits since the release tag; empty for anyone building by hand, and the
+# application then reports itself as running from source rather than
+# claiming a build it does not have.
+ARG APP_BUILD=""
+
 ENV PATH="/srv/app/.venv/bin:$PATH" \
+    APP_BUILD=${APP_BUILD} \
     DATA_DIR=/data \
     APP_ENV=production \
     FLASK_APP=wsgi.py \

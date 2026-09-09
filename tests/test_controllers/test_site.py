@@ -1,6 +1,7 @@
 import pytest
 from flask import g
 
+from app import version_label
 from app.extensions import db
 from app.models import Content, NavigationItem
 from app.platform.theming import page_template_exists
@@ -814,3 +815,15 @@ def test_a_block_stops_linking_out_when_its_type_is_turned_off(app, client,
     assert 'Lesson one' in page              # still rendered in its parent
     assert client.get('/courses/intro/lessons/one',
                       base_url=ACME).status_code == 404
+
+
+def test_the_community_sidebar_says_which_build_it_is(app, client, acme, user):
+    """An operator on a server has no repository to ask and no git to run,
+    and the image tag moves with every release. Without this there is no way
+    to answer "which build is this" from the outside."""
+    body = client.get('/blog', base_url=ACME).get_data(as_text=True)
+    assert version_label() in body
+
+    login_as(client, user)
+    signed_in = client.get('/blog', base_url=ACME).get_data(as_text=True)
+    assert version_label() in signed_in

@@ -32,9 +32,11 @@ def index():
 
 
 @bp.route('/health')
-def health():
-    from app import APP_VERSION
-    return {'status': 'ok', 'version': APP_VERSION}
+def health() -> ResponseReturnValue:
+    # The build, not the bare release: a deploy check and a support request
+    # both read this, and two installs a week apart report the same release.
+    from app import version_label
+    return {'status': 'ok', 'version': version_label()}
 
 
 # RET503 is suppressed below: the function ends in abort(), which always
