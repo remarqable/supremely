@@ -255,3 +255,106 @@ def seed_supremely(admin_email: str):
     org = seed_supremely_org()
     click.echo(f'Seeded organization "{org.name}" ({org.slug}).')
     click.echo('Visit it on the bare domain (single org) or its subdomain.')
+
+
+@dev_bp.cli.command('email-previews')
+@click.option('--out', default=None, help='Where to write them.')
+@click.option('--open/--no-open', 'open_browser', default=True,
+              help='Open the first one. Off on a machine with no browser.')
+def email_previews(out: str | None, open_browser: bool):
+    """Render one of every email to HTML files and say where they are.
+
+    Email is the one surface nobody sees while building it: it renders in a
+    job, it goes to somebody else, and a mail client is not a browser. This
+    writes each message with sample content so the layout can be looked at
+    the way a reader would see it.
+
+    A command rather than a route, so none of this is reachable over HTTP on
+    a running installation. It writes into DATA_DIR, which is gitignored, so
+    nothing lands anywhere committed.
+    """
+    import os
+    import sys
+    import webbrowser
+    from pathlib import Path
+
+    from flask import current_app
+
+    from app.models import Organization
+    from app.platform.emails import render_message
+    from app.platform.tenant import org_scope, unscoped
+
+    with unscoped():
+        org = Organization.query.first()
+    if org is None:
+        raise click.ClickException('No organization yet: run `make reset`.')
+
+    where = Path(out or (Path(current_app.config['DATA_DIR']) / 'email-previews'))
+    where.mkdir(parents=True, exist_ok=True)
+    site = org.site_name
+
+    samples = {
+        'invitation': {
+            'template': 'emails/invitation.html',
+            'subject': f'You are invited to {site}',
+            'heading': f'You have been invited to {site}',
+            'intro': ('Someone at ' + site + ' would like you to join them. '
+                   'Accepting takes a moment and you can leave whenever you '
+                   'like.'),
+            'action': 'Accept the invitation',
+            'action_url': 'https://example.test/invite/PJ4dB7JK9x',
+            'outro': 'This invitation expires in seven days.'},
+        'confirm-subscription': {
+            'template': 'emails/confirm_subscription.html',
+            'subject': f'Confirm your subscription to {site}',
+            'heading': 'One click and you are subscribed',
+            'intro': ('Confirm that you would like to hear from ' + site + '. '
+                   'Nothing is sent until you do.'),
+            'action': 'Confirm subscription',
+            'action_url': 'https://example.test/subscribe/confirm/Kd8s',
+            'outro': ('If you did not ask for this, ignore this email and '
+                   'nothing will happen.')},
+        'notification': {
+            'template': 'emails/notification.html',
+            'subject': '[Someone replied to you]',
+            'kind': 'New reply',
+            'heading': 'Dana replied to you',
+            'snippet': ('That is roughly how we handled it last time, though we '
+                     'moved the deadline back a week to give people room.'),
+            'action': 'Open it',
+            'action_url': 'https://example.test/discussions/general/42'},
+        'newsletter': {
+            'template': 'emails/newsletter.html',
+            'subject': 'Kickoff meetup',
+            'heading': 'Kickoff meetup',
+            'body_html': ('<p>Our first community event of the year, and an '
+                       'excuse to meet the people you have only read.</p>'
+                       '<p>Doors at six, talks at seven.</p>'),
+            'field_table': '',
+            'action': 'Read it online',
+            'action_url': 'https://example.test/events/kickoff-meetup',
+            'footer_note': f'You receive this because you subscribed to {site}.',
+            'unsubscribe_url': 'https://example.test/unsubscribe/Kd8s',
+            'unsubscribe_label': 'Unsubscribe'},
+    }
+
+    written = []
+    with org_scope(org.id):
+        for name, fields in samples.items():
+            template = fields.pop('template')
+            page = where / f'{name}.html'
+            # render_message, not render_email: a preview that leaves the
+            # attribution out is a preview of something nobody receives, and
+            # the footer is where a duplicate would show.
+            _, html = render_message(template, org=org, text='',
+                                     **fields)
+            page.write_text(html, encoding='utf-8')
+            written.append(page)
+
+    for page in written:
+        click.echo(f'  {page}')
+    # Guarded: on a headless host this otherwise spawns a process that
+    # cannot do anything.
+    if open_browser and os.environ.get('DISPLAY', sys.platform == 'darwin'):
+        webbrowser.open(written[0].as_uri())
+    click.echo(f'\n{len(written)} previews in {where}')

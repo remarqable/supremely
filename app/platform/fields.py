@@ -279,13 +279,13 @@ def absolute_url(path: str) -> str:
     rather than handing partials `g`, which is what they would otherwise
     reach for and is a short step from reading `content.visibility`.
     """
-    from app.platform.tenant import current_org, org_url
-    # current_org, not g.org: a newsletter is a job, and a job knows its
-    # tenant through org_scope rather than through the request. Reading
-    # g.org there answered None and sent every picture in the mail as a
-    # relative path, which no mail client can resolve.
+    # One implementation, in the email module: two of these existed and had
+    # already drifted apart on which organization they resolved against and
+    # on what they refused to touch.
+    from app.platform.emails import absolute_url_for
+    from app.platform.tenant import current_org
     org = current_org()
-    return org_url(org, path) if org is not None else path
+    return absolute_url_for(org)(path) if org is not None else path
 
 
 def choice_label(spec: 'FieldSpec', value: object) -> str:

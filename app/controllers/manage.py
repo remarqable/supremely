@@ -42,6 +42,7 @@ from app.platform.content_types import (
     submitted_fields,
 )
 from app.platform.devices import render_device_template
+from app.platform.emails import invitation_message
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -837,10 +838,13 @@ def create_invitation():
         return redirect(url_for('manage.members'))
 
     invite_url = invitation.url(token)
-    if email and try_send_email(
-            email, t('members.invite_email_subject', org=g.org.name),
-            t('members.invite_email_body', org=g.org.name, url=invite_url)):
-        flash(t('members.invite_sent', email=email), 'success')
+    if email:
+        # Composed only when there is somebody to send it to: an invitation
+        # taken away as a link costs no render.
+        subject, text, html = invitation_message(g.org, invite_url)
+        if try_send_email(email, subject, text, html=html,
+                          attribution=False):
+            flash(t('members.invite_sent', email=email), 'success')
     # The URL is shown once: only its hash is stored.
     flash(t('members.invite_link', url=invite_url), 'invite')
     return redirect(url_for('manage.members'))

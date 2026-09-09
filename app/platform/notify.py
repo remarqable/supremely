@@ -100,10 +100,46 @@ def deliver_notification_email(payload: dict) -> None:
         return
 
     data = notification.payload or {}
+    from app.platform.emails import absolute_url_for, render_message
+    from app.platform.i18n import t
+    from app.platform.tenant import current_org
+    org = current_org()
     subject = f"[{data.get('title', 'Notification')}]"
-    body = (f"{data.get('actor_name', 'Someone')} — {notification.type}\n\n"
-            f"{data.get('snippet', '')}\n\n{data.get('url', '')}\n")
-    send_email(user.email, subject, body)
+
+    # Notification.TYPES is dotted ('reply.followed') and the catalogue key
+    # is not, the same transform the bell does in
+    # members/notifications.html. Without it the two commonest kinds look up
+    # a key that is not there and arrive with no label at all.
+    key = f"notifications.type_{notification.type.replace('.', '_')}"
+    kind = t(key)
+    kind = '' if kind == key else kind
+
+    # A moderation notice has no actor: nobody is named, and the heading it
+    # gets says what happened instead. The other kinds name whoever did it,
+    # so a mention, a reply and a moderation notice read as three different
+    # things rather than one line that fits none of them.
+    actor = (data.get('actor_name') or '').strip()
+    heading = t(f'{key}_email', actor=actor)
+    if heading == f'{key}_email':
+        heading = kind or data.get('title', '')
+
+    # Whole address: an email carries no origin, so a relative one is a dead
+    # link in the text half exactly as it is in the button.
+    url = absolute_url_for(org)(data.get('url', '')) if org else ''
+
+    # Both halves say the same thing. The text is the part a screen reader
+    # and a text-only client read, and it was still printing the internal
+    # type name and a relative path while the markup beside it was rebuilt.
+    body = '\n\n'.join(part for part in (
+        heading, data.get('snippet', ''), url) if part) + '\n'
+
+    text, html = render_message(
+        'emails/notification.html', subject=subject, text=body,
+        org=org, kind=kind, snippet=data.get('snippet', ''),
+        heading=heading,
+        action=t('notifications.email_action') if url else None,
+        action_url=url)
+    send_email(user.email, subject, text, html=html, attribution=False)
     from app.models.base import utcnow
     notification.emailed_at = utcnow()
     db.session.commit()

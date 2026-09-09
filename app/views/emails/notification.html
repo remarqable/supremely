@@ -1,0 +1,24 @@
+{# Something happened that a member asked to hear about. #}
+{% extends 'emails/base.html' %}
+{% block body %}
+<p style="margin:0 0 4px 0;font:600 12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">{{ kind }}</p>
+<h1 style="margin:0 0 12px 0;font:600 21px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">{{ heading }}</h1>
+{% if snippet %}
+{# Quoted, so it reads as somebody else's words rather than ours. #}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px 0;">
+  {# A side, chosen rather than assumed: inline styles have no logical
+   properties, so the direction the document declares has to be read
+   here or a quote bar sits on the wrong edge of a right-to-left
+   message. #}
+  {% set side = 'right' if is_rtl else 'left' %}
+  <tr><td style="border-{{ side }}:3px solid #e2e8f0;padding-inline-start:14px;padding-block:2px;font:400 15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#475569;">{{ snippet }}</td></tr>
+</table>
+{% endif %}
+{% if action and action_url %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px 0;">
+  <tr><td style="background-color:{{ accent }};border-radius:8px;">
+    <a href="{{ absolute_url(action_url) }}" style="display:inline-block;padding:11px 20px;font:600 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;">{{ action }}</a>
+  </td></tr>
+</table>
+{% endif %}
+{% endblock %}
