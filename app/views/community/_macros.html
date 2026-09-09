@@ -60,7 +60,7 @@
 {% endmacro %}
 
 {% macro discussion_card(post, show_group=true) %}
-<article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300 {{ 'opacity-60' if post.is_hidden }}">
+<article class="border-b border-slate-100 py-4 transition-colors hover:bg-slate-50/70 {{ 'opacity-60' if post.is_hidden }}">
   <div class="flex items-center gap-2.5">
     {{ avatar(post.author.name if post.author else '?',
               post.author.avatar_url if post.author else None,
@@ -152,7 +152,7 @@
   <div class="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
     {{ avatar(post.author.name if post.author else '?',
               post.author.avatar_url if post.author else None,
-              size='h-4.5 w-4.5', text='text-[8px]') }}
+              size='h-4.5 w-4.5', text='text-xs') }}
     {{ member_name(post.author, 'relative z-10 text-slate-500') }}
     <span>{{ _('discussions.posted_ago', when=post.created_at|timeago) }}</span>
     {% if show_group %}<span>· {{ post.group.name }}</span>{% endif %}

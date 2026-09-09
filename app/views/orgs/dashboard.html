@@ -1,5 +1,5 @@
 {% extends community_layout %}
-{% from 'partials/_ui.html' import empty_state with context %}
+{% from 'partials/_ui.html' import category_chip, empty_state with context %}
 {% from 'community/_macros.html' import discussion_card, new_post_modal, publish_menu with context %}
 
 {% block title %}{{ _('community.home') }} — {{ org.name }}{% endblock %}
@@ -15,12 +15,23 @@
 
 <div class="mt-5 grid gap-6 xl:grid-cols-2">
   <section>
-    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.latest_from', org=org.name) }}</h2>
+    <h2 class="mb-2.5 px-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ _('community.latest_from', org=org.name) }}</h2>
     <div class="space-y-3.5">
       {% for item in latest_published %}
-      <article class="rounded-xl bg-white p-5 ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
-        <div class="flex items-center gap-2">
+      {# The category's own colour, carried over from the archive so an item
+         looks like itself wherever it turns up. A thin edge rather than a
+         panel: this is a list, and six filled blocks down one column would
+         be a lot. Items with no category keep the neutral edge. #}
+      {% set category = item.category %}
+      <article class="flex gap-4 border-b border-slate-100 pb-4">
+        <span class="mt-1 w-1 shrink-0 rounded-full {{ 'edge-' ~ category.tone if category else 'edge-none' }}"></span>
+        <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          {% if category %}
+          {{ category_chip(category, item.content_type.base) }}
+          {% else %}
           <span class="badge-slate shrink-0 uppercase tracking-wide">{{ item.content_type.singular }}</span>
+          {% endif %}
           <span class="text-xs text-slate-400">{{ item.published_at|timeago }}</span>
         </div>
         <h3 class="mt-2 text-base font-semibold tracking-tight">
@@ -31,9 +42,10 @@
         <div class="mt-2.5 text-sm text-slate-500">
           <a href="{{ item.permalink }}" class="hover:text-slate-900">{{ _('community.read_more') }} →</a>
         </div>
+        </div>
       </article>
       {% else %}
-      <div class="rounded-xl bg-white ring-1 ring-slate-200">
+      <div>
         {{ empty_state(_('archive.none')) }}
       </div>
       {% endfor %}
@@ -41,12 +53,12 @@
   </section>
 
   <section>
-    <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.forum_activity') }}</h2>
+    <h2 class="mb-2.5 px-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ _('community.forum_activity') }}</h2>
     <div class="space-y-3.5">
       {% for post in feed %}
       {{ discussion_card(post) }}
       {% else %}
-      <div class="rounded-xl bg-white ring-1 ring-slate-200">
+      <div>
         {% if groups and can('discuss') %}
         {{ empty_state(_('community.empty_feed'), '/discussions/' + groups[0].slug, _('community.start_first_post')) }}
         {% else %}

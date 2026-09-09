@@ -21,7 +21,7 @@
   <p class="mt-1 flex flex-wrap gap-3 text-sm text-slate-600">{{ summary }}</p>
   {% endif %}
   {% if block.html %}
-  <div class="prose-supremely mt-3 text-[15px]">{{ block.html | safe }}</div>
+  <div class="prose-supremely mt-3 text-base">{{ block.html | safe }}</div>
   {% endif %}
   {{ render_fields(block) }}
   {% endif %}

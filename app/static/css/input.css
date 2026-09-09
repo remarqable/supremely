@@ -136,19 +136,19 @@
      grid of cards stays a grid rather than alternating tall and short.
      Same tone as the item's category, which is the placeholder for the
      per-category artwork this is meant to grow into. */
-  .band-0 { @apply bg-amber-100 text-amber-500; }
-  .band-1 { @apply bg-rose-100 text-rose-500; }
-  .band-2 { @apply bg-emerald-100 text-emerald-500; }
-  .band-3 { @apply bg-sky-100 text-sky-500; }
-  .band-4 { @apply bg-indigo-100 text-indigo-500; }
-  .band-5 { @apply bg-teal-100 text-teal-500; }
-  .band-none { @apply bg-slate-100 text-slate-400; }
+  .band-0 { @apply bg-amber-50 text-amber-600; }
+  .band-1 { @apply bg-rose-50 text-rose-600; }
+  .band-2 { @apply bg-emerald-50 text-emerald-600; }
+  .band-3 { @apply bg-sky-50 text-sky-600; }
+  .band-4 { @apply bg-indigo-50 text-indigo-600; }
+  .band-5 { @apply bg-teal-50 text-teal-600; }
+  .band-none { @apply bg-slate-50 text-slate-400; }
   /* After the tone classes, so a card chip overrides `pill`'s own sizing. */
   .pill-sm { @apply px-2 py-0.5 text-xs; }
-  /* A chip sitting on a band of its own tone would be invisible -- same
-     fill on same fill. On the band it keeps the tone's text colour and
-     takes a white ground instead. */
-  .pill-on-band { @apply bg-white/75 hover:bg-white; }
+  /* On a band the chip keeps its own -100 fill, which reads as a step up
+     from the -50 ground behind it. It carried a white ground while the
+     bands were -100 and chip and band were the same colour. */
+  .pill-on-band { @apply hover:brightness-95; }
 
   /* Rendered markdown content */
   .prose-supremely { @apply leading-relaxed text-slate-800; }
@@ -175,6 +175,16 @@
   .syntax-hint { @apply rounded bg-slate-100 px-1 py-0.5 font-mono
                         text-[11px] text-slate-700; }
 
+  /* The same six tones as a rule rather than a panel, for a list where a
+     filled block per row would be too much colour. */
+  .edge-0 { @apply bg-amber-300; }
+  .edge-1 { @apply bg-rose-300; }
+  .edge-2 { @apply bg-emerald-300; }
+  .edge-3 { @apply bg-sky-300; }
+  .edge-4 { @apply bg-indigo-300; }
+  .edge-5 { @apply bg-teal-300; }
+  .edge-none { @apply bg-slate-200; }
+
   /* A video from a body's :::video directive (app/platform/content.py).
      16:9 and fluid, so the player fits whatever column it lands in. */
   .video-embed { @apply relative my-5 w-full overflow-hidden rounded-lg bg-slate-900; }
@@ -192,4 +202,20 @@
   .prose-supremely .embed-card a.btn-primary { @apply text-white no-underline; }
   .prose-supremely .embed-card a.btn-secondary { @apply text-slate-700 no-underline hover:text-slate-900; }
   .prose-supremely .embed-card a.btn-danger { @apply text-white no-underline; }
+}
+
+/* Someone who has asked their system for less motion means it everywhere,
+   not only on the pages that remembered to check. One rule at the end of
+   the sheet rather than a guard on each transition, because the ones that
+   get forgotten are exactly the ones this is for.
+
+   Not `animation: none`: a spinner that stops spinning stops saying
+   anything. They finish in a single frame instead. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -33,7 +33,7 @@
   <p class="mt-2 flex flex-wrap gap-3 text-sm text-slate-600">{{ summary }}</p>
   {% endif %}
   {% if item.html_flat %}
-  <div class="prose-supremely mt-3 text-[15px]">{{ item.html_flat | safe }}</div>
+  <div class="prose-supremely mt-3 text-base">{{ item.html_flat | safe }}</div>
   {% endif %}
   {{ render_fields(item) }}
   {% endif %}

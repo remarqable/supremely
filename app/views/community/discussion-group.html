@@ -15,13 +15,13 @@
   {% endcall %}
 
   {% if posts %}
-  <div class="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
+  <div class="divide-y divide-slate-100 border-y border-slate-100">
     {% for post in posts %}
     {{ post_row(post) }}
     {% endfor %}
   </div>
   {% else %}
-  <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_posts')) }}</div>
+  <div>{{ empty_state(_('discussions.no_posts')) }}</div>
   {% endif %}
 </div>
 {% endblock %}

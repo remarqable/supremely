@@ -12,8 +12,8 @@
   {% endcall %}
 
   {% if q %}
-  <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.search_results') }}</h2>
-  <div class="mb-6 divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
+  <h2 class="mb-2.5 px-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.search_results') }}</h2>
+  <div class="mb-6 divide-y divide-slate-100 border-y border-slate-100">
     {% for post in search_results %}
     {{ post_row(post, show_group=true) }}
     {% else %}
@@ -22,9 +22,9 @@
   </div>
   {% else %}
 
-  <h2 class="mb-2.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.groups') }}</h2>
+  <h2 class="mb-2.5 px-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.groups') }}</h2>
   {% if groups %}
-  <div class="divide-y divide-slate-100 rounded-xl bg-white ring-1 ring-slate-200">
+  <div class="divide-y divide-slate-100 border-y border-slate-100">
     {% for group in groups %}
     {# Gated groups are teased: name, description, and count stay visible
        with a lock badge; latest-post lines exist only for readable groups
@@ -45,7 +45,7 @@
         <span class="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
           {{ avatar(latest.author.name if latest.author else '?',
                     latest.author.avatar_url if latest.author else None,
-                    size='h-4.5 w-4.5', text='text-[8px]') }}
+                    size='h-4.5 w-4.5', text='text-xs') }}
           <span class="truncate">
             {{ member_name(latest.author, 'relative z-10 text-slate-500') }}
             · {{ latest.title }} · {{ latest.last_activity_at|timeago }}</span>
@@ -61,7 +61,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('discussions.no_groups')) }}</div>
+  <div>{{ empty_state(_('discussions.no_groups')) }}</div>
   {% endif %}
   {% endif %}
 </div>

@@ -27,9 +27,12 @@
   {% endif %}
 {% endcall %}
 
-<article class="min-w-0 rounded-xl bg-white p-6 ring-1 ring-slate-200 sm:p-8">
+{# Flush on the page rather than boxed. A ring around an article makes the
+   reading surface a widget on a dashboard; the piece is the page here, and
+   the measure and the rules do the work a border was doing. #}
+<article class="min-w-0 max-w-[46rem] pb-4">
   <header class="mb-6">
-    <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ content.title }}</h1>
+    <h1 class="text-2xl font-bold leading-tight tracking-tight text-slate-900">{{ content.title }}</h1>
     <p class="mt-2 text-sm text-slate-500">
       {% if content.published_at %}{{ content.published_at|localdate }}{% endif %}
       {% if content.author %} · {{ member_name(content.author) }}{% endif %}
@@ -44,7 +47,7 @@
        alt="" class="mb-6 w-full rounded-lg object-cover">
   {% endif %}
 
-  <div class="prose-supremely text-[15px]">
+  <div class="prose-supremely text-base">
     {{ content.html | safe }}
   </div>
 
@@ -69,7 +72,7 @@
      lands on the gate, the same as every other members-only thing. #}
   {% if content_type.in_community_nav %}
   {% set thread = content.discussion %}
-  <div class="mt-8 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-5">
+  <div class="mt-10 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5">
     {% if thread %}
     <a href="{{ thread.url }}" class="btn-secondary">
       {{ _('discussions.discuss_this') }} →</a>

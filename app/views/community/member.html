@@ -15,7 +15,7 @@
   {% endif %}
 {% endcall %}
 
-<div class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
+<div class="border-b border-slate-100 pb-6">
   <div class="flex items-start gap-4">
     {{ avatar(member.name, member.avatar_url, size='h-16 w-16', text='text-xl') }}
     <div class="min-w-0 flex-1">
@@ -34,7 +34,7 @@
 </div>
 
 <h2 class="mb-3 mt-7 text-sm font-semibold tracking-tight text-slate-900">{{ _('members.recent_posts') }}</h2>
-<div class="rounded-xl bg-white ring-1 ring-slate-200">
+<div>
   {% if posts %}
   <div class="divide-y divide-slate-100">
     {% for post in posts %}

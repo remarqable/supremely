@@ -30,7 +30,7 @@
      The permalink lands on the gate page. #}
   {% set locked = not can_view(item) %}
   {% set category = item.category %}
-  <article class="group flex flex-col overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 transition-colors hover:ring-slate-300">
+  <article class="group flex flex-col overflow-hidden rounded-xl bg-white">
     {# Every card gets a head of the same height, so the grid lines up
        whether or not an item has a picture. A featured image when there is
        one; otherwise a band tinted to the item's category, which is where
@@ -39,7 +39,7 @@
       {% if item.featured_upload and not locked %}
       <a href="{{ item.permalink }}" class="block" tabindex="-1" aria-hidden="true">
         <img src="{{ item.featured_upload.url('medium' if item.featured_upload.has_variants else 'original') }}"
-             alt="" class="h-32 w-full object-cover">
+             alt="" class="h-24 w-full object-cover">
       </a>
       {% if category %}
       <div class="absolute bottom-2 start-2">{{ category_chip(category, content_type.base) }}</div>
@@ -49,7 +49,7 @@
          so the card still says what it is at a glance and the grid keeps
          one card height. The panel is not a link -- the chip inside it is,
          and an anchor cannot contain another. #}
-      <div class="flex h-32 w-full flex-col items-center justify-center gap-2.5 {{ 'band-' ~ category.tone if category else 'band-none' }}">
+      <div class="flex h-24 w-full flex-col items-center justify-center gap-2 {{ 'band-' ~ category.tone if category else 'band-none' }}">
         {{ category_icon(category.icon if category else none) }}
         {% if category %}{{ category_chip(category, content_type.base, on_band=True) }}{% endif %}
       </div>
@@ -81,7 +81,7 @@
         <div class="flex items-center gap-2">
           {{ avatar(item.author.name if item.author else g.org.name,
                     item.author.avatar_url if item.author else None,
-                    size='h-6 w-6', text='text-[10px]') }}
+                    size='h-6 w-6', text='text-xs') }}
           {{ member_name(item.author, 'truncate text-xs font-medium text-slate-700') }}
           <span class="shrink-0 text-xs text-slate-400">{{ item.published_at|timeago }}</span>
         </div>
@@ -99,7 +99,7 @@
     </div>
   </article>
   {% else %}
-  <div class="rounded-xl bg-white ring-1 ring-slate-200 sm:col-span-2 2xl:col-span-3">
+  <div class="sm:col-span-2 2xl:col-span-3">
     {% if can('content.write') %}
     {{ empty_state(_('archive.none'), url_for('manage.new_content', type_slug=content_type.slug), _('manage.new_of', name=content_type.singular), admin=True) }}
     {% else %}

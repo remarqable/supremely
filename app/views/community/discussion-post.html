@@ -30,12 +30,12 @@
 
 {% macro render_reply(reply, nested=False) %}
 <div id="reply-{{ reply.id }}" x-data="{ replying: false, editing: false }"
-     class="rounded-xl bg-white p-4 ring-1 ring-slate-200 {{ 'ms-10' if nested }} {{ 'opacity-60 ring-red-200' if reply.is_hidden }}">
+     class="rounded-xl bg-slate-50 p-4 {{ 'ms-10' if nested }} {{ 'opacity-60 ring-1 ring-red-200' if reply.is_hidden }}">
   {% if reply.is_hidden %}<span class="badge-red mb-2">{{ _('discussions.hidden') }}</span>{% endif %}
   <div class="flex items-center gap-2.5">
     {{ avatar(reply.author.name if reply.author else '?',
               reply.author.avatar_url if reply.author else None,
-              size='h-7 w-7', text='text-[10px]') }}
+              size='h-7 w-7', text='text-xs') }}
     {{ member_name(reply.author, 'text-sm font-semibold text-slate-900') }}
     <span class="text-xs text-slate-400">{{ reply.created_at|timeago }}</span>
   </div>
@@ -105,7 +105,7 @@
 {% endcall %}
 
 <div class="min-w-0">
-<article x-data="{ editing: false }" class="rounded-xl bg-white p-6 ring-1 ring-slate-200">
+<article x-data="{ editing: false }" class="border-b border-slate-100 pb-6">
   <div class="flex items-start gap-3">
     {{ avatar(post.author.name if post.author else '?',
               post.author.avatar_url if post.author else None,
@@ -160,7 +160,7 @@
     </div>
   </div>
 
-  <div class="prose-supremely mt-4 text-[15px]">{{ post.html | safe }}</div>
+  <div class="prose-supremely mt-4 text-base">{{ post.html | safe }}</div>
 
   <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-slate-100 pt-3">
     {{ reaction_bar('post', post.id) }}
@@ -250,10 +250,10 @@
 
 {% if can('discuss') %}
   {% if post.is_locked %}
-  <p class="mt-6 rounded-xl bg-white p-4 text-sm text-slate-500 ring-1 ring-slate-200">
+  <p class="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
     {{ _('discussions.locked') }}</p>
   {% else %}
-  <div id="reply-form" class="mt-6 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+  <div id="reply-form" class="mt-6 rounded-xl bg-slate-50 p-5">
     <h3 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('discussions.add_reply') }}</h3>
     {{ reply_form() }}
   </div>
@@ -269,8 +269,8 @@
 {% block rail %}
 {{ community_rail() }}
 {% if latest_in_group %}
-<div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
-  <h2 class="px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('discussions.latest_in', group=group.name) }}</h2>
+<section class="border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
+  <h2 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('discussions.latest_in', group=group.name) }}</h2>
   <div class="mt-1 divide-y divide-slate-100">
     {% for item in latest_in_group %}
     <a href="{{ item.url }}" class="block px-1 py-2.5 hover:bg-slate-50/60">

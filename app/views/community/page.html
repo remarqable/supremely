@@ -16,9 +16,9 @@
 {% endblock %}
 
 {% block content %}
-<article class="min-w-0 rounded-xl bg-white p-6 ring-1 ring-slate-200 sm:p-8">
+<article class="min-w-0 max-w-[46rem] pb-4">
   <h1 class="mb-6 text-xl font-bold tracking-tight text-slate-900">{{ page.title }}</h1>
-  <div class="prose-supremely text-[15px]">
+  <div class="prose-supremely text-base">
     {{ page.html | safe }}
   </div>
 

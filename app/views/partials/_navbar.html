@@ -5,9 +5,9 @@
     {% if nav_shell and g.org %}
     {# The community shell: identity is the centered name (Substack-style);
        the sidebar owns navigation, so no section links here. #}
-    <a href="/" class="absolute left-1/2 -translate-x-1/2 text-[15px] font-semibold tracking-tight">{{ g.org.name }}</a>
+    <a href="/" class="absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight">{{ g.org.name }}</a>
     {% else %}
-    <a href="/" class="text-[15px] font-semibold tracking-tight">
+    <a href="/" class="text-base font-semibold tracking-tight">
       {% if g.org %}{{ g.org.name }}{% else %}{{ installation_name }}{% endif %}
     </a>
 

@@ -19,7 +19,7 @@
   {% for group_label, items in groups %}
   <div>
     {% if group_label %}
-    <div class="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ group_label }}</div>
+    <div class="mb-1.5 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ group_label }}</div>
     {% endif %}
     <ul class="space-y-0.5">
       {% for item in items %}
@@ -85,7 +85,7 @@
   <div class="sticky top-6 hidden md:block">
     {# mt-9 lines the label up with the sidenav's first group label (the
        sidenav column starts with its text-base title, this one doesn't). #}
-    <div class="mb-1.5 mt-9 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ title }}</div>
+    <div class="mb-1.5 mt-9 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ title }}</div>
     {{ subnav_links(title, items, current) }}
   </div>
 </aside>

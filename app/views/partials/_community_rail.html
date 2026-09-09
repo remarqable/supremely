@@ -19,12 +19,12 @@
    these cards print a summary and raw field values. #}
 {% set announcement = latest_announcement() %}
 {% if announcement and not can_view(announcement) %}{% set announcement = none %}{% endif %}
-<div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+<section class="border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
   <div class="flex items-center gap-2">
     <span class="flex h-6 w-6 items-center justify-center rounded-md bg-brand-50 text-brand-700">
       <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5v3a1 1 0 001 1h2l5 3.5V4L6 7.5H4a1 1 0 00-1 1z"/><path d="M13.5 7a4 4 0 010 6"/></svg>
     </span>
-    <h2 class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ _('community.announcements_card') }}</h2>
+    <h2 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('community.announcements_card') }}</h2>
   </div>
   {% if announcement %}
   <a href="{{ announcement.permalink }}" class="mt-3 block">
@@ -41,12 +41,12 @@
      class="btn-admin mt-3 w-full" title="{{ _('community.admin_only_hint') }}">{{ _('manage.new_of', name='Announcement') }} <span class="sr-only">({{ _('community.admin_only') }})</span></a>
   {% endif %}
   {% endif %}
-</div>
+</section>
 {% endmacro %}
 
 {% macro members_card() %}
 {% set recent, total = rail_members() %}
-<div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+<section class="border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
   <h2 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('community.members_card') }}</h2>
   {# Visitors get the count only — names and avatars are member data. #}
   {% if recent %}
@@ -55,21 +55,21 @@
     <a href="{{ member.profile_url }}" title="{{ member.name }}"
        aria-label="{{ _('members.view_profile') }}: {{ member.name }}"
        class="{{ '-ms-2.5' if not loop.first }} rounded-full ring-[2.5px] ring-white transition hover:z-10 hover:scale-105">
-      {{ avatar(member.name, member.avatar_url, size='h-9 w-9', text='text-[11px]') }}</a>
+      {{ avatar(member.name, member.avatar_url, size='h-9 w-9', text='text-xs') }}</a>
     {% endfor %}
     {% if total > recent|length %}
-    <span class="-ms-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-[11px] font-bold text-brand-700 ring-[2.5px] ring-white">+{{ total - recent|length }}</span>
+    <span class="-ms-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 ring-[2.5px] ring-white">+{{ total - recent|length }}</span>
     {% endif %}
   </div>
   {% endif %}
   <a href="/members" class="mt-3 block text-sm text-slate-500 hover:text-slate-900">{{ _('community.member_count', n=total) }}</a>
-</div>
+</section>
 {% endmacro %}
 
 {% macro event_card() %}
 {% set event = upcoming_event() %}
 {% if event and can_view(event) %}
-<div class="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+<section class="border-t border-slate-100 pt-4 first:border-t-0 first:pt-0">
   <h2 class="text-sm font-semibold tracking-tight text-slate-900">{{ _('community.upcoming_event') }}</h2>
   {# The same date block the archive card leads with, from the same place:
      it used to be this markup written out twice. #}
@@ -82,6 +82,6 @@
     </div>
   </div>
   <a href="/events" class="btn-secondary mt-4 w-full">{{ _('community.view_all_events') }}</a>
-</div>
+</section>
 {% endif %}
 {% endmacro %}

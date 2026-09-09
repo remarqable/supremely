@@ -9,7 +9,7 @@
 {% if members %}
 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
   {% for membership in members %}
-  <div class="flex items-start gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200">
+  <div class="flex items-start gap-3 rounded-xl bg-slate-50 p-4">
     {{ avatar(membership.user.name, membership.user.avatar_url, size='h-11 w-11', text='text-sm') }}
     <div class="min-w-0">
       <div class="truncate font-semibold text-slate-900">{{ member_name(membership.user) }}</div>
@@ -22,6 +22,6 @@
   {% endfor %}
 </div>
 {% else %}
-<div class="rounded-xl bg-white ring-1 ring-slate-200">{{ empty_state(_('common.none')) }}</div>
+<div>{{ empty_state(_('common.none')) }}</div>
 {% endif %}
 {% endblock %}

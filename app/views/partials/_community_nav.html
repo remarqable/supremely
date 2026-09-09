@@ -35,7 +35,7 @@
 {% endmacro %}
 
 {% macro group_label(text) %}
-<div class="mb-1 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ text }}</div>
+<div class="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">{{ text }}</div>
 {% endmacro %}
 
 {% macro community_nav(active='') %}
@@ -102,7 +102,7 @@
      Fixed, because the alternatives move: the end of the sidebar is the end
      of the page, and a sticky element shifts when it sticks. Desktop only;
      the offset tracks the centred shell. #}
-  <p class="hidden text-[10px] text-slate-600
+  <p class="hidden text-xs text-slate-600
             lg:fixed lg:bottom-0 lg:block lg:w-60 lg:bg-white
             lg:px-[1.625rem] lg:py-3
             lg:start-[max(0px,calc((100vw-1600px)/2))]">{{ app_version }}</p>
