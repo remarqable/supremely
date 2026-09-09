@@ -532,7 +532,7 @@ def test_a_theme_can_restyle_one_section_without_touching_the_rest(app, client,
     })
     body = client.get('/', base_url=ACME).get_data(as_text=True)
     assert 'class="my-podcast"' in body        # the theme's own section
-    assert 'Latest Articles' in body           # the default, still there
+    assert 'Latest Blog' in body               # the default, still there
 
 
 def test_the_order_is_the_organizations(app, client, acme, globex):

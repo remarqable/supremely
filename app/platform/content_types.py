@@ -658,8 +658,12 @@ def register_core_types() -> None:
         kind='page', template='page', essential=True,
     ))
     register_content_type(ContentType(
-        slug='article', singular='Article', plural='Articles',
-        description='The standard blog post.',
+        # "Blog" is what a reader calls the section and "Article" is what an
+        # author calls one item, which is the same split `episode` already
+        # makes by calling its section "Podcast". The slug stays `article`,
+        # so nothing stored or routed changes.
+        slug='article', singular='Article', plural='Blog',
+        description='Longer writing, newest first.',
         base='/blog', show_in_nav=True, icon='article', essential=True,
     ))
     register_content_type(ContentType(

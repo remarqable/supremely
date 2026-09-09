@@ -2155,5 +2155,5 @@ def test_the_content_types_console_groups_pages_and_posts(app, client, acme,
     pages_block = page[pages_at:posts_at]
     posts_block = page[posts_at:]
     assert 'A standalone page' in pages_block          # the page type's blurb
-    assert 'The standard blog post.' in posts_block    # the article's
-    assert 'The standard blog post.' not in pages_block
+    assert 'Longer writing, newest first.' in posts_block      # the article's
+    assert 'Longer writing, newest first.' not in pages_block
