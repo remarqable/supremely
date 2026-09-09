@@ -196,6 +196,17 @@ class MarkdownBody:
         from app.platform.content import render_markdown
         return render_markdown(self.body, directives='drop')
 
+    def summary(self, length: int = 200) -> str:
+        """The body as plain text, for a listing.
+
+        Rendered and then stripped rather than sliced raw, because Markdown
+        sliced raw shows its own syntax: a card summarising a post that
+        opens with a link used to read "Discussion of [Title](/blog/x)".
+        """
+        import nh3
+        text = ' '.join(nh3.clean(self.html_flat, tags=set()).split())
+        return text[:length] + ('…' if len(text) > length else '')
+
 
 class AuditMixin:
     """Track who created and last updated a record (audit_logging: true)."""
