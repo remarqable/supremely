@@ -51,7 +51,15 @@ BUDGETS = {
 
 @pytest.fixture
 def shell(app, acme, globex, client):
-    """One published article, so every listed page has something on it."""
+    """A community with something on every surface these pages draw.
+
+    Conditional components are the ones that escape a budget: the pinned
+    card and the notification badge both shipped a bespoke font size while
+    the fixture had nothing pinned and nothing unread, so neither ever
+    rendered here. Anything the rail can show, this fixture gives it.
+    """
+    from app.models.discussion import DiscussionGroup, Post
+
     with app.test_request_context():
         g.org = acme
         item = Content(type='article', title='Hello', slug='hello',
@@ -59,6 +67,14 @@ def shell(app, acme, globex, client):
                        fields={}, tags=[])
         item.save()
         item.publish()
+
+        group = (DiscussionGroup.query.order_by(DiscussionGroup.id).first()
+                 or DiscussionGroup(org_id=acme.id, name='General',
+                                    slug='general', visibility='public').save())
+        pinned = Post(org_id=acme.id, group_id=group.id, title='Pinned thread',
+                      body='Something worth keeping at the top.',
+                      is_pinned=True)
+        pinned.save()
     return client
 
 
