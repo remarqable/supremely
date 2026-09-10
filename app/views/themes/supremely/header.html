@@ -89,11 +89,14 @@
       </a>
     </nav>
 
-    {% if current_user.is_authenticated and is_org_member() %}
-    <a href="{{ url_for('orgs.dashboard') }}"
-       class="ms-auto rounded-lg bg-[#14161a] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black md:ms-0">
-      {{ _('site.open_community') }}
-    </a>
+    {# Signed in, the application's own controls: the console, notifications
+       and the account menu, from partials/_member_controls.html so a theme
+       never reimplements them. Signed out, the theme's own call to action —
+       that part is marketing and belongs to the theme. #}
+    {% if current_user.is_authenticated %}
+    <div class="ms-auto flex items-center gap-1 md:ms-0">
+      {% include 'partials/_member_controls.html' %}
+    </div>
     {% else %}
     <div class="ms-auto flex items-center gap-4 md:ms-0">
       <a href="{{ url_for('auth.login') }}"

@@ -434,10 +434,17 @@ def render_site(candidates: list[str], context_name: str = 'publication',
     context.setdefault('theme_settings', theme_config())
     # Site templates extend {{ site_layout }} so a theme's layout override
     # applies even to pages the theme does not override itself.
-    if shell:
-        context.setdefault('site_layout', shell_layout())
-    else:
-        context.setdefault('site_layout', themed('layout.html'))
+    # One frame. The theme's layout draws every page, community screens
+    # included: the community stopped being a place you travel to and became
+    # a region of the site, reached from the header's own menu.
+    #
+    # `shell` still decides whose *screens* render -- the application owns
+    # the discussion and member pages, and a theme never supplies those --
+    # but it no longer picks a second layout to put them in. The layout is
+    # told which kind of page it is drawing so it can give a community
+    # screen the rail and the room it needs.
+    context.setdefault('site_layout', themed('layout.html'))
+    context.setdefault('community_page', shell)
     return render_template(names, **context)
 
 

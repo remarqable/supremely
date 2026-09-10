@@ -40,17 +40,34 @@
 <body class="supremely min-h-screen font-sans text-[#14161a]">
 
 {% if preview %}<div inert class="contents">{% endif %}
+{% from 'partials/_community_rail.html' import community_rail with context %}
 {% include themed('header.html') %}
 {% if preview %}</div>{% endif %}
 {% include 'partials/_preview_banner.html' %}
 
-{# Full-bleed pages (the front page) override `main`; ordinary content pages
-   define `content` and get a comfortable reading column. #}
+{# Three shapes, one block. A community screen gets width and the rail
+   beside it, because those pages carry lists and conversation rather than
+   prose; everything else gets a reading column; a full-bleed page like the
+   front page overrides `main` outright.
+
+   The content block is defined once, outside the branch. Jinja resolves a
+   block by name wherever it appears, so defining it inside an `if` and
+   calling it in the `else` renders it in the wrong place. #}
 {% block main %}
-<main class="mx-auto max-w-3xl px-6 py-14">
-  {% include 'partials/_flash.html' %}
-  {% block content %}{% endblock %}
-</main>
+<div class="{{ 'mx-auto flex max-w-6xl flex-col gap-10 px-6 py-10 lg:flex-row'
+              if community_page else 'mx-auto max-w-3xl px-6 py-14' }}">
+  <main id="main" class="{{ 'min-w-0 flex-1' if community_page }}">
+    {% include 'partials/_flash.html' %}
+    {% block content %}{% endblock %}
+  </main>
+  {% if community_page %}
+  <aside class="shrink-0 lg:w-72">
+    <div class="space-y-4 lg:sticky lg:top-24">
+      {% block rail %}{{ community_rail() }}{% endblock %}
+    </div>
+  </aside>
+  {% endif %}
+</div>
 {% endblock %}
 
 {% if preview %}<div inert class="contents">{% endif %}
