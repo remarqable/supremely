@@ -1,10 +1,12 @@
 {
   "slug": "supremely",
   "name": "Supremely",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Supremely",
   "description": "The Supremely marketing theme. A warm, product-forward landing page for the open-source community platform.",
-  "capabilities": {"footer_groups": true},
+  "capabilities": {
+    "footer_groups": true
+  },
   "settings": {
     "accent": {
       "type": "color",
@@ -14,76 +16,213 @@
   },
   "content": {
     "fields": [
-      {"key": "headline_lead", "type": "text", "label": "Headline", "max": 80,
-       "default": "Your community,"},
-      {"key": "headline_accent", "type": "text", "label": "Accent line", "max": 80,
-       "default": "",
-       "hint": "Shown on a second line in the accent color. Leave blank for a single-line headline."},
-      {"key": "rotate_lead", "type": "text", "label": "Rotating line lead", "max": 80,
-       "default": "",
-       "hint": "Static start of the rotating line, shown under the headline (e.g. Be Supremely). Only shown when Rotating words is set."},
-      {"key": "headline_rotate", "type": "text", "label": "Rotating words", "max": 200,
-       "default": "",
-       "hint": "Comma-separated. Rendered in the accent color after the lead, cycling once and settling on the last. Include punctuation if you want it (e.g. Bold., Fast., You.)."},
-      {"key": "subhead", "type": "textarea", "label": "Subheading", "max": 240,
-       "default": "Publish updates, send newsletters, and host discussions — one simple home for your members."},
-      {"key": "primary_label", "type": "text", "label": "Primary button", "max": 40,
-       "default": "Get Started"},
-      {"key": "primary_url", "type": "url", "label": "Primary button link", "max": 200,
-       "default": "",
-       "hint": "Leave blank to send visitors to sign in (members land in the community). Point it at /discussions to lead with your community as the demo."},
-      {"key": "secondary_label", "type": "text", "label": "Secondary button", "max": 40,
-       "default": "View Demo"},
-      {"key": "secondary_url", "type": "url", "label": "Secondary button link", "max": 200,
-       "default": "/discussions"},
-      {"key": "closing_title", "type": "text", "label": "Closing headline", "max": 80,
-       "default": "Your community. Your data. Your rules.",
-       "hint": "The full-width closing statement above the final call to action."},
-      {"key": "closing_sub", "type": "text", "label": "Closing subline", "max": 160,
-       "default": "Self-host it. Share it. Make it yours."},
-      {"key": "features", "type": "repeater", "label": "Feature highlights", "max_items": 4,
-       "hint": "Four short highlights shown under the buttons. Each keeps its icon.",
-       "item_fields": [
-         {"key": "title", "type": "text", "label": "Title", "max": 60},
-         {"key": "desc", "type": "text", "label": "Description", "max": 140}
-       ],
-       "default": [
-         {"title": "Publish", "desc": "Share updates and articles"},
-         {"title": "Newsletter", "desc": "Send beautiful emails"},
-         {"title": "Discussions", "desc": "Connect and talk with your members"},
-         {"title": "Membership", "desc": "Offer access and grow your community"}
-       ]},
-      {"key": "pillars_title", "type": "text", "label": "Pillars headline", "max": 80,
-       "default": "Everything your community needs. Nothing bolted on.",
-       "hint": "Headline above the four expanded pillar rows. Clear it to keep the headline area empty."},
-      {"key": "pillars", "type": "repeater", "label": "Pillars", "max_items": 4,
-       "hint": "Four expanded rows between the highlights and the closing statement. A row with an empty title is skipped.",
-       "item_fields": [
-         {"key": "title", "type": "text", "label": "Title", "max": 60},
-         {"key": "body", "type": "textarea", "label": "Description", "max": 300},
-         {"key": "points", "type": "textarea", "label": "Capabilities", "max": 200,
-          "hint": "One per line, up to four."},
-         {"key": "link_label", "type": "text", "label": "Link label", "max": 30},
-         {"key": "link_url", "type": "url", "label": "Link", "max": 200}
-       ],
-       "default": [
-         {"title": "Website & Blog",
-          "body": "A real website, not just a feed. Pages for your story, a blog for your updates, and typed content — events, videos, resources — all under your own domain, styled by your theme.",
-          "points": "Pages and articles\nTyped content: events, videos, resources\nYour domain, your theme",
-          "link_label": "Read the blog", "link_url": "/blog"},
-         {"title": "Newsletter",
-          "body": "Turn readers into subscribers. Collect an audience with double opt-in and send issues straight from your site — the list lives in your database, not on someone else's platform.",
-          "points": "Subscriber management\nDouble opt-in\nBring your own email provider",
-          "link_label": "Subscribe", "link_url": "/subscribe"},
-         {"title": "Forum",
-          "body": "Durable discussions, not disappearing chat. Groups, topics, and replies that stay readable and searchable, with public and members-only spaces side by side.",
-          "points": "Discussion groups\nPublic or members-only\nModeration built in",
-          "link_label": "Join the discussion", "link_url": "/discussions"},
-         {"title": "Memberships",
-          "body": "Your community has a door, and you hold the key. Member accounts, roles, and members-only content — tease what's behind the gate to visitors, or hide it entirely.",
-          "points": "Member accounts and roles\nMembers-only content\nTease or hide gated content",
-          "link_label": "Get Supremely", "link_url": "/get"}
-       ]}
+      {
+        "key": "site_strip",
+        "type": "text",
+        "label": "Top strip",
+        "max": 120,
+        "default": "",
+        "hint": "One line above the header. Leave blank to hide the strip."
+      },
+      {
+        "key": "headline_lead",
+        "type": "text",
+        "label": "Headline",
+        "max": 80,
+        "default": "Your community,"
+      },
+      {
+        "key": "headline_accent",
+        "type": "text",
+        "label": "Accent line",
+        "max": 80,
+        "default": "",
+        "hint": "Shown on a second line in the accent color. Leave blank for a single-line headline."
+      },
+      {
+        "key": "rotate_lead",
+        "type": "text",
+        "label": "Rotating line lead",
+        "max": 80,
+        "default": "",
+        "hint": "Static start of the rotating line, shown under the headline (e.g. Be Supremely). Only shown when Rotating words is set."
+      },
+      {
+        "key": "headline_rotate",
+        "type": "text",
+        "label": "Rotating words",
+        "max": 200,
+        "default": "",
+        "hint": "Comma-separated. Rendered in the accent color after the lead, cycling once and settling on the last. Include punctuation if you want it (e.g. Bold., Fast., You.)."
+      },
+      {
+        "key": "subhead",
+        "type": "textarea",
+        "label": "Subheading",
+        "max": 240,
+        "default": "Publish updates, send newsletters, and host discussions \u2014 one simple home for your members."
+      },
+      {
+        "key": "primary_label",
+        "type": "text",
+        "label": "Primary button",
+        "max": 40,
+        "default": "Get Started"
+      },
+      {
+        "key": "primary_url",
+        "type": "url",
+        "label": "Primary button link",
+        "max": 200,
+        "default": "",
+        "hint": "Leave blank to send visitors to sign in (members land in the community). Point it at /discussions to lead with your community as the demo."
+      },
+      {
+        "key": "secondary_label",
+        "type": "text",
+        "label": "Secondary button",
+        "max": 40,
+        "default": "View Demo"
+      },
+      {
+        "key": "secondary_url",
+        "type": "url",
+        "label": "Secondary button link",
+        "max": 200,
+        "default": "/discussions"
+      },
+      {
+        "key": "closing_title",
+        "type": "text",
+        "label": "Closing headline",
+        "max": 80,
+        "default": "Your community. Your data. Your rules.",
+        "hint": "The full-width closing statement above the final call to action."
+      },
+      {
+        "key": "closing_sub",
+        "type": "text",
+        "label": "Closing subline",
+        "max": 160,
+        "default": "Self-host it. Share it. Make it yours."
+      },
+      {
+        "key": "features",
+        "type": "repeater",
+        "label": "Feature highlights",
+        "max_items": 4,
+        "hint": "Four short highlights shown under the buttons. Each keeps its icon.",
+        "item_fields": [
+          {
+            "key": "title",
+            "type": "text",
+            "label": "Title",
+            "max": 60
+          },
+          {
+            "key": "desc",
+            "type": "text",
+            "label": "Description",
+            "max": 140
+          }
+        ],
+        "default": [
+          {
+            "title": "Publish",
+            "desc": "Share updates and articles"
+          },
+          {
+            "title": "Newsletter",
+            "desc": "Send beautiful emails"
+          },
+          {
+            "title": "Discussions",
+            "desc": "Connect and talk with your members"
+          },
+          {
+            "title": "Membership",
+            "desc": "Offer access and grow your community"
+          }
+        ]
+      },
+      {
+        "key": "pillars_title",
+        "type": "text",
+        "label": "Pillars headline",
+        "max": 80,
+        "default": "Everything your community needs. Nothing bolted on.",
+        "hint": "Headline above the four expanded pillar rows. Clear it to keep the headline area empty."
+      },
+      {
+        "key": "pillars",
+        "type": "repeater",
+        "label": "Pillars",
+        "max_items": 4,
+        "hint": "Four expanded rows between the highlights and the closing statement. A row with an empty title is skipped.",
+        "item_fields": [
+          {
+            "key": "title",
+            "type": "text",
+            "label": "Title",
+            "max": 60
+          },
+          {
+            "key": "body",
+            "type": "textarea",
+            "label": "Description",
+            "max": 300
+          },
+          {
+            "key": "points",
+            "type": "textarea",
+            "label": "Capabilities",
+            "max": 200,
+            "hint": "One per line, up to four."
+          },
+          {
+            "key": "link_label",
+            "type": "text",
+            "label": "Link label",
+            "max": 30
+          },
+          {
+            "key": "link_url",
+            "type": "url",
+            "label": "Link",
+            "max": 200
+          }
+        ],
+        "default": [
+          {
+            "title": "Website & Blog",
+            "body": "A real website, not just a feed. Pages for your story, a blog for your updates, and typed content \u2014 events, videos, resources \u2014 all under your own domain, styled by your theme.",
+            "points": "Pages and articles\nTyped content: events, videos, resources\nYour domain, your theme",
+            "link_label": "Read the blog",
+            "link_url": "/blog"
+          },
+          {
+            "title": "Newsletter",
+            "body": "Turn readers into subscribers. Collect an audience with double opt-in and send issues straight from your site \u2014 the list lives in your database, not on someone else's platform.",
+            "points": "Subscriber management\nDouble opt-in\nBring your own email provider",
+            "link_label": "Subscribe",
+            "link_url": "/subscribe"
+          },
+          {
+            "title": "Forum",
+            "body": "Durable discussions, not disappearing chat. Groups, topics, and replies that stay readable and searchable, with public and members-only spaces side by side.",
+            "points": "Discussion groups\nPublic or members-only\nModeration built in",
+            "link_label": "Join the discussion",
+            "link_url": "/discussions"
+          },
+          {
+            "title": "Memberships",
+            "body": "Your community has a door, and you hold the key. Member accounts, roles, and members-only content \u2014 tease what's behind the gate to visitors, or hide it entirely.",
+            "points": "Member accounts and roles\nMembers-only content\nTease or hide gated content",
+            "link_label": "Get Supremely",
+            "link_url": "/get"
+          }
+        ]
+      }
     ]
   }
 }

@@ -1,7 +1,23 @@
 {# Supremely marketing header: brand mark, the org's primary menu, GitHub,
    and an auth-aware CTA — members get straight into the community, visitors
    get the product (/get) plus a quiet log-in link. #}
-<header class="sticky top-0 z-40 border-b border-black/5 bg-[#ffffffd9] backdrop-blur">
+{% set site_strip = theme_content().site_strip %}
+{% set has_community_menu = community_types('community') or community_types('meet')
+                            or community_types('learn') %}
+{# A thin strip above the header. The strongest line of marketing on the
+   site is that this site is the product, and it costs one row to say. #}
+{% if site_strip %}
+<div class="border-b border-black/5 bg-[#14161a] text-white">
+  <div class="mx-auto flex max-w-6xl items-center gap-4 px-6 py-1.5 text-xs">
+    <span>{{ site_strip }}</span>
+    <a href="/docs" class="ms-auto hidden text-white/70 transition-colors hover:text-white sm:block">{{ _('site.docs') }}</a>
+    <a href="https://github.com/remarqable/supremely" rel="noopener"
+       class="hidden text-white/70 transition-colors hover:text-white sm:block">GitHub</a>
+  </div>
+</div>
+{% endif %}
+<header class="sticky top-0 z-40 border-b border-black/5 bg-[#ffffffd9] backdrop-blur"
+        x-data="{ community: false }">
   <div class="mx-auto flex max-w-6xl items-center gap-6 px-6 py-4">
     <a href="/" class="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
       {% set logo = g.org.logo() %}
@@ -47,6 +63,21 @@
       {% else %}
       <a href="/blog" class="transition-colors hover:text-[#14161a]">Blog</a>
       <a href="/discussions" class="transition-colors hover:text-[#14161a]">Community</a>
+      {% endif %}
+      {# The Community trigger belongs to the theme, not to the org's menu:
+         the sections behind it are content types, not links somebody added.
+         Absent when this community publishes nothing -- an empty panel is
+         worse than no menu. #}
+      {% if has_community_menu %}
+      <div class="relative" @mouseenter="community = true" @mouseleave="community = false">
+        <button @click="community = !community" @keydown.escape="community = false"
+                :aria-expanded="community" aria-haspopup="menu"
+                class="flex items-center gap-1 py-2 transition-colors hover:text-[#14161a]"
+                :class="community && 'text-[#14161a]'">
+          {{ _('site.community_menu') }}<span aria-hidden="true" class="text-xs text-slate-400">▾</span>
+        </button>
+        {% include 'themes/supremely/_community_menu.html' %}
+      </div>
       {% endif %}
       <a href="https://github.com/remarqable/supremely" rel="noopener"
          class="inline-flex items-center gap-1 transition-colors hover:text-[#14161a]">

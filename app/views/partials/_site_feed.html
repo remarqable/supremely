@@ -20,7 +20,7 @@
 {% if items %}
 <section class="border-t border-slate-200 py-12">
   <div class="flex items-baseline justify-between gap-4">
-    <h2 class="text-2xl font-bold tracking-tight">{{ _('site.latest_of', name=content_type.plural) }}</h2>
+    <h2 class="text-2xl font-bold tracking-tight">{{ content_type.plural }}</h2>
     <a href="{{ content_type.base }}" class="text-sm font-medium text-brand-700 hover:underline">
       {{ _('site.see_all', n=content_count(content_type.slug)) }}</a>
   </div>

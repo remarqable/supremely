@@ -1,0 +1,41 @@
+{# The Community menu: every section this community publishes, in one list.
+
+   It builds itself from the content types, which already carry a name, a
+   description, an icon and their own on/off switch — so the menu can never
+   advertise a section that does not exist or miss one that was added.
+   Discussions is not a content type but it is a section, so it is named
+   here and sits first: it is the one people come for. #}
+{% from 'partials/_community_nav.html' import type_icon with context %}
+<div x-show="community" x-cloak x-transition.opacity.duration.120ms role="menu"
+     @keydown.escape="community = false"
+     class="absolute end-0 top-full z-30 w-[30rem] rounded-2xl border border-slate-200/80
+            bg-white p-3 shadow-[0_18px_40px_-24px_rgba(20,22,26,0.35)]">
+  <div class="grid grid-cols-2 gap-1">
+    {% if discussions_area_readable() %}
+    <a href="/discussions" role="menuitem"
+       class="group flex gap-3 rounded-xl p-3 transition-colors hover:bg-slate-50">
+      <span class="mt-1 text-slate-400 transition-colors group-hover:text-violet-600">
+        {{ type_icon('discussion') }}</span>
+      <span class="min-w-0">
+        <span class="block font-medium text-[#14161a]">{{ _('discussions.title') }}</span>
+        <span class="mt-1 block text-sm leading-snug text-slate-500">{{ _('site.menu_discussions') }}</span>
+      </span>
+    </a>
+    {% endif %}
+    {% for group in ['community', 'meet', 'learn'] %}
+    {% for content_type in community_types(group) %}
+    <a href="{{ content_type.base }}" role="menuitem"
+       class="group flex gap-3 rounded-xl p-3 transition-colors hover:bg-slate-50">
+      <span class="mt-1 text-slate-400 transition-colors group-hover:text-violet-600">
+        {{ type_icon(content_type.icon) }}</span>
+      <span class="min-w-0">
+        <span class="block font-medium text-[#14161a]">{{ content_type.plural }}</span>
+        {% if content_type.description %}
+        <span class="mt-1 block text-sm leading-snug text-slate-500">{{ content_type.description }}</span>
+        {% endif %}
+      </span>
+    </a>
+    {% endfor %}
+    {% endfor %}
+  </div>
+</div>

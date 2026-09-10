@@ -35,3 +35,15 @@ body.supremely {
   .sup-rotate { transition: none; }
 }
 
+
+/* Headlines are set in the display face, body and interface in Inter. Two
+   families, clearly distinct — the serif carries the publishing character
+   and the sans keeps the interface quiet. Tightened tracking and a shorter
+   line height, because a serif at display size sets loose by default. */
+.supremely .sup-display {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+.supremely h2.sup-display { line-height: 1.2; letter-spacing: -0.015em; }

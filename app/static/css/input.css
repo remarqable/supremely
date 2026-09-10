@@ -34,6 +34,12 @@
   --color-brand-700: oklch(0.45 0.18 275);
 
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* A display face for headlines, from fonts already on the machine: a
+     publishing product should look like it reads, and this costs no
+     download and no third-party host in the CSP. Themes that want a
+     different voice override the variable. */
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+                "Times New Roman", serif;
   /* Radius system: 8px surfaces, 6px controls. Depth comes from 1px borders
      and surface shifts (white on slate-50), not shadows — floating elements
      (menus, popovers) are the only things that cast one. */

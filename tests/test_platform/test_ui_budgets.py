@@ -111,7 +111,7 @@ def test_a_page_adds_no_off_grid_spacing(shell, path):
 # theme -> the same three budgets for the themed front page.
 THEME_BUDGETS = {
     'origin': (4, 3, 18),
-    'supremely': (8, 4, 74),    # the flagship, and the messiest: see the doc
+    'supremely': (6, 4, 40),    # was (8, 4, 74) before the front page was rebuilt
     'midnight': (4, 3, 3),
     'trailhead': (5, 2, 1),
 }

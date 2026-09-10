@@ -1,0 +1,52 @@
+{# The theme's own pull: newest items of one type, on cards that wear the
+   category's colour so a post looks the same here as it does inside.
+
+   Overrides the app's partial of the same name. It has to keep that one's
+   two promises, because they are correctness rather than styling:
+
+   - latest_content routes through the visibility query, so a gated item
+     arrives as a locked title when the organization teases and is absent
+     when it does not. Nothing here decides who reads what; the template
+     only draws what it was handed.
+   - Links go to the item's own address. The site advertises; it never
+     holds a second copy, so a search engine never has two URLs to choose
+     between.
+
+   Empty means gone. A heading over nothing argues against the product. #}
+{% from 'partials/_ui.html' import lock_badge, category_chip with context %}
+{% set shown = limit|default(3, true) %}
+{% set items = latest_content(content_type.slug, shown) %}
+{% if items %}
+<section class="border-t border-slate-100 py-14">
+  <div class="mx-auto max-w-6xl px-6">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 class="sup-display text-2xl">{{ content_type.plural }}</h2>
+      <a href="{{ content_type.base }}" class="text-sm font-medium text-violet-700 hover:underline">
+        {{ _('site.see_all', n=content_count(content_type.slug)) }}</a>
+    </div>
+    <ul class="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {% for item in items %}
+      {% set locked = not can_view(item) %}
+      {% set category = item.category %}
+      <li class="overflow-hidden rounded-xl border border-slate-200/80">
+        {# Not a link. The chip inside it is one, and an anchor cannot hold
+           another -- the browser re-parents it and the layout falls apart. #}
+        <div class="flex h-20 w-full items-center justify-center {{ 'band-' ~ category.tone if category else 'band-none' }}">
+          {% if category %}{{ category_chip(category, content_type.base, on_band=True) }}{% endif %}
+        </div>
+        <div class="p-5">
+          <h3 class="flex flex-wrap items-center gap-2 font-semibold leading-snug tracking-tight">
+            <a href="{{ item.permalink }}" class="hover:text-violet-700">{{ item.title }}</a>
+            {% if locked %}{{ lock_badge() }}{% endif %}
+          </h3>
+          {% if not locked %}
+          {% set summary = item.excerpt_or_summary(120) %}
+          {% if summary %}<p class="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">{{ summary }}</p>{% endif %}
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}

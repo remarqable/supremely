@@ -481,7 +481,7 @@ def test_the_site_advertises_the_community_and_links_inward(app, client, acme,
 
     home = client.get('/', base_url=ACME).get_data(as_text=True)
     assert 'Episode one' in home
-    assert 'Latest Podcast' in home          # the section heading
+    assert '>Podcast<' in home               # the section heading
     assert permalink in home                 # links to the community address
 
     landed = client.get(permalink, base_url=ACME)

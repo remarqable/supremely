@@ -30,18 +30,25 @@ def test_builtin_themes_scanned(app):
 
 
 def test_supremely_marketing_theme_renders(client, app, acme, globex):
-    """The Supremely marketing theme paints the bespoke landing page —
-    gradient headline, feature strip, and the product mockup — on the
-    bare-domain home, falling back to Origin for parts it doesn't override."""
+    """The Supremely marketing theme paints the bespoke landing page on the
+    bare-domain home, falling back to Origin for parts it doesn't override.
+
+    It used to draw a picture of the product beside the headline. That came
+    out: the real thing is further down the same page and argues for itself
+    better than an illustration of it can.
+    """
     acme.theme = 'supremely'
     acme.save()
     response = client.get('/', base_url='http://acme.example.test')
     assert response.status_code == 200
     body = response.data
-    assert b'sup-mockup' in body                        # bespoke landing
+    assert b'pillars-title' in body                     # bespoke landing
     assert b'themes/supremely/static/theme.css' in body  # ships its own CSS
-    assert b'Welcome to our new home' in body           # product mockup
-    assert b'Upcoming Event' in body
+    # The drawn product mockup and its invented copy are gone. Its place is
+    # taken by real content, which this org has none of, so there is nothing
+    # positive to assert here -- only that the fake did not come back.
+    assert b'sup-mockup' not in body
+    assert b'Welcome to our new home' not in body
 
 
 def test_supremely_default_copy_is_neutral_not_a_clone(client, app, acme, globex):
