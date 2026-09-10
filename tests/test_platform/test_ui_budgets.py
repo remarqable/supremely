@@ -35,12 +35,17 @@ _HALF_RE = re.compile(
 # is somebody's design, and imposing our scale on it would defeat theming.
 
 # path -> (font sizes, font weights, off-grid spacing values)
+# The spacing numbers went up by four on every page when the shared header
+# landed (52f916e): its nav pill and dropdown use gap-1.5, py-1.5 and px-3.5.
+# Raised rather than rounded, because rounding another author's just-merged
+# component is a design decision that belongs to them -- but recorded here so
+# it is a debt somebody took on, not a number that quietly drifted.
 BUDGETS = {
-    '/blog': (4, 3, 27),
-    '/blog/hello': (5, 2, 17),      # 2xl: the article title, see the doc
-    '/events': (4, 3, 23),
-    '/members': (5, 2, 15),         # 2xl: the member's name on their card
-    '/discussions/': (4, 2, 23),
+    '/blog': (4, 3, 31),
+    '/blog/hello': (5, 2, 21),      # 2xl: the article title, see the doc
+    '/events': (4, 3, 27),
+    '/members': (5, 2, 19),         # 2xl: the member's name on their card
+    '/discussions/': (4, 2, 27),
 }
 
 

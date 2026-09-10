@@ -7,6 +7,7 @@ instead of double-sending.
 
 from app.extensions import db
 from app.models.base import utcnow
+from app.platform.i18n import t
 from app.platform.jobs import job
 from app.platform.logger import get_logger
 
@@ -30,7 +31,8 @@ def render_fields_for_email(content) -> tuple[str, str]:
     return table, render_fields_text(content)
 
 
-def compose_email(content, org, subscriber, fields=None) -> tuple[str, str, str]:
+def compose_email(content, org, subscriber, fields=None,
+                  logo=None) -> tuple[str, str, str]:
     """(subject, text, html) for one recipient.
 
     `fields` is the type's rendered fields, which are the same for every
@@ -49,30 +51,27 @@ def compose_email(content, org, subscriber, fields=None) -> tuple[str, str, str]
     subject = content.title
     text = (f'{content.title}\n\n{content.excerpt_or_summary(400)}\n\n'
             f'{field_text}\n'
-            f'Read online: {content_url}\n\n--\n'
-            f'You receive this because you subscribed to {org.name}.\n'
-            f'Unsubscribe: {unsubscribe_url}\n')
+            f'{t("newsletter.read_online")}: {content_url}\n\n--\n'
+            f'{t("newsletter.why_you_get_this", org=org.name)}\n'
+            f'{t("newsletter.unsubscribe")}: {unsubscribe_url}\n')
     # Mail clients drop an iframe, so a video renders as a link here rather
     # than as the blank space an embed would leave (platform/content.py).
     from app.platform.content import render_markdown
+    from app.platform.emails import render_message
     body_html = render_markdown(content.body, embed_videos=False)
-    html = (
-        f'<h1 style="font-family:sans-serif">{_escape(content.title)}</h1>'
-        f'<div style="font-family:sans-serif;line-height:1.6">{body_html}</div>'
-        f'{field_table}'
-        f'<p style="font-family:sans-serif"><a href="{content_url}">Read online</a></p>'
-        f'<hr><p style="font-family:sans-serif;font-size:12px;color:#666">'
-        f'You receive this because you subscribed to {_escape(org.name)}. '
-        f'<a href="{unsubscribe_url}">Unsubscribe</a></p>'
-    )
+    # render_message, not render_email: it puts the attribution into both
+    # halves. Building the text here and the markup there is how the text
+    # part came to have none at all.
+    text, html = render_message(
+        'emails/newsletter.html', subject=subject, org=org, text=text,
+        heading=content.title, preview=content.excerpt_or_summary(140),
+        body_html=body_html, field_table=field_table,
+        action=t('newsletter.read_online'), action_url=content_url,
+        footer_note=t('newsletter.why_you_get_this', org=org.name),
+        unsubscribe_url=unsubscribe_url,
+        unsubscribe_label=t('newsletter.unsubscribe'),
+        **({'logo_src': logo} if logo is not None else {}))
     return subject, text, html
-
-
-def _escape(text: str) -> str:
-    from markupsafe import escape
-    return str(escape(text))
-
-
 @job('newsletter.send_delivery')
 def send_delivery(payload: dict) -> None:
     from app.models import Content, Organization
@@ -104,6 +103,11 @@ def send_delivery(payload: dict) -> None:
     # Once for the batch: the fields do not vary by recipient, and this
     # loop runs up to BATCH_LIMIT times.
     rendered_fields = render_fields_for_email(content)
+    # Once per batch, not once per recipient: this is a query, and a batch
+    # is two hundred messages. A string, because the commit after each
+    # recipient expires a row and it would be fetched again anyway.
+    from app.platform.emails import logo_src
+    logo = logo_src(org)
     for recipient in unsent:
         subscriber = recipient.subscriber
         if subscriber is None or subscriber.status != 'subscribed':
@@ -112,8 +116,10 @@ def send_delivery(payload: dict) -> None:
             continue
         try:
             subject, text, html = compose_email(content, org, subscriber,
-                                                fields=rendered_fields)
-            send_email(subscriber.email, subject, text, html=html)
+                                                fields=rendered_fields,
+                                                logo=logo)
+            send_email(subscriber.email, subject, text, html=html,
+                       attribution=False)
             recipient.sent_at = utcnow()
         except Exception as e:      # noqa: BLE001 -- one bad address must not stop the batch
             recipient.error = str(e)[:500]
@@ -154,8 +160,15 @@ def send_confirmation(payload: dict) -> None:
         return
     org = db.session.get(Organization, subscriber.org_id)
     confirm_url = org_url(org, f'/subscribe/confirm/{subscriber.token}')
-    try_send_email(
-        subscriber.email,
-        f'Confirm your subscription to {org.name}',
-        f'Confirm your subscription to {org.name}:\n\n{confirm_url}\n\n'
-        f'If you did not request this, ignore this email.')
+    from app.platform.emails import render_message
+    subject = t('newsletter.confirm_subject', org=org.site_name)
+    text, html = render_message(
+        'emails/confirm_subscription.html', subject=subject, org=org,
+        text=(f'{subject}:\n\n{confirm_url}\n\n'
+              f'{t("newsletter.confirm_ignore")}'),
+        heading=t('newsletter.confirm_heading', org=org.site_name),
+        intro=t('newsletter.confirm_intro', org=org.site_name),
+        action=t('newsletter.confirm_action'), action_url=confirm_url,
+        outro=t('newsletter.confirm_ignore'))
+    try_send_email(subscriber.email, subject, text, html=html,
+                   attribution=False)

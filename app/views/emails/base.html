@@ -1,0 +1,105 @@
+{# The one email layout every message uses.
+
+   App-owned, deliberately: a theme never reaches into email. One look for
+   every organization, and the branding comes from the organization's own
+   logo, name and colour rather than from whichever theme it happens to
+   have selected.
+
+   Tables and inline styles throughout, because a mail client strips
+   <style> blocks and knows nothing about flexbox or grid. The palette is
+   the community shell's, so a message looks like the place it came from:
+   a slate page, a white card, slate text, and the organization's colour on
+   the one action worth taking.
+
+   `accent` is the organization's own colour, so it is the one value here
+   that changes between installations. `heading`, `intro`, `action`,
+   `action_url` and `outro` are what a message fills in; anything longer
+   goes in the `body` block. #}
+{% set accent = org.brand_primary or '#4f46e5' %}
+<!doctype html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if is_rtl else 'ltr' }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{# Declared, so a client with a dark mode uses this palette rather than
+   recolouring it and leaving slate text on a slate card. #}
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>{{ subject }}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;">
+{# The preview line a client shows beside the subject, hidden in the body
+   itself. Without it a client picks the first words it finds, which is the
+   organization's own name over and over. #}
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{ preview or intro or subject }}</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background-color:#f8fafc;padding:24px 12px;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="max-width:600px;">
+
+        {# Header: who this is from, said in a way you can see rather than
+           read. #}
+        <tr>
+          <td style="padding:0 4px 16px 4px;">
+            {% if logo_src %}
+            <img src="{{ logo_src }}"
+                 alt="{{ org.site_name }}" height="28"
+                 style="height:28px;width:auto;border:0;display:block;">
+            {% else %}
+            <div style="font:600 17px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">{{ org.site_name }}</div>
+            {% endif %}
+          </td>
+        </tr>
+
+        <tr>
+          <td style="background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:28px 28px 24px 28px;">
+            {% block body %}
+            {% if heading %}
+            <h1 style="margin:0 0 12px 0;font:600 21px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">{{ heading }}</h1>
+            {% endif %}
+            {% if intro %}
+            <p style="margin:0 0 20px 0;font:400 15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#475569;">{{ intro }}</p>
+            {% endif %}
+            {% if action and action_url %}
+            {# A table, not a styled anchor: Outlook renders padding on an
+               inline element as though it were not there. #}
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px 0;">
+              <tr>
+                <td style="background-color:{{ accent }};border-radius:8px;">
+                  <a href="{{ absolute_url(action_url) }}"
+                     style="display:inline-block;padding:11px 20px;font:600 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;">{{ action }}</a>
+                </td>
+              </tr>
+            </table>
+            {# The same address in full, because a button is unclickable in
+               a text-only client and unreadable in a printout. #}
+            <p style="margin:0 0 4px 0;font:400 12px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#94a3b8;word-break:break-all;">{{ action_url }}</p>
+            {% endif %}
+            {% if outro %}
+            <p style="margin:16px 0 0 0;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#64748b;">{{ outro }}</p>
+            {% endif %}
+            {% endblock %}
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:16px 4px 0 4px;">
+            {% block footer %}
+            {% if footer_note %}
+            <p style="margin:0 0 8px 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#94a3b8;">{{ footer_note }}</p>
+            {% endif %}
+            {% endblock %}
+            {# Already a paragraph of its own; wrapping it made a p inside a p. #}
+            {{ attribution|safe if attribution }}
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

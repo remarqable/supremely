@@ -1,37 +1,45 @@
 {% from 'partials/_ui.html' import avatar with context %}
-<nav x-data="{ mobile: false }"
+{# One header everywhere: the community's name in the middle, and one pill
+   on the right pointing at the other place. The console used to render a
+   second layout here, with its section links inline on the left and no way
+   back to the community at all.
+
+   `off_surface` is set by the app chrome layout, and says which way the
+   pill points: on the community surface it leads into the console, and on
+   the pages outside it (the console itself, notifications, a platform
+   admin's profile) it leads back to the community. It picks a
+   destination, not a layout, and it is set by the layout that is the
+   exception, so a new shell layout is on the surface by saying nothing. #}
+{% set nav_pill = 'me-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-slate-900' %}
+<nav aria-label="{{ _('nav.main') }}"
      class="border-b border-slate-200 bg-white">
   <div class="relative mx-auto flex h-14 max-w-7xl items-center gap-6 px-4">
-    {% if nav_shell and g.org %}
-    {# The community shell: identity is the centered name (Substack-style);
-       the sidebar owns navigation, so no section links here. #}
-    <a href="/" class="absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-tight">{{ g.org.name }}</a>
+    {% if g.org %}
+    {# Identity is the name (Substack-style); the sidebar owns navigation,
+       so no section links here. It is centred over the whole row from `sm`
+       up, and sits in the flow below that: a phone has no room to centre a
+       name and still clear the pill, the bell and the avatar beside it. #}
+    <a href="/"
+       class="min-w-0 truncate text-base font-semibold tracking-tight
+              sm:absolute sm:left-1/2 sm:max-w-[45%] sm:-translate-x-1/2">{{ g.org.name }}</a>
     {% else %}
-    <a href="/" class="text-base font-semibold tracking-tight">
-      {% if g.org %}{{ g.org.name }}{% else %}{{ installation_name }}{% endif %}
-    </a>
-
-    <div class="hidden items-center gap-1 md:flex">
-      {% if g.org and (is_member_or_platform_admin()) %}
-        <a href="{{ url_for('orgs.dashboard') }}"
-           class="rounded-md px-2.5 py-1.5 text-sm {{ 'font-medium text-slate-900' if request.blueprint == 'orgs' else 'text-slate-500 hover:bg-slate-50 hover:text-slate-900' }}">
-          {{ _('nav.dashboard') }}</a>
-      {% endif %}
-      {% if g.org and can('content.write') %}
-        <a href="{{ url_for('manage.index') }}"
-           class="rounded-md px-2.5 py-1.5 text-sm {{ 'font-medium text-slate-900' if request.blueprint == 'manage' else 'text-slate-500 hover:bg-slate-50 hover:text-slate-900' }}">
-          {{ _('nav.manage') }}</a>
-      {% endif %}
-    </div>
+    {# No community resolved: the platform console and the installation's
+       own pages, which have no community to name. #}
+    <a href="/" class="text-base font-semibold tracking-tight">{{ installation_name }}</a>
     {% endif %}
 
     <div class="ms-auto flex items-center gap-1">
-      {# The console. On the shell this is the only way in, and the inline
-         controls on the surface itself are marked rather than toggled. #}
-      {% if nav_shell and g.org and can('content.write') %}
-      <a href="{{ url_for('manage.index') }}"
-         class="me-1 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ring-1 transition-colors {{ 'bg-brand-50 text-brand-700 ring-brand-600/30' if request.blueprint == 'manage' else 'text-slate-600 ring-slate-200 hover:bg-slate-50 hover:text-slate-900' }}">
-        {{ _('community.manage') }}
+      {# The way to the other place. On the surface that is the console,
+         which this is the only door to, since the controls on the surface
+         itself are marked rather than toggled. Everywhere else it is the
+         way back to the community. #}
+      {% if g.org and off_surface and is_member_or_platform_admin() %}
+      <a href="{{ url_for('orgs.dashboard') }}" class="{{ nav_pill }}">
+        {{ _('nav.homepage') }}
+      </a>
+      {% elif g.org and not off_surface and can('content.write') %}
+      <a href="{{ url_for('manage.index') }}" class="{{ nav_pill }}">
+        {{ _('nav.manage') }}
       </a>
       {% endif %}
       {% if g.org and is_org_member() %}
@@ -92,24 +100,6 @@
       {% else %}
       <a href="{{ url_for('auth.login') }}" class="btn-primary">{{ _('nav.login') }}</a>
       {% endif %}
-
-      {% if not nav_shell and g.org and (is_member_or_platform_admin()) %}
-      <button @click="mobile = !mobile" :aria-expanded="mobile"
-              aria-controls="mobile-menu" class="btn-ghost md:hidden">
-        <span class="sr-only">{{ _('nav.toggle_menu') }}</span>&#9776;
-      </button>
-      {% endif %}
     </div>
   </div>
-
-  {% if not nav_shell %}
-  <div id="mobile-menu" x-show="mobile" x-cloak class="border-t border-slate-200 md:hidden">
-    {% if g.org and (is_member_or_platform_admin()) %}
-      <a href="{{ url_for('orgs.dashboard') }}" class="block px-4 py-3 text-sm hover:bg-slate-50">{{ _('nav.dashboard') }}</a>
-    {% endif %}
-    {% if g.org and can('content.write') %}
-      <a href="{{ url_for('manage.index') }}" class="block px-4 py-3 text-sm hover:bg-slate-50">{{ _('nav.manage') }}</a>
-    {% endif %}
-  </div>
-  {% endif %}
 </nav>

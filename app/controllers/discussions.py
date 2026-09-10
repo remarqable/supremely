@@ -81,15 +81,16 @@ def index():
         # The org gated the whole area: one gate, no group names teased.
         return render_gate(t('discussions.title'))
     groups = _all_groups()
-    if not g.org.teases_gated_content():
-        # Teasing is off for this org: gated groups vanish from the listing.
-        groups = [group for group in groups
-                  if group.readable_by_current_visitor()]
     # Post titles are gated content: recents and search only ever query
     # readable groups, while the listing (when teasing) shows gated ones
-    # by name only.
-    group_ids = [group.id for group in groups
-                 if group.readable_by_current_visitor()]
+    # by name only. The rule lives on the model so the rail's pinned card
+    # cannot drift from it, and the listing we already hold is handed over
+    # rather than fetched a second time.
+    group_ids = DiscussionGroup.readable_ids(groups)
+    if not g.org.teases_gated_content():
+        # Teasing is off for this org: gated groups vanish from the listing.
+        readable = set(group_ids)
+        groups = [group for group in groups if group.id in readable]
     q = request.args.get('q', '').strip()
     latest_by_group: dict = {}
     search_results = []

@@ -390,8 +390,10 @@ def test_email():
         return redirect(url_for('admin.email_provider_settings',
                                 provider=email_provider()))
     try:
-        # No attribution: this is a diagnostic the operator sent to
-        # themselves, not published output, and the exact body is the point.
+        # Plain text and no attribution, unlike every other message: this
+        # is a diagnostic the operator sent to themselves, the exact body is
+        # the point, and /admin bypasses tenancy so there is no organization
+        # whose logo and colour it could wear.
         send_email(to, 'Supremely test email',
                    'Email delivery from your Supremely installation works.',
                    attribution=False)

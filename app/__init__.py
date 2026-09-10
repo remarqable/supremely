@@ -255,6 +255,17 @@ def _init_context(app):
                       if _member_view() else [])
             return recent, Membership.active_count(g.org.id)
 
+        def pinned_posts() -> list:
+            """Pinned discussion posts for the right-rail card.
+
+            Post.pinned_for_rail() already refuses groups the visitor may
+            not read, so there is nothing left for the template to check.
+            """
+            if getattr(g, 'org', None) is None:
+                return []
+            from .models.discussion import Post
+            return Post.pinned_for_rail()
+
         def section_readable(type_slug):
             """Whether the current viewer may see a content section (the
             per-type lock on Manage → Content types)."""
@@ -327,6 +338,7 @@ def _init_context(app):
             'latest_announcement': latest_announcement,
             'upcoming_event': upcoming_event,
             'rail_members': rail_members,
+            'pinned_posts': pinned_posts,
             'discussions_area_readable': discussions_area_readable,
             'section_readable': section_readable,
             'content_types': active_types,
