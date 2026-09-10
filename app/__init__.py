@@ -284,6 +284,15 @@ def _init_context(app):
             from .models.discussion import Post
             return Post.pinned_for_rail()
 
+        def latest_discussions(limit: int = 3) -> list:
+            """Newest threads, for a site section that links into the
+            community. Post.latest_for_site refuses groups the visitor may
+            not read, so a template has nothing left to check."""
+            if getattr(g, 'org', None) is None:
+                return []
+            from .models.discussion import Post
+            return Post.latest_for_site(limit)
+
         def section_readable(type_slug):
             """Whether the current viewer may see a content section (the
             per-type lock on Manage → Content types)."""
@@ -357,6 +366,7 @@ def _init_context(app):
             'upcoming_event': upcoming_event,
             'rail_members': rail_members,
             'pinned_posts': pinned_posts,
+            'latest_discussions': latest_discussions,
             'preview_notice': preview_notice,
             'discussions_area_readable': discussions_area_readable,
             'section_readable': section_readable,

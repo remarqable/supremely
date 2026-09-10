@@ -286,6 +286,30 @@ class Post(OrgScoped, AuditMixin, MarkdownBody, OwnerEditable, BaseModel):
                 .limit(limit).all())
 
     @classmethod
+    def latest_for_site(cls, limit: int = 3) -> list['Post']:
+        """The newest threads, for the public site to advertise.
+
+        The same three rules pinned_for_rail follows, and for the same
+        reasons: readable groups only, because a post title is gated content
+        and is not teased the way a page is; no hidden posts, moderators
+        included, because this is a promotional slot and not a queue; newest
+        activity first with the id as a tiebreak so the order settles.
+
+        This is the one pull a theme could not build. A quiet forum returns
+        nothing and the section on the site disappears, which is the right
+        answer -- a heading over silence argues against the product.
+        """
+        group_ids = DiscussionGroup.readable_ids()
+        if not group_ids:
+            return []
+        return (cls.query
+                .options(db.joinedload(cls.group))
+                .filter(cls.group_id.in_(group_ids),
+                        cls.is_hidden.is_(False))
+                .order_by(cls.last_activity_at.desc(), cls.id.desc())
+                .limit(limit).all())
+
+    @classmethod
     def recent_by_author(cls, user_id: int, limit: int = 10,
                          include_hidden: bool = False):
         """A member's newest posts in this tenant (the profile page).
