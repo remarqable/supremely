@@ -1,9 +1,31 @@
-{# Shown when a draft is being previewed (manage.preview_content). One
-   definition, included at the top of the content by each template a preview
-   can render: single.html and page.html here, and any template a theme adds
-   for those (see docs/themes/README.md). #}
-{% if preview %}
-<div class="mb-6 rounded-md bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
-  {{ _('manage.preview_banner') }}
+{# Shown when a draft is being previewed (manage.preview_content).
+
+   Included from two places, because a theme may override either and must
+   not be able to lose this by doing so: the theme's layout, between the
+   chrome and the content and outside every block, and the content
+   templates a theme inherits from Origin. preview_notice() answers True
+   once per request, so whichever renders first shows it and the other
+   skips.
+
+   It sits outside the lock that switches the chrome off, because it is the
+   way out. #}
+{% if preview and preview_notice() %}
+{% set item = content if content is defined and content else none %}
+{% set return_id = preview_return_id if preview_return_id is defined else (item.id if item else none) %}
+<div class="mx-auto max-w-4xl px-4 pt-8">
+  <div role="status"
+       class="rounded-md bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
+    <p class="font-medium">{{ _('manage.preview_banner') }}</p>
+    <p class="mt-0.5">{{ _('manage.preview_nav_off') }}</p>
+    {% if return_id %}
+    <a href="{{ url_for('manage.edit_content', content_id=return_id) }}"
+       class="mt-1.5 inline-block font-medium underline hover:no-underline">{{ _('manage.preview_back_to_editor') }}</a>
+    {% else %}
+    {# Nothing to return to: a brand-new item has never been written down,
+       so it has no address in the editor. It was opened in a tab of its
+       own, which is the way back. #}
+    <p class="mt-1.5">{{ _('manage.preview_close_tab') }}</p>
+    {% endif %}
+  </div>
 </div>
 {% endif %}

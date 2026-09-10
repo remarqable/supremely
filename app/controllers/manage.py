@@ -410,7 +410,12 @@ def move_block(content_id: int) -> ResponseReturnValue:
     return redirect(url_for('manage.edit_content', content_id=parent.id))
 
 
-def _render_preview(content: Content, ct: ContentType) -> str:
+def _render_preview(content: Content, ct: ContentType,
+                    return_id: int | None = None) -> str:
+    """`return_id` is the stored item the preview belongs to, for the
+    banner's link back to the editor. A preview of unsaved form data
+    renders a throwaway row with no id of its own, so the id has to be
+    carried in beside it."""
     from app.platform.theming import render_site
     if ct.is_page:
         # Preview is the same sink as the public page; a stored value can
@@ -421,7 +426,8 @@ def _render_preview(content: Content, ct: ContentType) -> str:
     else:
         names = [f'single-{ct.slug}.html', f'{ct.template}.html', 'single.html']
     return render_site(names, content=content, content_type=ct,
-                       page=content, preview=True)
+                       page=content, preview=True,
+                       preview_return_id=return_id or content.id)
 
 
 def _preview_from_form(stored: Content | None, ct: ContentType) -> str:
@@ -441,7 +447,8 @@ def _preview_from_form(stored: Content | None, ct: ContentType) -> str:
         with db.session.no_autoflush:
             _content_from_form(draft, previewing=True)
             draft.attach_featured_upload()
-            return _render_preview(draft, ct)
+            return _render_preview(draft, ct,
+                                   return_id=stored.id if stored else None)
     finally:
         db.session.rollback()
 

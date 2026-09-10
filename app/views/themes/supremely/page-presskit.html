@@ -1,4 +1,5 @@
 {% extends site_layout %}
+{% from 'partials/_ui.html' import edit_content_link with context %}
 {# Designed press-kit page, slug-bound via the template hierarchy
    (page-presskit.html). Division of labor: this template owns the chrome —
    asset cards, brand swatches, the type specimen — while the page BODY
@@ -114,6 +115,7 @@
       <p class="mt-4 text-lg">The quick brown fox jumps over the lazy dog — 0123456789</p>
     </div>
   </section>
+  {{ edit_content_link(page) }}
 </main>
 <script defer src="{{ theme_asset('presskit.js') }}"></script>
 {% endblock %}

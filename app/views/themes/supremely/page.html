@@ -1,4 +1,5 @@
 {% extends site_layout %}
+{% from 'partials/_ui.html' import edit_content_link with context %}
 {# Standalone pages on the marketing theme: the container matches the header
    and footer rail (max-w-6xl) so the content's left edge lines up with the
    logo, while the text itself keeps a readable measure, anchored start. #}
@@ -23,6 +24,8 @@
     </div>
 
     {% with content = page %}{% include blocks_template() with context %}{% endwith %}
+
+    {{ edit_content_link(page) }}
   </article>
 </main>
 {% endblock %}

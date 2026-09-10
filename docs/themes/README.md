@@ -466,18 +466,50 @@ detection.
 ## Previews
 
 An organizer can preview a draft before publishing it, and the preview
-renders through your theme. Include the banner that says so at the top of
-the content in every template a preview can reach:
+renders through your theme. Two things belong in your `layout.html`, and
+only there. If you ship no layout of your own, Origin's does both and you
+have nothing to do.
+
+First, the banner that says the draft is not published, between your
+header and your content:
 
 ```jinja
 {% include 'partials/_preview_banner.html' %}
 ```
 
-That means `single.html` and `page.html`, and also any `{template}.html` a
-page can be assigned, any `single-{type}.html` you ship, and their `mobile/`
-siblings if you have them. It renders nothing outside a preview, so it is
-safe to include unconditionally. Without it, a draft looks exactly like the
-live site, which is the whole reason the banner exists.
+Put it outside every `{% block %}`. A page template that overrides one of
+your blocks would otherwise drop it — which is exactly how it once went
+missing from Supremely, whose page templates override the layout's `main`.
+
+It renders once per request, so you do not have to worry about the content
+templates you inherit from Origin including it as well. Between the two, a
+theme that overrides only its layout and a theme that overrides only its
+content templates are both covered.
+
+Second, switch your navigation off while a preview is on screen, so a click
+on your header does not carry the organizer off the draft they opened:
+
+```jinja
+{% if preview %}<div inert class="contents">{% endif %}
+{% include themed('header.html') %}
+{% if preview %}</div>{% endif %}
+```
+
+The same around your footer. `inert` is an ordinary HTML attribute: it stops
+clicks, takes the links out of the tab order, and hides them from screen
+readers, with no script involved. The wrapper is `contents` so it draws no
+box of its own and your header keeps whatever positioning it had, sticky
+included.
+
+Both go in the layout because they belong together, and the banner goes
+first because it is the way out: it carries the link back to the editor, and
+it must not be inside the region you just switched off. A layout that has
+neither is merely unlocked; one that has only the lock strands the reader on
+a page where nothing goes anywhere. Neither renders anything outside a
+preview, so both are safe to include unconditionally.
+`tests/test_platform/test_theme_contract.py` checks each bundled theme for
+both, on an article and on a page, and checks that a theme it has never
+heard of still gets the banner from the templates it inherits.
 
 ## Attribution
 

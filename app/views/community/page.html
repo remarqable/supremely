@@ -6,6 +6,8 @@
    no back link here on purpose: a page has no archive above it, and the shell
    sidebar already carries Home. #}
 
+{% from 'partials/_ui.html' import edit_content_link with context %}
+
 {% block title %}{{ page.seo_title or page.title }} — {{ g.org.name }}{% endblock %}
 
 {% block meta %}
@@ -23,5 +25,7 @@
   </div>
 
   {% with content = page %}{% include blocks_template() with context %}{% endwith %}
+
+  {{ edit_content_link(page) }}
 </article>
 {% endblock %}

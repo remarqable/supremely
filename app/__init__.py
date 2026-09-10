@@ -81,6 +81,10 @@ def create_app(config_class=Config):
         _g.pop('_login_user', None)
         _g.pop('_content_feeds', None)
         _g.pop('_content_counts', None)
+        # Same hazard, smaller blast radius: the preview banner shows once
+        # per request, and a flag left behind would hide it on the next
+        # preview served through a held app context.
+        _g.pop('_preview_notice_shown', None)
         # Template resolution is memoized for the same reason and with the
         # same hazard: a held app context would otherwise carry one
         # request's answers into the next.
@@ -255,6 +259,20 @@ def _init_context(app):
                       if _member_view() else [])
             return recent, Membership.active_count(g.org.id)
 
+        def preview_notice() -> bool:
+            """Whether this render still owes the reader the preview banner.
+
+            True once per request. The banner is included from two places
+            that a theme may each override: its layout, and the content
+            templates it inherits from Origin. Whichever renders first
+            shows it, the other skips, and a theme that replaces either one
+            is still covered by the other.
+            """
+            if g.get('_preview_notice_shown'):
+                return False
+            g._preview_notice_shown = True
+            return True
+
         def pinned_posts() -> list:
             """Pinned discussion posts for the right-rail card.
 
@@ -339,6 +357,7 @@ def _init_context(app):
             'upcoming_event': upcoming_event,
             'rail_members': rail_members,
             'pinned_posts': pinned_posts,
+            'preview_notice': preview_notice,
             'discussions_area_readable': discussions_area_readable,
             'section_readable': section_readable,
             'content_types': active_types,
