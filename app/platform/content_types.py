@@ -252,6 +252,11 @@ class ContentType:
     # library declares 'manual' yet.
     ordering: str = 'newest'
     show_in_nav: bool = False       # seed a nav entry for this type
+    # Items of this type are things people attend, so each one carries an
+    # "I'm coming" button and a list of who is. Declared by the type
+    # rather than tested for by name, so a vertical that ships its own
+    # dated type gets it by saying so.
+    rsvps: bool = False
     group: str = 'community'        # community-sidebar section (NAV_GROUPS)
     # Where this type's public archive and singles present: 'community'
     # renders inside the app-owned shell, 'site' through the theme (the
@@ -671,6 +676,7 @@ def register_core_types() -> None:
         description='A vertical example: dated events with a location.',
         base='/events', show_in_nav=True, group='meet',
         lead_field='starts_on', icon='calendar', enabled_by_default=True,
+        rsvps=True,
         fields=(
             FieldSpec(key='starts_on', type='date', label='Date',
                       required=True, in_summary=True),

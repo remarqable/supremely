@@ -1,5 +1,5 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import back_link, edit_content_link, member_name with context %}
+{% from 'partials/_ui.html' import attendance, back_link, edit_content_link, member_name with context %}
 
 {% block title %}{{ content.seo_title or content.title }} — {{ g.org.name }}{% endblock %}
 
@@ -53,6 +53,8 @@
     {% endfor %}
   </p>
   {% endif %}
+
+  {{ attendance(content) }}
 
   {{ edit_content_link(content) }}
 </article>

@@ -223,3 +223,52 @@
   {% endfor %}
 </select>
 {% endmacro %}
+
+{# Who is coming, and the button to join them.
+
+   One macro for the member view and the theme, so the two cannot drift.
+   Faces are member data and follow the line the member directory draws: a
+   visitor is told how many are coming and no more. A past event keeps its
+   list and loses its button, because the list is a record of who came and
+   the button would be an offer to attend something already over. #}
+{% macro attendance(content) %}
+{% set going = rsvp_count(content) %}
+{% set past = content.has_happened() %}
+{# Nothing to draw for a past event nobody answered: an empty bordered
+   strip is worse than no strip. #}
+{% if content.content_type.rsvps and not (past and not going) %}
+<div class="mt-8 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-5">
+  {% if not past and can('read') %}
+  <form method="POST" action="{{ url_for('site.rsvp', content_id=content.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if rsvp_going(content) %}
+    <button type="submit" class="btn-secondary"
+            aria-label="{{ _('events.not_coming_action') }}">{{ _('events.youre_coming') }}</button>
+    {% else %}
+    <button type="submit" class="btn-primary">{{ _('events.im_coming') }}</button>
+    {% endif %}
+  </form>
+  {% endif %}
+
+  {% if going %}
+  {% set faces = rsvp_attendees(content) %}
+  {% if faces %}
+  <div class="flex items-center">
+    {% for person in faces %}
+    <span class="{{ '-ms-2' if not loop.first }} rounded-full ring-2 ring-white"
+          title="{{ person.name }}">
+      {{ avatar(person.name, person.avatar_url, size='h-8 w-8', text='text-xs') }}
+      {# avatar() is aria-hidden, so the name has to be said somewhere a
+         screen reader will read it. #}
+      <span class="sr-only">{{ person.name }}</span></span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <span class="text-sm text-slate-600">
+    {{ _('events.came_count', n=going) if past else _('events.coming_count', n=going) }}</span>
+  {% elif not past %}
+  <span class="text-sm text-slate-600">{{ _('events.nobody_yet') }}</span>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}

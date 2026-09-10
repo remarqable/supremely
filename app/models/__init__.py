@@ -12,6 +12,7 @@ from .newsletter import Delivery, DeliveryRecipient, Subscriber
 from .notification import Notification
 from .org_plugin import OrgPlugin
 from .organization import Organization
+from .rsvp import Rsvp
 from .setting import InstallationSetting
 from .tier import Tier
 from .upload import Upload
@@ -41,6 +42,7 @@ __all__ = [
     'PostFollow',
     'Reaction',
     'Reply',
+    'Rsvp',
     'Subscriber',
     'Tier',
     'Upload',

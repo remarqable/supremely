@@ -15,19 +15,30 @@ from flask import (
     Blueprint,
     abort,
     g,
+    redirect,
     request,
     send_file,
     send_from_directory,
 )
 from flask.typing import ResponseReturnValue
+from flask_login import current_user
 from werkzeug.routing import BaseConverter, ValidationError
 
 from app.extensions import db
 from app.models import Content, Upload
 from app.models.content import RESERVED_PAGE_SLUGS, Category
 from app.models.upload import VARIANTS
-from app.platform.authz import is_member_or_platform_admin, org_required
-from app.platform.content_types import type_for_base, type_presentation
+from app.platform.authz import (
+    is_member_or_platform_admin,
+    org_required,
+    require,
+)
+from app.platform.content_types import (
+    type_for_base,
+    type_is_active,
+    type_presentation,
+)
+from app.platform.logger import get_logger
 from app.platform.theming import (
     AVAILABLE_THEMES,
     page_template_allowed,
@@ -36,6 +47,7 @@ from app.platform.theming import (
 )
 
 bp = Blueprint('site', __name__)
+log = get_logger()
 
 PER_PAGE = 10
 
@@ -285,3 +297,51 @@ def theme_static(theme, filename):
         abort(404)
     return send_from_directory(info['path'] / 'static', filename,
                                max_age=31536000)
+
+
+@bp.route('/rsvp/<int:content_id>', methods=['POST'])
+@org_required
+@require('read')
+def rsvp(content_id: int) -> ResponseReturnValue:
+    """Say you are coming to something, or take it back.
+
+    The button on the item posts here.
+
+    The item's own gate is asked first, before anything about the item is
+    used to answer: a member who cannot read the event gets the same
+    refusal whether it is next week or last year, so answering cannot be
+    a way to learn which. Only then does it matter whether this is a kind
+    of thing people attend, and whether it has already happened.
+
+    A past event takes no answers. The list of who came stays, because
+    that is the part worth looking up a year later.
+    """
+    import sqlalchemy as sa
+
+    from app.models import Rsvp
+
+    content = Content.query.filter_by(id=content_id,
+                                      status='published').first_or_404()
+    ct = content.content_type
+    # The same two questions the read path asks before it will show this
+    # at all: a type the organization has switched off, or a plugin type
+    # whose plugin is no longer installed here, is not answerable either.
+    if not type_is_active(ct):
+        abort(404)
+    if not content.visible_to_current_visitor():
+        # Matching what the reader would have been told. With teasing off
+        # the gate degrades to hiding, and answering must not be the way
+        # to find out that something hidden exists.
+        abort(403 if g.org.type_teases(content.type) else 404)
+    if not ct.rsvps or content.has_happened():
+        abort(404)
+    try:
+        going = Rsvp.toggle(current_user.id, content.id)
+    except sa.exc.IntegrityError:
+        # Somebody else won the race on the unique constraint, which means
+        # the answer they were pressing for is already recorded.
+        db.session.rollback()
+        going = True
+    log.info('rsvp_toggled', content_id=content.id, org_id=g.org.id,
+             user_id=current_user.id, going=going)
+    return redirect(content.permalink)

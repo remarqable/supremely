@@ -1,5 +1,5 @@
 {% extends site_layout %}
-{% from 'partials/_ui.html' import edit_content_link, member_name with context %}
+{% from 'partials/_ui.html' import attendance, edit_content_link, member_name with context %}
 {% from 'community/_macros.html' import area_header with context %}
 
 {# The member view of a single content item (article, event, recording, …).
@@ -64,6 +64,8 @@
     {% endfor %}
   </p>
   {% endif %}
+
+  {{ attendance(content) }}
 
   {# The conversation about this item. It is an ordinary discussion thread
      living in a group -- this is the way in, so a reader who arrived from

@@ -285,6 +285,29 @@ def _init_context(app):
             g._preview_notice_shown = True
             return True
 
+        def rsvp_count(content) -> int:
+            """How many are coming. A number, so everyone sees it."""
+            from .models import Rsvp
+            return Rsvp.count_for(content.id)
+
+        def rsvp_going(content) -> bool:
+            """Whether the current viewer has said they are coming."""
+            from .models import Rsvp
+            if not current_user.is_authenticated:
+                return False
+            return Rsvp.is_going(current_user.id, content.id)
+
+        def rsvp_attendees(content) -> list:
+            """The faces to show, or none for a visitor.
+
+            Names and avatars are member data, the same as the member
+            directory: a visitor is told how many are coming and no more.
+            """
+            from .models import Rsvp
+            if not _member_view():
+                return []
+            return Rsvp.attendees(content.id)
+
         def pinned_posts() -> list:
             """Pinned discussion posts for the right-rail card.
 
@@ -381,6 +404,9 @@ def _init_context(app):
             'upcoming_event': upcoming_event,
             'rail_members': rail_members,
             'pinned_posts': pinned_posts,
+            'rsvp_count': rsvp_count,
+            'rsvp_going': rsvp_going,
+            'rsvp_attendees': rsvp_attendees,
             'latest_discussions': latest_discussions,
             'visibility_label': visibility_label,
             'visibility_options': visibility_options,

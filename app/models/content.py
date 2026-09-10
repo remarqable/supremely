@@ -149,6 +149,7 @@ RESERVED_PAGE_SLUGS = {
     # title now, so an ordinary word like "Notifications" reaches them by
     # accident where before somebody had to type it deliberately.
     'notifications', 'newsletters', 'glossary', 'tls-check', '_v',
+    'rsvp',
 }
 
 
@@ -912,6 +913,35 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         return bool(current_user.is_authenticated
                     and self.created_by_id == current_user.id)
 
+    @property
+    def starts_on(self) -> str | None:
+        """The date this item happens on, as an ISO string, or None.
+
+        `fields` is a JSON blob and its values are whatever a seeder, an
+        importer or a plugin wrote, so a value that is not a date-shaped
+        string is treated as no date at all rather than compared and
+        raising.
+        """
+        value = (self.fields or {}).get('starts_on')
+        return value if isinstance(value, str) and value else None
+
+    def has_happened(self) -> bool:
+        """Whether this item's date is in the past.
+
+        Something with no date has not happened and never will, which is
+        what keeps the button on an undated item rather than hiding it.
+        """
+        from datetime import date
+        return bool(self.starts_on
+                    and self.starts_on < date.today().isoformat())
+
+    def is_upcoming(self) -> bool:
+        """Whether this item is dated today or later. Not the negation of
+        has_happened: something with no date is neither."""
+        from datetime import date
+        return bool(self.starts_on
+                    and self.starts_on >= date.today().isoformat())
+
     @classmethod
     def upcoming_event(cls) -> 'Content | None':
         """The next published event the current visitor may read, dated
@@ -925,20 +955,19 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         here the same way they are everywhere else, because
         readable_visibilities answers None for them.
         """
-        from datetime import date
-
         from app.platform.authz import can_read, readable_visibilities
-        today = date.today().isoformat()
         if not can_read(cls.type_visibility('event')):
             return None
         query = cls.published_query('event')
         readable = readable_visibilities()
         if readable is not None:
             query = query.filter(cls.visibility.in_(readable))
-        events = [(event.fields.get('starts_on'), event)
-                  for event in query.limit(50).all()
-                  if (event.fields or {}).get('starts_on', '') >= today]
-        return min(events, default=(None, None))[1]
+        events = [event for event in query.limit(50).all()
+                  if event.is_upcoming()]
+        # Keyed on the date alone. Comparing the pairs let a tie fall
+        # through to comparing two rows, which raises, so two events on
+        # one day took the community rail down with them.
+        return min(events, key=lambda event: event.starts_on, default=None)
 
     @classmethod
     def published_by_slug(cls, type_slug: str, slug: str):
