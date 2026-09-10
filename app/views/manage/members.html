@@ -40,6 +40,14 @@
         {% endfor %}
       </select>
     </div>
+    <div>
+      <label for="invite_tier" class="label">{{ _('manage.tier') }}</label>
+      <select id="invite_tier" name="tier_id" class="select mt-1">
+        {% for tier in tiers %}
+        <option value="{{ tier.id }}" {{ 'selected' if loop.first }}>{{ tier.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <button type="submit" class="btn-primary">{{ _('members.generate_invite') }}</button>
   </form>
 
@@ -86,7 +94,7 @@
   </div>
 
   <table class="table-plain">
-    <thead><tr><th>{{ _('common.name') }}</th><th>{{ _('common.email') }}</th><th>{{ _('members.joined') }}</th><th>{{ _('common.role') }}</th><th>{{ _('common.actions') }}</th></tr></thead>
+    <thead><tr><th>{{ _('common.name') }}</th><th>{{ _('common.email') }}</th><th>{{ _('members.joined') }}</th><th>{{ _('common.role') }}</th><th>{{ _('manage.tier') }}</th><th>{{ _('common.actions') }}</th></tr></thead>
     <tbody>
       {% for membership in members %}
       <tr class="{{ 'opacity-50' if not membership.is_active }}">
@@ -108,6 +116,23 @@
                               if can('ownership.transfer')
                               else ('admin', 'member')) %}
               <option value="{{ role }}" {{ 'selected' if membership.role == role }}>{{ _('roles.' + role) }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+          </form>
+        </td>
+        <td>
+          {# What they may read. Role is what they may do; the two are
+             independent, and an administrator may change anyone's tier at
+             any time, their own included. #}
+          <form method="POST" action="{{ url_for('manage.member_tier', membership_id=membership.id) }}" class="flex items-center gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="tier_id" class="select w-32" aria-label="{{ _('manage.tier') }}">
+              {# From all_tiers, not tiers: a retired rung has to appear
+                 while somebody is standing on it, or this select would
+                 come up with nothing chosen and one Save would move them. #}
+              {% for tier in all_tiers if tier.is_active or tier.id == membership.tier_id %}
+              <option value="{{ tier.id }}" {{ 'selected' if membership.tier_id == tier.id }}>{{ tier.name }}</option>
               {% endfor %}
             </select>
             <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
@@ -158,6 +183,14 @@
                         if can('ownership.transfer')
                         else ('member', 'admin')) %}
         <option value="{{ role }}">{{ _('roles.' + role) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="add_tier" class="label">{{ _('manage.tier') }}</label>
+      <select id="add_tier" name="tier_id" class="select mt-1">
+        {% for tier in tiers %}
+        <option value="{{ tier.id }}" {{ 'selected' if loop.first }}>{{ tier.name }}</option>
         {% endfor %}
       </select>
     </div>

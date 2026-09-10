@@ -3,6 +3,8 @@
 Runs on the org host under /manage; every query is tenant-scoped
 automatically."""
 
+from typing import TYPE_CHECKING
+
 from flask import (
     Blueprint,
     abort,
@@ -29,6 +31,7 @@ from app.platform.authz import (
     grants_more_than,
     org_required,
     require,
+    visibility_is_valid,
 )
 from app.platform.content_types import (
     CONTENT_TYPES,
@@ -52,6 +55,9 @@ from app.platform.theming import (
     page_template_allowed,
     page_template_exists,
 )
+
+if TYPE_CHECKING:
+    from app.models import Tier
 
 bp = Blueprint('manage', __name__, url_prefix='/manage')
 log = get_logger()
@@ -149,7 +155,7 @@ def _content_from_form(content: Content, *, previewing: bool = False) -> Content
     content.title = request.form.get('title', '')
     content.slug = request.form.get('slug', '')
     content.body = request.form.get('body', '')
-    content.visibility = request.form.get('visibility', 'public')
+    content.visibility = _submitted_visibility(content.visibility)
     content.excerpt = request.form.get('excerpt', '').strip() or None
     content.seo_title = request.form.get('seo_title', '').strip() or None
     content.seo_description = request.form.get('seo_description', '').strip() or None
@@ -496,11 +502,9 @@ def content_types_page():
     # switch to offer and no row to draw.
     types = [ct for ct in CONTENT_TYPES.values()
              if ct.plugin is None or ct.slug in active_types()]
-    from app.platform.authz import VISIBILITY_LEVELS
     return render_device_template('manage/content_types.html',
                            types=types, counts=counts,
-                           coming_soon=COMING_SOON, org=g.org,
-                           visibility_levels=VISIBILITY_LEVELS)
+                           coming_soon=COMING_SOON, org=g.org)
 
 
 @bp.route('/content-types/<type_slug>', methods=['POST'])
@@ -534,10 +538,14 @@ def update_content_type(type_slug):
     # unlock a locked section.
     if ct.has_archive:
         if 'visibility' in request.form:
-            visibility = request.form['visibility']
-            settings['visibility'] = (
-                visibility if visibility in VISIBILITY_LEVELS
-                and visibility != VISIBILITY_LEVELS[0] else None)
+            # None means "no opinion", which reads as public. Anything the
+            # organization does not recognise falls back to what is stored
+            # rather than to that, so a form that cannot express a tier
+            # cannot quietly unlock a section gated to one.
+            stored = g.org.type_visibility(type_slug)
+            chosen = _submitted_visibility(stored)
+            settings['visibility'] = (None if chosen == VISIBILITY_LEVELS[0]
+                                      else chosen)
         if 'tease' in request.form:
             settings['tease'] = {'yes': True, 'no': False}.get(
                 request.form['tease'])
@@ -692,10 +700,18 @@ def members():
                    .join(Membership.user).order_by(User.name).all())
     invitations = (Invitation.query
                    .order_by(Invitation.created_at.desc()).limit(20).all())
+    from app.models import Tier
     from app.platform.mailer import is_email_configured
-    return render_device_template('manage/members.html', members=member_list,
-                           invitations=invitations,
-                           email_configured=is_email_configured())
+    all_tiers = Tier.in_order(include_retired=True)
+    return render_device_template(
+        'manage/members.html', members=member_list, invitations=invitations,
+        # Two lists, deliberately. A picker offers what may be chosen
+        # afresh; a member's own row has to show the rung they are actually
+        # on, retired or not, or one Save on that row moves them off it
+        # without anybody meaning to.
+        tiers=[tier for tier in all_tiers if tier.is_active],
+        all_tiers=all_tiers,
+        email_configured=is_email_configured())
 
 
 @bp.route('/members/add', methods=['POST'])
@@ -709,7 +725,9 @@ def add_member():
         flash(t('members.user_not_found', email=email), 'error')
     else:
         try:
-            Membership.add(user.id, g.org.id, role=_granted_role())
+            tier = _chosen_tier()
+            Membership.add(user.id, g.org.id, role=_granted_role(),
+                           tier_id=tier.id if tier else None)
             flash(t('admin.member_added', email=email), 'success')
         except ValidationError as e:
             flash(e.message, 'error')
@@ -731,8 +749,16 @@ def _granted_role(default: str = 'member') -> str:
     return role
 
 
+# A bigint column holds this much and no more. Flask's <int:> converter
+# puts no ceiling on a path segment, so without this a long enough number
+# reaches the driver and raises there, which is a 500 rather than a 404.
+MAX_ROW_ID = 2 ** 63
+
+
 def _own_membership(membership_id):
     from app.models import Membership
+    if not 0 < membership_id < MAX_ROW_ID:
+        abort(404)
     membership = db.session.get(Membership, membership_id)
     if membership is None or membership.org_id != g.org.id:
         abort(404)
@@ -830,6 +856,172 @@ def member_transfer(membership_id):
     return redirect(url_for('manage.members'))
 
 
+# --- Tiers ------------------------------------------------------------------
+
+def _submitted_visibility(stored: str | None) -> str:
+    """The visibility the form asked for, or what is already stored.
+
+    For editing something that already has one. Every form carrying this
+    field is a select built from authz.visibility_choices, so an
+    unrecognised value means either a crafted post or a form rendered
+    before a tier was retired. Falling back to what is stored is the safe
+    direction: the alternative is defaulting to public, which turns "for
+    Pro members" into "for anyone" because somebody saved a title.
+
+    Not for creating something, where there is nothing to fall back to and
+    a value the vocabulary does not know should be reported by validate
+    rather than silently replaced.
+    """
+    submitted = request.form.get('visibility')
+    if submitted and visibility_is_valid(submitted):
+        return submitted
+    if stored is None:
+        # Nothing to fall back to: this row is being created. Hand the
+        # value on and let validate refuse it, rather than substituting a
+        # default that reads as public.
+        return submitted or VISIBILITY_LEVELS[0]
+    return stored
+
+
+def _chosen_tier(*, held_by=None) -> 'Tier | None':
+    """The tier named by the form's `tier_id`, or None when it is absent.
+
+    The value comes from a form and a form is whatever the browser sends,
+    so both rules the templates draw are enforced again here. Another
+    organization's tier is refused (Membership.validate refuses it too, so
+    this is the message rather than the guard). A retired tier is refused
+    as well, except for the one membership already standing on it: the
+    Members page has to offer that rung so saving the row does not move
+    somebody off it, and that is the only place a retired tier is a legal
+    answer.
+    """
+    from app.models import Tier
+    raw = (request.form.get('tier_id') or '').strip()
+    if not raw:
+        return None
+    try:
+        # isdigit() alone is true of Unicode digits int() will not take.
+        tier_id = int(raw)
+    except ValueError:
+        raise ValidationError(t('tiers.unknown')) from None
+    # And an integer wider than the column reaches the driver and
+    # overflows there, which is a 500 rather than a refusal.
+    if not 0 < tier_id < MAX_ROW_ID:
+        raise ValidationError(t('tiers.unknown'))
+    tier = Tier.query.filter_by(id=tier_id).first()
+    if tier is None:
+        raise ValidationError(t('tiers.unknown'))
+    if not tier.is_active and (held_by is None
+                               or held_by.tier_id != tier.id):
+        raise ValidationError(t('tiers.retired_not_offered'))
+    return tier
+
+
+@bp.route('/tiers')
+@org_required
+@require('members.manage')
+def tiers() -> ResponseReturnValue:
+    """The ladder: what a member may read, bottom rung first."""
+    from app.models import Tier
+    # Retired rungs included: this is the only page that can bring one
+    # back, and a tier that vanished from it would be unrecoverable.
+    ladder = Tier.in_order(include_retired=True)
+    held = Tier.member_counts(g.org.id)
+    return render_device_template(
+        'manage/tiers.html', tiers=ladder,
+        counts={tier.id: held.get(tier.id, 0) for tier in ladder})
+
+
+@bp.route('/tiers', methods=['POST'])
+@org_required
+@require('members.manage')
+def create_tier() -> ResponseReturnValue:
+    from app.models import Tier
+    try:
+        Tier.add(name=request.form.get('name', ''),
+                 slug=request.form.get('slug', ''))
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.tiers'))
+
+
+def _own_tier(tier_id: int) -> 'Tier':
+    from app.models import Tier
+    if not 0 < tier_id < MAX_ROW_ID:
+        abort(404)
+    tier = db.session.get(Tier, tier_id)
+    if tier is None or tier.org_id != g.org.id:
+        abort(404)
+    return tier
+
+
+@bp.route('/tiers/<int:tier_id>/rename', methods=['POST'])
+@org_required
+@require('members.manage')
+def rename_tier(tier_id: int) -> ResponseReturnValue:
+    try:
+        _own_tier(tier_id).rename(request.form.get('name', ''))
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.tiers'))
+
+
+@bp.route('/tiers/<int:tier_id>/move', methods=['POST'])
+@org_required
+@require('members.manage')
+def move_tier(tier_id: int) -> ResponseReturnValue:
+    """Reordering changes who can read what, so the page says so before
+    the button is pressed rather than after."""
+    direction = -1 if request.form.get('direction') == 'up' else 1
+    try:
+        _own_tier(tier_id).move(direction)
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.tiers'))
+
+
+@bp.route('/tiers/<int:tier_id>/toggle', methods=['POST'])
+@org_required
+@require('members.manage')
+def toggle_tier(tier_id: int) -> ResponseReturnValue:
+    """Retired, never deleted: members on it keep it, and content that
+    requires it still means what it meant."""
+    tier = _own_tier(tier_id)
+    try:
+        tier.restore() if not tier.is_active else tier.retire()
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.tiers'))
+
+
+@bp.route('/members/<int:membership_id>/tier', methods=['POST'])
+@org_required
+@require('members.manage')
+def member_tier(membership_id: int) -> ResponseReturnValue:
+    """An administrator may move anyone between tiers at any time, their
+    own membership included. A tier is not a permission: moving one grants
+    nothing but reading."""
+    try:
+        membership = _own_membership(membership_id)
+        tier = _chosen_tier(held_by=membership)
+        if tier is None:
+            raise ValidationError(t('tiers.unknown'))
+        membership.set_tier(tier)
+        flash(t('common.saved'), 'success')
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+    return redirect(url_for('manage.members'))
+
+
 @bp.route('/invitations', methods=['POST'])
 @org_required
 @require('members.manage')
@@ -838,8 +1030,10 @@ def create_invitation():
     from app.platform.mailer import try_send_email
     email = request.form.get('email', '').strip().lower() or None
     try:
+        tier = _chosen_tier()
         invitation, token = Invitation.create(
-            g.org.id, role=_granted_role(), email=email)
+            g.org.id, role=_granted_role(), email=email,
+            tier_id=tier.id if tier else None)
     except ValidationError as e:
         flash(e.message, 'error')
         return redirect(url_for('manage.members'))
@@ -1150,7 +1344,7 @@ def discussions():
         # The whole-area switch; per-group visibility still applies in
         # 'per_group' mode.
         value = request.form['area_visibility']
-        if value in DiscussionGroup.AREA_VISIBILITIES:
+        if value == 'per_group' or visibility_is_valid(value):
             g.org.update_settings(discussions_visibility=value)
             flash(t('common.saved'), 'success')
         return redirect(url_for('manage.discussions'))
@@ -1174,11 +1368,23 @@ def discussions():
 @org_required
 @require('content.moderate')
 def toggle_group_visibility(group_id):
-    """Lock/unlock one group (flips public <-> members)."""
+    """Set who may read one group.
+
+    A select rather than the two-state toggle this replaced. That toggle
+    could say public or members and nothing else, so a group gated to a
+    tier had no way back: pressing it would have flattened the tier into
+    one of the two, and refusing left the group gated for good.
+
+    The value is checked here as well as offered by the picker, because a
+    form is whatever the browser sends.
+    """
     from app.models.discussion import DiscussionGroup
     group = db.get_or_404(DiscussionGroup, group_id)
-    group.visibility = ('public' if group.visibility == 'members'
-                        else 'members')
+    chosen = request.form.get('visibility', '')
+    if not visibility_is_valid(chosen):
+        flash(t('manage.visibility_unknown'), 'error')
+        return redirect(url_for('manage.discussions'))
+    group.visibility = chosen
     # A flag flip on a row this request is not otherwise editing: a
     # description saved before the length rule must not block it.
     group.save_flag()

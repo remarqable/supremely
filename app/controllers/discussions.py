@@ -79,7 +79,8 @@ def index():
     page answers "what groups exist and how alive are they"."""
     if not DiscussionGroup.area_readable_by_current_visitor():
         # The org gated the whole area: one gate, no group names teased.
-        return render_gate(t('discussions.title'))
+        return render_gate(t('discussions.title'),
+                           visibility=DiscussionGroup.area_visibility())
     groups = _all_groups()
     # Post titles are gated content: recents and search only ever query
     # readable groups, while the listing (when teasing) shows gated ones
@@ -119,7 +120,8 @@ def index():
 def group(slug):
     group = _group_or_404(slug)
     if not group.readable_by_current_visitor():
-        return render_gate(group.name, kind=t('discussions.group'))
+        return render_gate(group.name, kind=t('discussions.group'),
+                           visibility=group.visibility)
     q = request.args.get('q', '').strip()
     query = _moderator_filter(Post.query.filter_by(group_id=group.id))
     if q:
@@ -204,7 +206,8 @@ def post(slug, post_id):
     group = _group_or_404(slug)
     if not group.readable_by_current_visitor():
         # Gate on the group without confirming the post: its title is gated.
-        return render_gate(group.name, kind=t('discussions.group'))
+        return render_gate(group.name, kind=t('discussions.group'),
+                           visibility=group.visibility)
     post = _post_or_404(group, post_id)
 
     replies = Reply.query.filter_by(post_id=post.id) \

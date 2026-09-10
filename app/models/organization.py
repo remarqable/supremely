@@ -69,12 +69,20 @@ class Organization(BaseModel):
         content (homepage, About, navigation, first post, General space),
         atomically."""
         from .membership import Membership
+        from .tier import Tier
         org = cls(name=name, slug=slug)
         org.validate()
         with transaction():
             db.session.add(org)
             db.session.flush()                       # need org.id
-            db.session.add(Membership(user_id=owner.id, org_id=org.id, role='owner'))
+            # Before the membership, which has to point at one. A community
+            # that never thinks about tiers has exactly this one and
+            # behaves as it did before tiers existed. Through the same
+            # method every other caller uses, so there is one answer to
+            # what a new organization's first tier looks like.
+            tier = Tier.ensure_default(org.id, created_by_id=owner.id)
+            db.session.add(Membership(user_id=owner.id, org_id=org.id,
+                                      role='owner', tier_id=tier.id))
             if seed_defaults:
                 from app.platform.defaults import seed_default_content
                 seed_default_content(db.session, org, owner_id=owner.id,
@@ -215,10 +223,21 @@ class Organization(BaseModel):
 
     def type_visibility(self, slug: str) -> str:
         """Who may read this whole section. Absent means public, and items
-        then decide for themselves."""
-        from app.platform.authz import VISIBILITY_LEVELS
+        then decide for themselves.
+
+        A tier value is taken at face value rather than checked against the
+        tier list: this is read on every request and a lookup per type
+        would cost a query per section. A value naming a tier that does not
+        exist fails closed in can_read, which is the same answer a query
+        here would have produced.
+        """
+        from app.platform.authz import TIER_PREFIX, VISIBILITY_LEVELS
         chosen = self.type_settings(slug).get('visibility')
-        return chosen if chosen in VISIBILITY_LEVELS else VISIBILITY_LEVELS[0]
+        if not isinstance(chosen, str):
+            return VISIBILITY_LEVELS[0]     # settings are a hand-editable blob
+        if chosen in VISIBILITY_LEVELS or chosen.startswith(TIER_PREFIX):
+            return chosen
+        return VISIBILITY_LEVELS[0]
 
     def type_teases(self, slug: str) -> bool:
         """Does a gated item of this type show as a locked title, or vanish?

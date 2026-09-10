@@ -139,8 +139,19 @@ def sync_db():
     import app.models  # noqa: F401  (populate db.metadata for create_all)
 
     db.create_all()
-    for name in _add_missing_columns():
+    added, skipped = _add_missing_columns()
+    for name in added:
         click.echo(f'Added column {name}')
+    if skipped:
+        # Stamping now would be a lie, and an expensive one: the database
+        # would claim to be at head while missing a column, and every later
+        # `flask db upgrade` would be a no-op that never fixed it. Leaving
+        # the stamp where it is keeps the migration path open, which is the
+        # way out of exactly this state.
+        click.echo(f'Schema NOT synced: {", ".join(skipped)} could not be '
+                   'added, so the stamp is left alone. Run `flask db upgrade` '
+                   'if a migration covers this, or `make reset` to start over.')
+        return
     try:
         stamp(purge=True)       # so a later `flask db upgrade` is a clean no-op
     except Exception as exc:    # noqa: BLE001 -- a missing migrations dir shouldn't block dev
@@ -149,21 +160,24 @@ def sync_db():
     click.echo('Schema synced from models (create_all) and stamped at head.')
 
 
-def _add_missing_columns() -> list[str]:
+def _add_missing_columns() -> tuple[list[str], list[str]]:
     """Additive column sync behind `dev sync-db`: create_all never touches an
     existing table, so a new model column used to force `make reset` (and lose
     the dev data). A column on the model but not in the database is added with
     ALTER TABLE ADD COLUMN — type, NOT NULL, and a literal DEFAULT so existing
-    rows get the model's scalar default. Anything this can't express (a
-    non-scalar default on a NOT NULL column, type changes, drops, renames)
-    is reported and still needs `make reset`. Dev convenience only: the DDL
-    skips FK constraints, and prod stays on migrations.
+    rows get the model's scalar default. Dev convenience only: the DDL skips
+    FK constraints, and prod stays on migrations.
+
+    Returns (added, skipped). The second list is the important one: anything
+    this cannot express (a NOT NULL column with no scalar default, type
+    changes, drops, renames) leaves the database short of what the models
+    describe, and the caller must not then stamp it as being at head.
     """
     import sqlalchemy as sa
 
     inspector = sa.inspect(db.engine)
     preparer = db.engine.dialect.identifier_preparer
-    added = []
+    added, skipped = [], []
     for table in db.metadata.sorted_tables:
         if not inspector.has_table(table.name):
             continue                      # create_all just made it, complete
@@ -175,12 +189,13 @@ def _add_missing_columns() -> list[str]:
             if ddl is None:
                 click.echo(f'!! cannot add {table.name}.{column.name} '
                            'automatically (no scalar default for a NOT NULL '
-                           'column) — run `make reset`')
+                           'column)')
+                skipped.append(f'{table.name}.{column.name}')
                 continue
             db.session.execute(sa.text(ddl))
             added.append(f'{table.name}.{column.name}')
     db.session.commit()
-    return added
+    return added, skipped
 
 
 def _add_column_ddl(preparer, table_name: str, column) -> str | None:

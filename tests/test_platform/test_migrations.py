@@ -111,6 +111,48 @@ def test_sync_db_adds_a_column_the_table_is_missing(app, runner):
     assert 'presentation' in columns
 
 
+def test_sync_db_refuses_to_stamp_a_schema_it_could_not_finish(app, runner):
+    """The column it cannot add is the one that matters.
+
+    `dev sync-db` builds what it can and stamps the database at head, so a
+    later `flask db upgrade` is a clean no-op. A column it cannot express
+    (NOT NULL with no scalar default) used to be reported and then stamped
+    over anyway: the database then claimed to be at head while missing a
+    column, and every `flask db upgrade` afterwards was a no-op that never
+    fixed it. The way out of that state is the migration path, so the stamp
+    has to be left alone.
+
+    Dropping content.title here rather than the membership.tier_id that
+    found this, because SQLite refuses to drop a column a foreign key names.
+    A required foreign key is the ordinary way to arrive at this state; the
+    branch it takes is the same one.
+    """
+    import sqlalchemy as sa
+
+    from app.extensions import db
+
+    def stamp():
+        """The recorded revision, or None when nothing has stamped yet.
+        The suite builds its schema from the models, so there is no
+        alembic_version table until something writes one."""
+        if not sa.inspect(db.engine).has_table('alembic_version'):
+            return None
+        return db.session.execute(
+            sa.text('SELECT version_num FROM alembic_version')).scalar()
+
+    before = stamp()
+    db.session.execute(sa.text('ALTER TABLE content DROP COLUMN title'))
+    db.session.commit()
+
+    result = runner.invoke(args=['dev', 'sync-db'])
+    assert result.exit_code == 0, result.output
+    assert 'content.title' in result.output
+    assert 'NOT synced' in result.output
+    assert 'flask db upgrade' in result.output
+
+    assert stamp() == before, 'an unfinished schema was stamped as migrated'
+
+
 def test_an_organization_keeps_the_sections_it_was_already_using(migrated_app):
     """Grandfathering, which is the part of this migration that matters.
 

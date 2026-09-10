@@ -1,5 +1,5 @@
 {% extends 'manage/_layout.html' %}
-{% from 'partials/_ui.html' import back_link, image_chooser, status_badge with context %}
+{% from 'partials/_ui.html' import back_link, image_chooser, status_badge, visibility_select with context %}
 {% from 'manage/_field_widgets.html' import widget with context %}
 
 {% block manage_content %}
@@ -195,10 +195,7 @@
     <div class="card space-y-4">
       <div>
         <label for="visibility" class="label">{{ _('manage.visibility') }}</label>
-        <select id="visibility" name="visibility" class="select mt-1">
-          <option value="public" {{ 'selected' if content and content.visibility == 'public' }}>{{ _('manage.visibility_public') }}</option>
-          <option value="members" {{ 'selected' if content and content.visibility == 'members' }}>{{ _('manage.visibility_members') }}</option>
-        </select>
+        {{ visibility_select('visibility', content.visibility if content else 'public') }}
       </div>
 
       {% if content_type.is_page %}

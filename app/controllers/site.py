@@ -65,9 +65,11 @@ def _render_page(content):
     ct = content.content_type
     if not Content.section_readable_by_current_visitor(ct.slug):
         # Section locked: gate the section, the way the archive does.
-        return render_gate(ct.plural, type_slug=ct.slug)
+        return render_gate(ct.plural, type_slug=ct.slug,
+                           visibility=Content.type_visibility(ct.slug))
     if not content.visible_to_current_visitor():
         return render_gate(content.title, kind=ct.singular,
+                           visibility=content.visibility,
                            type_slug=ct.slug,
                            teaser=content.excerpt)
     # A row written before this rule existed can still hold anything.
@@ -91,7 +93,8 @@ def _render_archive(ct, title=None, category=None, query=None):
     """
     if not Content.section_readable_by_current_visitor(ct.slug):
         # The whole section is locked: one gate, no item titles teased.
-        return render_gate(ct.plural, type_slug=ct.slug)
+        return render_gate(ct.plural, type_slug=ct.slug,
+                           visibility=Content.type_visibility(ct.slug))
     page_number = request.args.get('page', 1, type=int)
     listing = Content.visible_query(ct.slug) if query is None else query
     pagination = listing.paginate(page=page_number, per_page=PER_PAGE,
@@ -109,9 +112,11 @@ def _render_archive(ct, title=None, category=None, query=None):
 def _render_single(ct, content):
     if not Content.section_readable_by_current_visitor(ct.slug):
         # Section locked: gate the section, the way the archive does.
-        return render_gate(ct.plural, type_slug=ct.slug)
+        return render_gate(ct.plural, type_slug=ct.slug,
+                           visibility=Content.type_visibility(ct.slug))
     if not content.visible_to_current_visitor():
         return render_gate(content.title, kind=ct.singular,
+                           visibility=content.visibility,
                            type_slug=ct.slug,
                            teaser=content.excerpt)
     # Specificity order, and symmetric with archives: this item, then this
@@ -143,7 +148,8 @@ def archive_category(seg, cslug):
     if ct is None:
         abort(404)
     if not Content.section_readable_by_current_visitor(ct.slug):
-        return render_gate(ct.plural, type_slug=ct.slug)
+        return render_gate(ct.plural, type_slug=ct.slug,
+                           visibility=Content.type_visibility(ct.slug))
     category = Category.get_by_slug(cslug)
     if category is None:
         abort(404)
@@ -160,7 +166,8 @@ def archive_tag(seg, tag):
     if not Content.section_readable_by_current_visitor(ct.slug):
         # type_slug, so a single type's own teasing switch decides how
         # this refusal looks, not only the organization-wide one.
-        return render_gate(ct.plural, type_slug=ct.slug)
+        return render_gate(ct.plural, type_slug=ct.slug,
+                           visibility=Content.type_visibility(ct.slug))
     return _render_archive(ct, title=f'#{tag}',
                            query=Content.with_tag(ct.slug, tag))
 
@@ -204,10 +211,13 @@ def child_single(pseg: str, pslug: str, cseg: str, cslug: str) -> ResponseReturn
     if parent is None:
         abort(404)
     if not Content.section_readable_by_current_visitor(parent_type.slug):
-        return render_gate(parent_type.plural, type_slug=parent_type.slug)
+        return render_gate(parent_type.plural, type_slug=parent_type.slug,
+                           visibility=Content.type_visibility(
+                               parent_type.slug))
     if not parent.visible_to_current_visitor():
         return render_gate(parent.title, kind=parent_type.singular,
-                           type_slug=parent_type.slug, teaser=parent.excerpt)
+                           type_slug=parent_type.slug, teaser=parent.excerpt,
+                           visibility=parent.visibility)
     child = Content.query.filter_by(
         parent_id=parent.id, type=child_type.slug, status='published',
         slug=(cslug or '').strip().lower()).first()

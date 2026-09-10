@@ -207,3 +207,19 @@
 </div>
 {% endif %}
 {% endmacro %}
+
+{# Who may read this. The one picker for content, a content type, and a
+   discussion group, built from authz.visibility_choices so a tier added
+   in Manage appears in all of them at once and none of them can drift.
+
+   `current` keeps a value the picker would not otherwise offer, which is
+   how a retired tier stays selected on something already gated to it:
+   without that the select comes up with nothing chosen and the next save
+   quietly makes the item public. #}
+{% macro visibility_select(name, current, id=None, extra=None, cls='select mt-1') %}
+<select id="{{ id or name }}" name="{{ name }}" class="{{ cls }}">
+  {% for value, label, selected in visibility_options(current, extra) %}
+  <option value="{{ value }}" {{ 'selected' if selected }}>{{ label }}</option>
+  {% endfor %}
+</select>
+{% endmacro %}

@@ -28,7 +28,7 @@
           {% else %}{{ item.permalink }}{% endif %}
         </td>
         <td>{{ status_badge(item.status) }}</td>
-        <td class="text-slate-500">{{ _('manage.visibility_' + item.visibility) }}</td>
+        <td class="text-slate-500">{{ visibility_label(item.visibility) }}</td>
         <td>
           <div class="flex justify-end gap-3">
             <a href="{{ url_for('manage.preview_content', content_id=item.id) }}" class="text-sm text-slate-500 hover:text-slate-900">{{ _('manage.preview') }}</a>

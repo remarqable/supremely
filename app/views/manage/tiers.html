@@ -1,0 +1,104 @@
+{% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import page_header with context %}
+
+{# The ladder: what a member may read, bottom rung first. A tier is not a
+   permission and grants nothing but reading; what a member may *do* is
+   their role, on the Members page. #}
+
+{% block manage_content %}
+{{ page_header(_('manage.tiers'), _('manage.tiers_hint')) }}
+
+<p class="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800 ring-1 ring-amber-200">
+  {{ _('tiers.reorder_warning') }}
+</p>
+
+<div class="card mb-4 overflow-x-auto">
+  <table class="table-plain">
+    <thead>
+      <tr>
+        <th>{{ _('tiers.name') }}</th>
+        <th>{{ _('tiers.slug') }}</th>
+        <th class="w-20">{{ _('tiers.members') }}</th>
+        <th class="w-24">{{ _('common.status') }}</th>
+        <th class="w-40 text-end">{{ _('common.actions') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tier in tiers %}
+      <tr class="{{ 'opacity-60' if not tier.is_active }}">
+        <td>
+          <form method="POST" action="{{ url_for('manage.rename_tier', tier_id=tier.id) }}"
+                class="flex items-center gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="text" name="name" value="{{ tier.name }}" class="input w-40"
+                   aria-label="{{ _('tiers.name') }}">
+            <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
+          </form>
+        </td>
+        {# The slug is what every gated item points at, so it is shown and
+           never edited: changing it would be a rewrite of every one. #}
+        <td class="font-mono text-xs text-slate-500">{{ tier.slug }}</td>
+        <td class="text-slate-600">{{ counts[tier.id] }}</td>
+        <td>
+          {% if tier.is_active %}
+          <span class="badge-slate">{{ _('tiers.active') }}</span>
+          {% else %}
+          <span class="badge-slate">{{ _('tiers.retired') }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% set rung = loop %}
+          <div class="flex items-center justify-end gap-1">
+            {# No confirmation dialog: the content policy here allows no
+               inline script, so an onsubmit would never run and would look
+               like it did. The warning above the table says it instead. #}
+            {% for direction, arrow, label, edge in
+                 (('up', '↑', 'manage.move_up', rung.first),
+                  ('down', '↓', 'manage.move_down', rung.last)) %}
+            <form method="POST" action="{{ url_for('manage.move_tier', tier_id=tier.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="direction" value="{{ direction }}">
+              <button type="submit"
+                      class="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:invisible"
+                      {{ 'disabled' if edge }}>
+                <span aria-hidden="true">{{ arrow }}</span>
+                <span class="sr-only">{{ _(label) }}</span>
+              </button>
+            </form>
+            {% endfor %}
+            <form method="POST" action="{{ url_for('manage.toggle_tier', tier_id=tier.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="btn-secondary">
+                {{ _('tiers.restore') if not tier.is_active else _('tiers.retire') }}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2 class="section-title mb-3">{{ _('tiers.add') }}</h2>
+  {# The hint sits under the row rather than under one field: inside it,
+     that field grows taller than its neighbour and the two inputs stop
+     lining up. #}
+  <form method="POST" action="{{ url_for('manage.create_tier') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="flex flex-wrap items-end gap-3">
+      <div>
+        <label for="tier_name" class="label">{{ _('tiers.name') }}</label>
+        <input id="tier_name" type="text" name="name" class="input mt-1 w-48" required>
+      </div>
+      <div>
+        <label for="tier_slug" class="label">{{ _('tiers.slug') }}</label>
+        <input id="tier_slug" type="text" name="slug" class="input mt-1 w-48"
+               aria-describedby="tier_slug_hint" required>
+      </div>
+      <button type="submit" class="btn-primary">{{ _('tiers.add') }}</button>
+    </div>
+    <p id="tier_slug_hint" class="mt-2 text-xs text-slate-500">{{ _('tiers.slug_hint') }}</p>
+  </form>
+</div>
+{% endblock %}

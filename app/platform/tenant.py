@@ -370,9 +370,19 @@ def _stamp_org(session, _ctx, _instances):
 
 @contextmanager
 def unscoped():
-    """Disable tenant filtering. Every use should be justified in review."""
+    """Disable tenant filtering. Every use should be justified in review.
+
+    Nests. Restoring what was there rather than clearing the flag matters
+    now that one of these sits on the Membership.add path: an outer block
+    would otherwise lose its scoping the moment an inner one finished, and
+    silently, in the direction of seeing more.
+    """
+    previous = db.session.info.get('unscoped')
     db.session.info['unscoped'] = True
     try:
         yield
     finally:
-        db.session.info.pop('unscoped', None)
+        if previous is None:
+            db.session.info.pop('unscoped', None)
+        else:
+            db.session.info['unscoped'] = previous

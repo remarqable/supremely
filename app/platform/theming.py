@@ -456,7 +456,8 @@ def shell_layout() -> str:
 
 
 def render_gate(title: str, kind: str | None = None,
-                type_slug: str | None = None, teaser: str | None = None):
+                type_slug: str | None = None, teaser: str | None = None,
+                visibility: str | None = None):
     """The members-only gate: a friendly 200 page for an object the visitor
     may know exists but cannot read. Tease-don't-hide is the default stance —
     gated items appear in public lists as locked titles, and clicking one
@@ -482,8 +483,14 @@ def render_gate(title: str, kind: str | None = None,
     # The teaser is author-written and offered on purpose. Truncating the
     # gated body instead would advertise membership with the first two
     # sentences of something, cut mid-word.
+    # A reader already signed in and still refused needs to know what
+    # would fix it, and the name of the tier is the only useful thing to
+    # tell them. Nothing to click yet: there is nowhere to buy it until
+    # payments land.
+    from app.platform.authz import tier_name
     return render_site(['gate.html'], gate_title=title, gate_kind=kind,
-                       gate_teaser=teaser, login_next=request.path)
+                       gate_teaser=teaser, login_next=request.path,
+                       gate_tier=tier_name(visibility or ''))
 
 
 # Surfaces that are not part of an organization's site at all. They render

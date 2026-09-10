@@ -12,7 +12,6 @@ import re
 from flask_login import current_user
 
 from app.extensions import db
-from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 
 from .base import (
@@ -41,14 +40,19 @@ class DiscussionGroup(OrgScoped, BaseModel):
     #   per_group — each group's own visibility applies (the default)
     #   public    — the whole area is public, group settings notwithstanding
     #   members   — the whole area is members-only
-    AREA_VISIBILITIES = ('per_group', 'public', 'members')
+    # The org-wide switch holds 'per_group' or any visibility value,
+    # tiers included. There is no tuple of them: which values are legal
+    # depends on which organization is asking, so the check is
+    # authz.visibility_is_valid rather than a constant.
 
     name = db.Column(db.String(100), nullable=False)
     slug = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(500), nullable=True)
     # public: anyone can read; members: org members only. Posting is always
     # members-only.
-    visibility = db.Column(db.String(10), nullable=False, default='members')
+    # Wide enough for `tier:<slug>` as well as the base levels
+    # (app/platform/authz.py).
+    visibility = db.Column(db.String(40), nullable=False, default='members')
     position = db.Column(db.Integer, nullable=False, default=0)
 
     __table_args__ = (
@@ -67,7 +71,8 @@ class DiscussionGroup(OrgScoped, BaseModel):
             raise ValidationError('Description too long (max 500 chars)')
         if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,98})?', self.slug):
             raise ValidationError('Slug must be lowercase letters, numbers, hyphens')
-        if self.visibility not in VISIBILITY_LEVELS:
+        from app.platform.authz import visibility_is_valid
+        if not visibility_is_valid(self.visibility, self.org_id):
             raise ValidationError('Invalid visibility')
         existing = scoped_to_own_org(
             DiscussionGroup.query.filter_by(slug=self.slug), self).first()
@@ -76,11 +81,22 @@ class DiscussionGroup(OrgScoped, BaseModel):
 
     @classmethod
     def area_visibility(cls) -> str:
-        """The org-wide discussions setting for the current tenant."""
+        """The org-wide discussions setting for the current tenant.
+
+        A stored value is checked with visibility_is_valid, not against the
+        picker: a retired tier is still a legal answer here. Clamping to
+        what may be newly chosen would make retiring a tier reopen the
+        whole area to whoever the fallback lets in, which is the one
+        direction a mistake here must never go.
+        """
         from flask import g
+
+        from app.platform.authz import visibility_is_valid
         org = getattr(g, 'org', None)
         value = org.setting('discussions_visibility') if org else None
-        return value if value in cls.AREA_VISIBILITIES else 'per_group'
+        if value == 'per_group':
+            return value
+        return value if visibility_is_valid(value or '') else 'per_group'
 
     # The group a "Discuss this" thread lands in when nobody has chosen one.
     # Seeded on every new community (app/platform/community_seed.py), and the
@@ -110,21 +126,22 @@ class DiscussionGroup(OrgScoped, BaseModel):
     @classmethod
     def area_readable_by_current_visitor(cls) -> bool:
         """Can the current visitor see the discussions area at all? False
-        only when the org gated the whole area and the visitor is neither a
-        member nor a platform admin."""
-        from app.platform.authz import is_member_or_platform_admin
-        if is_member_or_platform_admin():
-            return True
-        return cls.area_visibility() != 'members'
+        only when the org gated the whole area beyond what this visitor
+        holds."""
+        from app.platform.authz import can_read
+        area = cls.area_visibility()
+        return area == 'per_group' or can_read(area)
 
     def readable_by_current_visitor(self) -> bool:
-        from app.platform.authz import is_member_or_platform_admin
-        if is_member_or_platform_admin():
-            return True
+        """This group, under the org-wide switch above it.
+
+        The area switch overrides each group when it is set to anything but
+        per_group, which is what lets an organization close or open the
+        whole area in one move.
+        """
+        from app.platform.authz import can_read
         area = self.area_visibility()
-        if area != 'per_group':
-            return area == 'public'
-        return self.visibility == 'public'
+        return can_read(self.visibility if area == 'per_group' else area)
 
     @classmethod
     def in_order(cls):

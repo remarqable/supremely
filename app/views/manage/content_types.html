@@ -1,5 +1,5 @@
 {% extends 'manage/_layout.html' %}
-{% from 'partials/_ui.html' import page_header with context %}
+{% from 'partials/_ui.html' import page_header, visibility_select with context %}
 
 {% block manage_content %}
 <div>
@@ -76,11 +76,8 @@
           {% if ct.base %}
           <label class="block text-sm" x-show="enabled" x-cloak>
             <span class="text-xs text-slate-500">{{ _('manage.ct_who_can_read') }}</span>
-            <select name="visibility" class="select mt-0.5">
-              {% for level in visibility_levels %}
-              <option value="{{ level }}" {{ 'selected' if org.type_visibility(ct.slug) == level }}>{{ _('manage.visibility_' ~ level) }}</option>
-              {% endfor %}
-            </select>
+            {{ visibility_select('visibility', org.type_visibility(ct.slug),
+                                 id='visibility_' ~ ct.slug) }}
           </label>
 
           <label class="block text-sm" x-show="enabled" x-cloak>

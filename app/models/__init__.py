@@ -13,6 +13,7 @@ from .notification import Notification
 from .org_plugin import OrgPlugin
 from .organization import Organization
 from .setting import InstallationSetting
+from .tier import Tier
 from .upload import Upload
 from .user import User
 
@@ -41,6 +42,7 @@ __all__ = [
     'Reaction',
     'Reply',
     'Subscriber',
+    'Tier',
     'Upload',
     'User',
     'transaction',

@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 
 from app.extensions import db
-from app.platform.authz import VISIBILITY_LEVELS
 from app.platform.errors import ValidationError
 from app.platform.theming import PAGE_TEMPLATE_RE
 
@@ -183,7 +182,9 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     fields = db.Column(JSONColumn, nullable=False, default=dict)
     tags = db.Column(JSONColumn, nullable=False, default=list)
     status = db.Column(db.String(10), nullable=False, default='draft')
-    visibility = db.Column(db.String(10), nullable=False, default='public')
+    # Wide enough for `tier:<slug>` as well as the base levels
+    # (app/platform/authz.py).
+    visibility = db.Column(db.String(40), nullable=False, default='public')
     published_at = db.Column(TZDateTime, nullable=True)
     template = db.Column(db.String(50), nullable=True)   # page-type override
     # Where a standalone page presents: 'site' renders through the theme
@@ -234,7 +235,6 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
     resolves_directives = True
 
     STATUSES = ('draft', 'published', 'archived')
-    VISIBILITIES = VISIBILITY_LEVELS   # single source: app.platform.authz
     PRESENTATIONS = ('site', 'community')
 
     @classmethod
@@ -320,7 +320,8 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
             raise ValidationError(f'Unknown content type: {self.type}')
         if self.status not in self.STATUSES:
             raise ValidationError('Invalid status')
-        if self.visibility not in self.VISIBILITIES:
+        from app.platform.authz import visibility_is_valid
+        if not visibility_is_valid(self.visibility, self.org_id):
             raise ValidationError('Invalid visibility')
         self.presentation = self.presentation or 'site'
         if self.presentation not in self.PRESENTATIONS:
@@ -689,20 +690,16 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
 
     @classmethod
     def section_readable_by_current_visitor(cls, type_slug: str) -> bool:
-        from app.platform.authz import is_member_or_platform_admin
-        if is_member_or_platform_admin():
-            return True
-        return cls.type_visibility(type_slug) == 'public'
+        from app.platform.authz import can_read
+        return can_read(cls.type_visibility(type_slug))
 
     def visible_to_current_visitor(self) -> bool:
         # A locked section gates every item in it, item settings
-        # notwithstanding (mirrors the discussions area switch).
-        if not Content.section_readable_by_current_visitor(self.type):
-            return False
-        if self.visibility == 'public':
-            return True
-        from app.platform.authz import is_member_or_platform_admin
-        return is_member_or_platform_admin()
+        # notwithstanding (mirrors the discussions area switch). Both
+        # questions are the same question, asked of two values.
+        from app.platform.authz import can_read
+        return (Content.section_readable_by_current_visitor(self.type)
+                and can_read(self.visibility))
 
     # --- queries -----------------------------------------------------------
 
@@ -820,14 +817,15 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         """
         from flask import g
 
-        from app.platform.authz import is_member_or_platform_admin
+        from app.platform.authz import readable_visibilities
         query = cls.published_query(type_slug)
         org = getattr(g, 'org', None)
         if org and org.type_teases(type_slug):
             return query
-        if is_member_or_platform_admin():
+        readable = readable_visibilities()
+        if readable is None:            # reads everything, tiers included
             return query
-        return query.filter_by(visibility='public')
+        return query.filter(cls.visibility.in_(readable))
 
     # A theme asks for "recent articles" without saying how many; this is how
     # many it gets, and the ceiling on how many it can ask for. A front page
@@ -915,17 +913,28 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
                     and self.created_by_id == current_user.id)
 
     @classmethod
-    def upcoming_event(cls, public_only=False):
-        """The next published event dated today or later. Event dates live in
-        the structured `fields` JSON, so the (few) events are filtered in
-        Python."""
+    def upcoming_event(cls) -> 'Content | None':
+        """The next published event the current visitor may read, dated
+        today or later. Event dates live in the structured `fields` JSON,
+        so the (few) events are filtered in Python.
+
+        No parameter. It took one called public_only, which the only caller
+        passed as "is this visitor not a member": true enough while any
+        member could read anything members-only, and wrong the moment a
+        tier could sit between two members. An administrator is unfiltered
+        here the same way they are everywhere else, because
+        readable_visibilities answers None for them.
+        """
         from datetime import date
+
+        from app.platform.authz import can_read, readable_visibilities
         today = date.today().isoformat()
-        if public_only and cls.type_visibility('event') != 'public':
+        if not can_read(cls.type_visibility('event')):
             return None
         query = cls.published_query('event')
-        if public_only:
-            query = query.filter_by(visibility='public')
+        readable = readable_visibilities()
+        if readable is not None:
+            query = query.filter(cls.visibility.in_(readable))
         events = [(event.fields.get('starts_on'), event)
                   for event in query.limit(50).all()
                   if (event.fields or {}).get('starts_on', '') >= today]

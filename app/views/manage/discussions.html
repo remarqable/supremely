@@ -1,5 +1,5 @@
 {% extends 'manage/_layout.html' %}
-{% from 'partials/_ui.html' import page_header, empty_state with context %}
+{% from 'partials/_ui.html' import page_header, empty_state, visibility_select with context %}
 
 {% block manage_content %}
 {% call page_header(_('manage.discussion_groups')) %}
@@ -11,11 +11,11 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="min-w-0 flex-1">
       <label for="area_visibility" class="label">{{ _('manage.discussions_visibility') }}</label>
-      <select id="area_visibility" name="area_visibility" class="select mt-1">
-        <option value="per_group" {{ 'selected' if area == 'per_group' }}>{{ _('manage.area_per_group') }}</option>
-        <option value="public" {{ 'selected' if area == 'public' }}>{{ _('manage.area_public') }}</option>
-        <option value="members" {{ 'selected' if area == 'members' }}>{{ _('manage.area_members') }}</option>
-      </select>
+      {# per_group first, then the same vocabulary every other picker
+         offers: the switch either defers to each group or overrides them
+         all with one answer. #}
+      {{ visibility_select('area_visibility', area, id='area_visibility',
+                           extra=[('per_group', _('manage.area_per_group'))]) }}
       <p class="mt-1.5 text-xs text-slate-500">{{ _('manage.discussions_visibility_hint') }}</p>
     </div>
     <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
@@ -36,7 +36,7 @@
         <option value="">{{ _('manage.content_discussion_group_default') }}</option>
         {% for group in groups %}
         <option value="{{ group.slug }}" {{ 'selected' if thread_group == group.slug }}>
-          {{ group.name }}{% if group.visibility == 'members' %} — {{ _('manage.visibility_members') }}{% endif %}</option>
+          {{ group.name }}{% if group.visibility != 'public' %} — {{ visibility_label(group.visibility) }}{% endif %}</option>
         {% endfor %}
       </select>
       <p class="mt-1.5 text-xs text-slate-500">{{ _('manage.content_discussion_group_hint') }}</p>
@@ -62,7 +62,7 @@
       <tr>
         <td class="font-medium text-slate-900">{{ group.name }}</td>
         <td class="font-mono text-xs text-slate-500">/discussions/{{ group.slug }}</td>
-        <td><span class="badge-slate">{{ _('manage.visibility_' + group.visibility) }}</span></td>
+        <td><span class="badge-slate">{{ visibility_label(group.visibility) }}</span></td>
         <td class="whitespace-nowrap text-center">
           <div class="inline-flex items-center gap-1">
             <form method="POST" action="{{ url_for('manage.move_group', group_id=group.id) }}">
@@ -79,10 +79,13 @@
         </td>
         <td class="whitespace-nowrap">
           <div class="flex items-center justify-end gap-4">
-            <form method="POST" action="{{ url_for('manage.toggle_group_visibility', group_id=group.id) }}" class="w-40">
+            <form method="POST" action="{{ url_for('manage.toggle_group_visibility', group_id=group.id) }}"
+                  class="flex items-center gap-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button type="submit" class="text-slate-500 hover:text-slate-900">
-                {{ _('manage.unlock_section') if group.visibility == 'members' else _('manage.lock_section') }}</button>
+              {{ visibility_select('visibility', group.visibility,
+                                   id='visibility_' ~ group.id,
+                                   cls='select w-36') }}
+              <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
             </form>
             <form method="POST" action="{{ url_for('manage.delete_group', group_id=group.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -114,10 +117,7 @@
       </div>
       <div>
         <label for="visibility" class="label">{{ _('manage.visibility') }}</label>
-        <select id="visibility" name="visibility" class="select mt-1">
-          <option value="members">{{ _('manage.visibility_members') }}</option>
-          <option value="public">{{ _('manage.visibility_public') }}</option>
-        </select>
+        {{ visibility_select('visibility', 'members') }}
       </div>
     </div>
     <div>

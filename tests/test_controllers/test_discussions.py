@@ -198,21 +198,37 @@ def test_area_public_opens_members_groups(app, client, acme, globex, user):
     assert b'Open to all now' in listing.data
 
 
-def test_manage_group_lock_toggle(app, client, acme, globex, user):
+def test_manage_group_visibility_is_set_from_a_picker(app, client, acme,
+                                                      globex, user):
+    """It was a two-state toggle. Membership tiers gave visibility a third
+    state, and a toggle can neither reach one nor come back from it."""
     group = make_group(app, acme, visibility='members')
     group_id = group.id
     login_as(client, user)                       # acme's owner
     response = client.post(f'/manage/discussions/{group_id}/visibility',
-                           base_url=ACME)
+                           base_url=ACME, data={'visibility': 'public'})
     assert response.status_code == 302
     with app.test_request_context():
         g.org = acme
         assert db.session.get(DiscussionGroup, group_id).visibility == 'public'
-    client.post(f'/manage/discussions/{group_id}/visibility', base_url=ACME)
+    client.post(f'/manage/discussions/{group_id}/visibility', base_url=ACME,
+                data={'visibility': 'members'})
     with app.test_request_context():
         g.org = acme
         assert db.session.get(DiscussionGroup,
                               group_id).visibility == 'members'
+
+
+def test_a_visibility_the_community_does_not_have_is_refused(app, client,
+                                                             acme, user):
+    group = make_group(app, acme, visibility='members')
+    login_as(client, user)
+    client.post(f'/manage/discussions/{group.id}/visibility', base_url=ACME,
+                data={'visibility': 'tier:nonesuch'})
+    with app.test_request_context():
+        g.org = acme
+        assert db.session.get(DiscussionGroup,
+                              group.id).visibility == 'members'
 
 
 def test_manage_group_reorder(app, client, acme, globex, user):

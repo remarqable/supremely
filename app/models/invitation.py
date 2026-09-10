@@ -23,6 +23,12 @@ class Invitation(OrgScoped, AuditMixin, BaseModel):
 
     email = db.Column(db.String(255), nullable=True)    # informational
     role = db.Column(db.String(20), nullable=False, default='member')
+    # The tier the new member lands on. Nullable, unlike membership's,
+    # because an invitation written before tiers existed has none and must
+    # still work; those are the only null ones, since a tier is retired
+    # rather than deleted and SET NULL only fires on a delete.
+    tier_id = db.Column(BigIntFK, db.ForeignKey('tier.id', ondelete='SET NULL'),
+                        nullable=True)
     token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
     expires_at = db.Column(TZDateTime, nullable=False)
     accepted_at = db.Column(TZDateTime, nullable=True)
@@ -38,11 +44,12 @@ class Invitation(OrgScoped, AuditMixin, BaseModel):
 
     @classmethod
     def create(cls, org_id: int, role: str = 'member',
-               email: str | None = None) -> tuple['Invitation', str]:
+               email: str | None = None,
+               tier_id: int | None = None) -> tuple['Invitation', str]:
         """Returns (invitation, token). The token is shown once, never stored."""
         token = secrets.token_urlsafe(32)
         invitation = cls(
-            org_id=org_id, role=role,
+            org_id=org_id, role=role, tier_id=tier_id,
             email=(email or '').strip().lower() or None,
             token_hash=_hash_token(token),
             expires_at=utcnow() + timedelta(days=cls.EXPIRY_DAYS),
@@ -70,7 +77,15 @@ class Invitation(OrgScoped, AuditMixin, BaseModel):
         """Create the membership. Re-inviting an existing member is a no-op
         on the membership but still consumes the invitation."""
         from .membership import Membership
-        Membership.add(user.id, self.org_id, role=self.role)
+        # tier_id may be None: an invitation older than tiers. Membership
+        # then puts them on the bottom rung, which is where somebody who
+        # has done nothing but accept an invitation belongs.
+        #
+        # A tier retired between writing the invitation and accepting it
+        # is still honoured. Retiring stops a tier being offered afresh;
+        # it does not revoke it from anybody already promised it.
+        Membership.add(user.id, self.org_id, role=self.role,
+                       tier_id=self.tier_id)
         self.accepted_at = utcnow()
         self.accepted_by_id = user.id
         return self.save()

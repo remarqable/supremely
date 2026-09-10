@@ -85,6 +85,9 @@ def create_app(config_class=Config):
         # per request, and a flag left behind would hide it on the next
         # preview served through a held app context.
         _g.pop('_preview_notice_shown', None)
+        # Tier ranks are keyed by organization and answer who may
+        # read what, so one held over is the worst kind to hold.
+        _g.pop('_tier_ranks', None)
         # Template resolution is memoized for the same reason and with the
         # same hazard: a held app context would otherwise carry one
         # request's answers into the next.
@@ -191,6 +194,8 @@ def _init_context(app):
         can_view,
         is_member_or_platform_admin,
         is_org_member,
+        visibility_label,
+        visibility_options,
     )
     from .platform.devices import device_type, is_mobile
     from .platform.redirects import current_target
@@ -229,16 +234,23 @@ def _init_context(app):
 
         def latest_announcement():
             """Newest announcement the current viewer may read, for the
-            right-rail card."""
+            right-rail card.
+
+            Both halves ask the one read rule: the section, then the rows.
+            They used to ask two different questions, gating the section on
+            the word `public` and the rows on membership, which agreed
+            while membership was the only thing that could gate an item.
+            """
             if getattr(g, 'org', None) is None:
                 return None
             from .models import Content
-            if (not _member_view()
-                    and Content.type_visibility('announcement') != 'public'):
+            from .platform.authz import can_read, readable_visibilities
+            if not can_read(Content.type_visibility('announcement')):
                 return None
             query = Content.published_query('announcement')
-            if not _member_view():
-                query = query.filter_by(visibility='public')
+            readable = readable_visibilities()
+            if readable is not None:
+                query = query.filter(Content.visibility.in_(readable))
             return query.first()
 
         def upcoming_event():
@@ -246,7 +258,7 @@ def _init_context(app):
             if getattr(g, 'org', None) is None:
                 return None
             from .models import Content
-            return Content.upcoming_event(public_only=not _member_view())
+            return Content.upcoming_event()
 
         def rail_members():
             """(newest members, total active) for the right-rail members
@@ -306,13 +318,16 @@ def _init_context(app):
 
             The organization and the viewer are both part of the question:
             the same type returns different rows for a member than for a
-            visitor, and must never return one organization's rows to
+            visitor, different rows again for two members on different
+            tiers, and must never return one organization's rows to
             another. The memo is cleared per request as well (see
             _reset_request_state); this key is the second lock on the same
             door, because a cache that outlives its request is the one way
             to defeat the global tenant filter.
             """
-            return (g.org.id, _member_view(), type_slug)
+            membership = getattr(g, 'membership', None)
+            return (g.org.id, _member_view(),
+                    membership.tier_id if membership else None, type_slug)
 
         def latest_content(type_slug: str, limit: int | None = None) -> list:
             """Published items of a content type, in its declared order.
@@ -367,6 +382,8 @@ def _init_context(app):
             'rail_members': rail_members,
             'pinned_posts': pinned_posts,
             'latest_discussions': latest_discussions,
+            'visibility_label': visibility_label,
+            'visibility_options': visibility_options,
             'preview_notice': preview_notice,
             'discussions_area_readable': discussions_area_readable,
             'section_readable': section_readable,
