@@ -19,6 +19,8 @@ from app.platform.errors import ValidationError
 from app.platform.theming import PAGE_TEMPLATE_RE
 
 if TYPE_CHECKING:
+    from flask_sqlalchemy.query import Query
+
     from app.platform.content_types import ContentType
 
 from .base import (
@@ -140,6 +142,16 @@ class Category(OrgScoped, BaseModel):
 
 # Slugs a page-type content cannot use, because a page is served at /<slug>
 # and must not shadow app routes. Feed-type bases are added dynamically.
+# Taken under every archive, because every type's items live at
+# /<base>/<slug> and this is that type's own address. Its sibling
+# /<base>/feed.atom needs no entry: a slug cannot hold a dot, so nothing
+# can ever be asked to take it.
+#
+# Whatever is in here has to be in _free_slug's reserved set as well, or an
+# author whose title derives to one of these is refused a save over a field
+# they never filled in.
+RESERVED_ITEM_SLUGS = {'feed'}
+
 RESERVED_PAGE_SLUGS = {
     'manage', 'dashboard', 'admin', 'auth', 'setup', 'static', 'files',
     'themes', 'launcher', 'health', 'discussions', 'members', 'newsletter',
@@ -150,6 +162,11 @@ RESERVED_PAGE_SLUGS = {
     # accident where before somebody had to type it deliberately.
     'notifications', 'newsletters', 'glossary', 'tls-check', '_v',
     'rsvp', 'reset',
+    # Syndication and discovery, mounted at the root (controllers/feeds.py).
+    # Here for the mounted-prefix invariant rather than to stop a page
+    # taking one: a slug cannot hold a dot, so the regex above refuses
+    # these several lines before this set is consulted.
+    'feed.atom', 'sitemap.xml', 'robots.txt',
 }
 
 
@@ -351,6 +368,31 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
             self._validate_as_child()
             if self.slug is None:
                 return          # no address, so nothing left to check
+        elif self.slug in RESERVED_ITEM_SLUGS:
+            # Every standalone type, not only pages: an item of any type
+            # sits at /<base>/<slug>, and that route is taken by the type's
+            # own feed. A slug that collides does not lose a race -- a
+            # static segment wins in the URL map wherever it is registered
+            # -- it makes the item unreachable for good.
+            #
+            # A block is exempt because it is not there: a child lives at
+            # /<base>/<slug>/<base>/<slug>, four segments deep, where none
+            # of these are mounted.
+            #
+            # Unconditional, including on a row that somehow already
+            # holds one. Being lenient about those was tried and was worse
+            # than the problem: the check asked SQLAlchemy whether the slug
+            # had changed, and anything earlier in this method that runs a
+            # query autoflushes the pending value first, so the history it
+            # read was already empty and the rule could be walked straight
+            # past.
+            #
+            # Nothing is stranded by that strictness. This rule has been
+            # here since the feeds were, so no row can have been written
+            # around it, and every write goes through validate. A database
+            # predating it would need one of these renamed by hand -- there
+            # were none anywhere when this shipped.
+            raise ValidationError('That slug is reserved')
         elif self.content_type.is_page:
             # Page slugs live at /<slug>, so they cannot shadow app routes
             # or a feed type's base segment (e.g. "blog", "events").
@@ -512,9 +554,9 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
                                        and getattr(g, 'org', None) is not None)
         if not scoped:
             return base
-        reserved = set()
+        reserved = set(RESERVED_ITEM_SLUGS)
         if self.content_type.is_page:
-            reserved = RESERVED_PAGE_SLUGS | {
+            reserved |= RESERVED_PAGE_SLUGS | {
                 ct.base.strip('/') for ct in CONTENT_TYPES.values()
                 if ct.has_archive}
 
@@ -830,6 +872,134 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         if readable is None:            # reads everything, tiers included
             return query
         return query.filter(cls.visibility.in_(readable))
+
+    @classmethod
+    def syndication_query(cls, type_slug: str | None = None) -> 'Query':
+        """What a feed carries: an archive's listing, newest first.
+
+        Here rather than in the controller that renders XML, because
+        "which items may this reader be shown" is the same question an
+        archive asks and must not have two answers. It had two for one
+        review cycle, and the feed's was wrong: asked for everything at
+        once it filtered each item's own visibility and never the
+        organization's lock on a whole section, so a site that had closed
+        its blog entirely still listed every article's title and address
+        to anybody who asked for /feed.
+
+        A section the reader may not enter contributes nothing, whatever
+        its items say. Within the sections left, visible_query decides,
+        so the tease-don't-hide switch is answered in one place for the
+        page and the feed alike.
+
+        Newest first whatever order the type declares for its archive: a
+        roster may read alphabetically on the page, but a feed is a
+        timeline and every reader sorts it by date regardless.
+
+        Every type is asked separately even when the feed covers all of
+        them, because teasing is a per-type answer: an organization may
+        advertise its articles and say nothing at all about its jobs
+        board. visible_query(None) has no type to put that question to and
+        falls back to the organization-wide default, which is right for
+        neither type that overrides it.
+
+        Eager-loaded, because a feed renders the author and the categories
+        of every item it carries and this is a public endpoint that
+        machines poll.
+        """
+        from sqlalchemy.orm import joinedload, selectinload
+
+        from app.platform.content_types import feed_types
+        readable = [ct.slug for ct in feed_types()
+                    if cls.section_readable_by_current_visitor(ct.slug)]
+        if type_slug is not None:
+            if type_slug not in readable:
+                return cls.query.filter(sa.false())
+            query = cls.visible_query(type_slug)
+        elif not readable:
+            return cls.query.filter(sa.false())
+        else:
+            query = cls.published_query().filter(
+                sa.or_(*[cls._listable_clause(slug) for slug in readable]))
+        return (query.order_by(None)
+                .order_by(cls.published_at.desc(), cls.id.desc())
+                .options(joinedload(cls.created_by),
+                         selectinload(cls.categories)))
+
+    @classmethod
+    def _listable_clause(cls, type_slug: str) -> 'sa.ColumnElement[bool]':
+        """The rows of one type this visitor may see listed, as a clause.
+
+        The same rule visible_query applies, expressed so several types can
+        be ORed into one statement: teased, every published row of the type
+        counts; not teased, only the visibilities this reader may read.
+        """
+        from flask import g
+
+        from app.platform.authz import readable_visibilities
+        readable = readable_visibilities()
+        org = getattr(g, 'org', None)
+        if readable is None or (org and org.type_teases(type_slug)):
+            return cls.type == type_slug
+        return sa.and_(cls.type == type_slug,
+                       cls.visibility.in_(readable))
+
+    @classmethod
+    def public_archive_types(cls) -> list[str]:
+        """Type slugs whose whole archive is a public address.
+
+        The gate the sitemap needs for the archive URL itself, and the one
+        public_query applies to the items underneath it. One answer, so
+        the file cannot advertise a section whose archive would meet a
+        crawler with a gate page.
+        """
+        from app.platform.content_types import feed_types
+        return [ct.slug for ct in feed_types()
+                if cls.type_visibility(ct.slug) == 'public']
+
+    @classmethod
+    def public_pages(cls, limit: int = 1000) -> list['Content']:
+        """Published pages anybody may read, for the sitemap.
+
+        Pages have no archive, so public_query's walk over feed_types
+        never reaches them, and a sitemap without them leaves out /about
+        and every other standalone address the site has.
+        """
+        if cls.type_visibility('page') != 'public':
+            # The same gate every other section gets. Pages have no
+            # archive, so nothing else here would ever ask.
+            return []
+        return (cls.published_query('page')
+                .filter(cls.visibility == 'public',
+                        cls.parent_id.is_(None))
+                .order_by(None).order_by(cls.updated_at.desc())
+                .limit(limit).all())
+
+    @classmethod
+    def public_query(cls, type_slug: str) -> 'Query':
+        """Published content anybody may read, whoever is asking.
+
+        For the sitemap, which is built for crawlers. visible_query answers
+        for the visitor in front of it, and a sitemap built that way would
+        put members-only addresses into a file whose whole purpose is to be
+        fetched by strangers and cached by them.
+
+        A locked section is skipped whole: its archive would answer a
+        crawler with a gate page, so its items have no public address to
+        advertise either.
+
+        One type at a time, because the sitemap walks them to put each
+        archive's own address in beside its items. An all-types branch was
+        written first and never had a caller.
+        """
+        from sqlalchemy.orm import selectinload
+
+        if type_slug not in cls.public_archive_types():
+            return cls.query.filter(sa.false())
+        query = cls.published_query(type_slug)
+        return (query.filter(cls.visibility == 'public')
+                .order_by(None)
+                .order_by(cls.published_at.desc(), cls.id.desc())
+                .options(selectinload(cls.categories)))
 
     # A theme asks for "recent articles" without saying how many; this is how
     # many it gets, and the ceiling on how many it can ask for. A front page

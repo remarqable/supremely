@@ -1,0 +1,33 @@
+{#- Feed discovery: what a browser and a feed reader look for in the head.
+
+    App-owned and part of the layout contract, the same as
+    partials/_analytics.html beside it: every theme's layout.html includes
+    it just before </head>, and a theme that forgets does not break -- the
+    feeds still answer at their addresses -- it just stops advertising
+    them, so nothing in a reader's "subscribe" button finds anything.
+
+    Two links where the page is one type's archive and one where it is not.
+    `content_type` is in the context on every archive render, so the
+    per-type feed is offered exactly where it is the feed of what somebody
+    is looking at. Relative addresses: they resolve against the page, which
+    is this organization's own host by definition.
+
+    Addresses through url_for rather than written out: the routes own
+    them, and a partial spelling them a second time is a second place to
+    change when they move.
+
+    The sitemap is not announced here. A crawler looks for it in
+    /robots.txt, which names it, and a <link> for it is not a thing
+    browsers or crawlers read. -#}
+{%- if g.org %}
+<link rel="alternate" type="application/rss+xml"
+      title="{{ g.org.site_name }}" href="{{ url_for('feeds.site_rss') }}">
+<link rel="alternate" type="application/atom+xml"
+      title="{{ g.org.site_name }}" href="{{ url_for('feeds.site_atom') }}">
+{%- if content_type is defined and content_type and content_type.has_archive %}
+<link rel="alternate" type="application/rss+xml"
+      title="{{ content_type.plural }}" href="{{ url_for('feeds.type_rss', seg=content_type.base.strip('/')) }}">
+<link rel="alternate" type="application/atom+xml"
+      title="{{ content_type.plural }}" href="{{ url_for('feeds.type_atom', seg=content_type.base.strip('/')) }}">
+{%- endif %}
+{%- endif %}

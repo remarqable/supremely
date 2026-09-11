@@ -21,6 +21,7 @@
   {% endif %}
   <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
   {% block head %}{% endblock %}
+  {% include 'partials/_head_links.html' %}
   {% include 'partials/_analytics.html' %}
 </head>
 {# While a draft is previewed the site's header and footer are switched

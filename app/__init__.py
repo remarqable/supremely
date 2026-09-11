@@ -129,6 +129,7 @@ def create_app(config_class=Config):
         auth,
         cli,
         discussions,
+        feeds,
         main,
         manage,
         members,
@@ -146,8 +147,12 @@ def create_app(config_class=Config):
     # Before the blueprints: a rule cannot use a converter that is not
     # registered yet.
     app.url_map.converters['published'] = site.PublishedSegment
+    # Order here is house style, not load-bearing: Werkzeug tries a static
+    # segment before a dynamic one at each position whatever order the
+    # rules were added in, so /<seg>/feed beats /<seg>/<slug> either way.
+    # What keeps an item off that address is RESERVED_ITEM_SLUGS.
     for module in (main, auth, setup, admin, orgs, manage, members,
-                   discussions, notifications, newsletter, site):
+                   discussions, notifications, newsletter, feeds, site):
         app.register_blueprint(module.bp)
 
     # Boot-time plugin registration: per-request tenant gating, no restarts.
@@ -424,6 +429,55 @@ def _init_context(app):
             'is_mobile': is_mobile(),
             'device_type': device_type(),
         }
+
+    # --- Feed date formats ---------------------------------------------
+    #
+    # Three, because the three documents want three. RSS says RFC 822, Atom
+    # says RFC 3339, a sitemap says W3C date. Each is written out here
+    # rather than left to strftime at the callsite, because RFC 822 wants
+    # English month and day names whatever language the page is in and
+    # strftime would give it the server's locale.
+
+    _RFC822_DAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
+    _RFC822_MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+
+    def _as_utc(value):
+        """A stored datetime as an aware UTC one, or None.
+
+        Columns are TZDateTime, but a row written before that was, or read
+        back from SQLite, can arrive naive. A feed date with no zone is a
+        date a reader is free to guess about.
+        """
+        from datetime import UTC, datetime
+        if not isinstance(value, datetime):
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    @app.template_filter('rfc822')
+    def rfc822(value):
+        """RSS pubDate. Day and month names are English by specification."""
+        value = _as_utc(value)
+        if value is None:
+            return ''
+        return (f'{_RFC822_DAYS[value.weekday()]}, {value.day:02d} '
+                f'{_RFC822_MONTHS[value.month - 1]} {value.year} '
+                f'{value:%H:%M:%S} +0000')
+
+    @app.template_filter('rfc3339')
+    def rfc3339(value):
+        """Atom updated/published."""
+        value = _as_utc(value)
+        return value.strftime('%Y-%m-%dT%H:%M:%SZ') if value else ''
+
+    @app.template_filter('iso_date')
+    def iso_date(value):
+        """Sitemap lastmod. The date alone is a legal W3C date and is all a
+        crawler does anything with."""
+        value = _as_utc(value)
+        return value.strftime('%Y-%m-%d') if value else ''
 
     @app.template_filter('localdate')
     def localdate(value, fmt='%Y-%m-%d'):

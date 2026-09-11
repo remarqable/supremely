@@ -1,0 +1,36 @@
+{#- Atom 1.0. Same rules as the RSS template beside it: autoescaped, and a
+    locked item contributes a title and a link and no summary. -#}
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="{{ lang }}">
+  <title>{{ feed_title }}</title>
+  <subtitle>{{ feed_description }}</subtitle>
+  <id>{{ atom_url }}</id>
+  <link href="{{ site_url }}"/>
+  <link href="{{ atom_url }}" rel="self" type="application/atom+xml"/>
+  {#- Mandatory on the feed (RFC 4287 4.1.1), so never conditional. -#}
+  <updated>{{ updated_at|rfc3339 }}</updated>
+  {#- The feed's author covers every entry that names none of its own,
+      which is what 4.1.2 asks for. -#}
+  <author><name>{{ feed_author }}</name></author>
+  {%- for entry in entries %}
+  <entry>
+    <title>{{ entry.title }}</title>
+    <link href="{{ entry.url }}"/>
+    <id>{{ entry.url }}</id>
+    {#- Mandatory on an entry (RFC 4287 4.1.2), so never conditional. -#}
+    <updated>{{ entry.updated_at|rfc3339 }}</updated>
+    {%- if entry.published_at %}
+    <published>{{ entry.published_at|rfc3339 }}</published>
+    {%- endif %}
+    {%- if entry.author %}
+    <author><name>{{ entry.author }}</name></author>
+    {%- endif %}
+    {%- if entry.summary %}
+    <summary>{{ entry.summary }}</summary>
+    {%- endif %}
+    {%- for category in entry.categories %}
+    <category term="{{ category }}"/>
+    {%- endfor %}
+  </entry>
+  {%- endfor %}
+</feed>

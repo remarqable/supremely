@@ -1,0 +1,8 @@
+{#- Where the sitemap is, in the file crawlers look in first.
+
+    Nothing is disallowed: what a visitor may not read is already refused
+    by the server, and a Disallow line is a list of interesting addresses
+    published to anybody who asks for it. -#}
+User-agent: *
+Allow: /
+Sitemap: {{ sitemap_url }}

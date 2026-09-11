@@ -1,0 +1,35 @@
+{#- RSS 2.0. Autoescaped, because Flask turns autoescape on for .xml the
+    same as for .html, so every value below is escaped as XML text.
+
+    A locked item carries its title and its address and no description:
+    the controller hands one over with summary None, and a feed must not
+    be the way around a gate. -#}
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>{{ feed_title }}</title>
+    <link>{{ site_url }}</link>
+    <description>{{ feed_description }}</description>
+    <language>{{ lang }}</language>
+    <atom:link href="{{ rss_url }}" rel="self" type="application/rss+xml"/>
+    {%- if updated_at %}
+    <lastBuildDate>{{ updated_at|rfc822 }}</lastBuildDate>
+    {%- endif %}
+    {%- for entry in entries %}
+    <item>
+      <title>{{ entry.title }}</title>
+      <link>{{ entry.url }}</link>
+      <guid isPermaLink="true">{{ entry.url }}</guid>
+      {%- if entry.published_at %}
+      <pubDate>{{ entry.published_at|rfc822 }}</pubDate>
+      {%- endif %}
+      {%- if entry.summary %}
+      <description>{{ entry.summary }}</description>
+      {%- endif %}
+      {%- for category in entry.categories %}
+      <category>{{ category }}</category>
+      {%- endfor %}
+    </item>
+    {%- endfor %}
+  </channel>
+</rss>
