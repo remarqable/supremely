@@ -1,0 +1,56 @@
+{#- "This installation has fallen behind." Included by the two console
+    layouts, and only drawn for somebody who can do something about it.
+
+    Included there rather than in layouts/base.html, which the two consoles
+    share with the launcher, the notifications page and the sign-in pages:
+    somebody opening those did not come to hear about the server.
+
+    A platform administrator runs the installation and can pull a new
+    image. An organization owner cannot -- on a shared host they are a
+    customer, and a banner telling them to update somebody else's server
+    is a worry they can do nothing with. `pending_update` answers None for
+    everything uncertain, so this draws only on a definite answer.
+
+    Dismissal lives in the browser, keyed to the gap being dismissed. No
+    row, no column, no migration for a preference that belongs to one
+    person at one keyboard -- and because the key changes when a newer
+    image lands, dismissing this one does not blind the operator to the
+    next one. localStorage can throw where a browser blocks site data, so
+    every touch of it is guarded and the banner simply stays visible. -#}
+{% if current_user.is_authenticated and current_user.is_platform_admin %}
+{% set update = pending_update() %}
+{% if update %}
+<div x-data='{
+       shown: false,
+       key: "supremely.update.{{ update.token }}",
+       init() {
+         try { this.shown = localStorage.getItem(this.key) !== "1" }
+         catch (blocked) { this.shown = true }
+       },
+       dismiss() {
+         this.shown = false
+         try { localStorage.setItem(this.key, "1") } catch (blocked) { /* nothing to keep */ }
+       } }'
+     x-show="shown" x-cloak role="status" aria-live="polite"
+     class="mb-4 flex flex-wrap items-start gap-3 rounded-md bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+  <div class="flex-1">
+    <p class="font-medium">
+      {#- t() has no plurals, so each shape is its own key -- including
+          the one under a day, which has no number worth stating. -#}
+      {% if update.days_behind < 1 %}{{ _('updates.behind_title_new') }}
+      {% elif update.days_behind == 1 %}{{ _('updates.behind_title_one') }}
+      {% else %}{{ _('updates.behind_title', days=update.days_behind) }}
+      {% endif %}</p>
+    <p class="mt-1 text-amber-800">{{ _('updates.behind_body') }}</p>
+  </div>
+  <a href="{{ update.guide_url }}" class="btn-secondary shrink-0"
+     target="_blank" rel="noopener noreferrer">{{ _('updates.how_to') }}</a>
+  <button type="button" @click="dismiss()"
+          class="shrink-0 rounded opacity-60 hover:opacity-100
+                 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-amber-500">
+    <span class="sr-only">{{ _('common.dismiss') }}</span>
+    <span aria-hidden="true">&#10005;</span>
+  </button>
+</div>
+{% endif %}
+{% endif %}

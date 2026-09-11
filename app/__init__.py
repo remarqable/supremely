@@ -3,12 +3,16 @@
 import contextlib
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from flask import Flask, abort, g, redirect, request
 
 from .config import Config
 from .extensions import db, init_sqlite_pragmas, login_manager, migrate
 from .platform.logger import get_logger, init_logger
+
+if TYPE_CHECKING:
+    from .platform.updates import PendingUpdate
 
 # One source of truth for the release, kept in step with
 # pyproject.toml and the top entry of CHANGELOG.md (see
@@ -28,6 +32,20 @@ def version_label() -> str:
     """
     build = os.environ.get('APP_BUILD', '').strip()
     return f'{APP_VERSION}+build.{build}' if build else f'{APP_VERSION}-dev'
+
+
+def _pending_update() -> 'PendingUpdate | None':
+    """The console banner's answer, and never an exception.
+
+    A page that cannot render because the update check had an opinion would
+    be a worse bug than the one this feature fixes, so anything unexpected
+    here is nothing to report.
+    """
+    try:
+        from .platform.updates import pending_update
+        return pending_update()
+    except Exception:       # noqa: BLE001 -- a banner must not break a page
+        return None
 
 
 def create_app(config_class=Config):
@@ -402,6 +420,10 @@ def _init_context(app):
             'is_org_member': is_org_member,
             'is_member_or_platform_admin': is_member_or_platform_admin,
             'app_version': version_label(),
+            # A callable, not a value: only the console banner asks, and
+            # asking costs a settings read that every other page would pay
+            # for nothing.
+            'pending_update': _pending_update,
             'nav_items': NavigationItem.items_for,
             'unread_notifications': unread_notifications,
             'latest_announcement': latest_announcement,

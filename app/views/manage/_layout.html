@@ -84,6 +84,10 @@
   {{ subnav(active_subnav.item.label, active_subnav.item.subnav) }}
   {% endif %}
   <div class="min-w-0 flex-1">
+    {# The console, and only the console. layouts/base.html also backs the
+       launcher, notifications and the sign-in pages, where a message about
+       the server is not what somebody came for. #}
+    {% include 'partials/_update_banner.html' %}
     {% block manage_content %}{% endblock %}
   </div>
 </div>

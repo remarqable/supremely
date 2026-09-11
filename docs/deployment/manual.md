@@ -211,6 +211,45 @@ administrator chose in the interface.
 | `SESSION_COOKIE_SECURE` | on outside dev | Set `false` only for a plain HTTP installation, otherwise nobody can sign in. |
 | `WEB_CONCURRENCY` | `4` | Gunicorn worker processes. |
 | `PORT` | `8000` | Port inside the container. |
+| `UPDATE_CHECK_ENABLED` | `true` | Whether to check for a newer image. See below. |
+| `UPDATE_CHECK_URL` | Docker Hub | Where to ask. Point it at a mirror, or at your own registry's API. |
+
+### The update check is the only thing that phones out
+
+Supremely talks to nothing on the internet except this. Everything else it
+touches is your database and, if you configured one, your SMTP server.
+
+Once a day the worker asks Docker Hub when the newest `latest` image was
+pushed, and compares that to when the image you are running was built. If
+yours is older, whoever administers the installation sees a dismissable
+banner in the console. Nobody else does: an organization owner cannot pull
+an image, and members never see it at all.
+
+The request sends nothing about your installation. It is a plain GET of a
+public address, with no version, no identifier and no counts; the comparison
+happens on your server against a timestamp already inside the image. Docker
+Hub learns that somebody asked, which is what it learns from a `docker pull`
+anyway, and the web API it uses is a separate budget from the pull limit, so
+this does not spend your pull allowance.
+
+It fails silently. An installation with no outbound network, behind a
+firewall, or air-gapped shows no banner and logs no error. It follows no
+redirects and fetches nothing but `https`, and it runs on a thread the
+worker abandons after twenty seconds, so a registry that answers slowly
+cannot hold up your newsletters or notifications.
+
+The comparison is between two clocks: the machine that built your image and
+Docker Hub's. They are normally within seconds of each other, and an hour of
+slack is allowed, so this only misleads if a build host's clock is badly
+wrong.
+
+To switch it off:
+
+```
+UPDATE_CHECK_ENABLED=false
+```
+
+Nothing then opens a socket, and the console never mentions updates.
 
 ### Set TRUSTED_PROXIES to your real hop count
 

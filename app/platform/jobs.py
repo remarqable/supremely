@@ -6,7 +6,7 @@ write means the job runs again.
 
 import time
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import sqlalchemy as sa
 from flask import current_app
@@ -130,11 +130,62 @@ def recover_zombies() -> int:
 DONE_RETENTION = timedelta(days=7)
 
 
+def reschedule(name: str, run_at: datetime) -> None:
+    """Book the next run of a recurring job, once.
+
+    enqueue() commits, so a re-enqueue at the top of a handler survives the
+    rollback when that handler then fails -- and the failed job is put back
+    to pending with a backoff, which leaves two. Each of those books its
+    own successor on the next failure, so the count doubles every time and
+    so does how often the work runs. For a handler that talks to somebody
+    else's server, that is a schedule that quietly turns into a flood.
+
+    The guard is what makes "recurring" mean one, the same thing
+    _seed_recurring_jobs assumes.
+    """
+    pending = db.session.scalar(
+        sa.select(Job.id).where(Job.name == name,
+                                Job.status == 'pending').limit(1))
+    if pending is None:
+        enqueue(name, run_at=run_at)
+
+
+@job('system.update_check')
+def _update_check(payload: dict) -> None:
+    """Recurring: ask whether a newer image has been published.
+
+    Rescheduled first, like the cleanup beside it, so a failed check cannot
+    take the schedule down with it -- and this one talks to somebody else's
+    server, which is the most likely thing here to fail.
+
+    Daily. The answer changes when an image is pushed, nobody needs to hear
+    about that within the hour, and asking more often would spend an
+    installation's goodwill at a registry for nothing.
+    """
+    from app.platform import updates
+    if not updates.enabled():
+        # Switched off since this was booked. Not rescheduled, so the job
+        # retires itself rather than waking daily to do nothing; the
+        # worker books it again if it is ever switched back on.
+        return
+    reschedule('system.update_check', utcnow() + timedelta(days=1))
+    if updates.built_at() is None:
+        return          # a source build has no build to be behind
+    # Not wrapped. Every network failure is already silence inside fetch,
+    # so anything raising here is the database, which is the installation's
+    # own and belongs in the failed queue where an admin can see it --
+    # swallowing it would leave a check that has not worked for a month
+    # looking exactly like one that has. The schedule is safe either way:
+    # reschedule above books tomorrow whatever happens after it, and its
+    # pending-guard is what stops a retry booking a second one.
+    updates.record_check(updates.fetch_latest_built_at())
+
+
 @job('system.cleanup')
 def _cleanup(payload: dict) -> None:
     """Recurring: re-enqueue for tomorrow, then purge old finished jobs so the
     queue table stays a queue, not an archive."""
-    enqueue('system.cleanup', run_at=utcnow() + timedelta(days=1))
+    reschedule('system.cleanup', utcnow() + timedelta(days=1))
     cutoff = utcnow() - DONE_RETENTION
     db.session.execute(
         sa.delete(Job).where(Job.status.in_(('done', 'failed')),
@@ -145,7 +196,13 @@ def _cleanup(payload: dict) -> None:
 
 def _seed_recurring_jobs() -> None:
     """Ensure singleton recurring jobs exist. Idempotent."""
-    for name in ('system.cleanup',):
+    recurring = ['system.cleanup']
+    if current_app.config.get('UPDATE_CHECK_ENABLED'):
+        # Nothing to book when the check is switched off: the handler would
+        # wake daily only to return, and the queue would carry a job the
+        # operator asked not to run.
+        recurring.append('system.update_check')
+    for name in recurring:
         exists = db.session.scalar(
             sa.select(Job.id).where(Job.name == name,
                                     Job.status == 'pending').limit(1))

@@ -161,9 +161,32 @@ class Config:
     MAX_CONTENT_LENGTH = 20 * 1024 * 1024
     JOBS_POLL_INTERVAL = 2
 
+    # --- Update check ---------------------------------------------------
+    #
+    # The one outbound request this application makes, and the one variable
+    # that stops it. Set UPDATE_CHECK_ENABLED=false and nothing here ever
+    # opens a socket; the console simply never mentions updates.
+    #
+    # Nothing is sent: the URL is fetched with no body and no parameters,
+    # and the comparison happens locally against APP_BUILT_AT. Docker Hub's
+    # web API is a separate budget from the registry pull limit, so a daily
+    # check does not spend an installation's pull allowance.
+    UPDATE_CHECK_ENABLED = os.environ.get(
+        'UPDATE_CHECK_ENABLED', 'true').lower() == 'true'
+    UPDATE_CHECK_URL = os.environ.get(
+        'UPDATE_CHECK_URL',
+        'https://hub.docker.com/v2/repositories/remarqable/supremely/tags/latest')
+    # Stamped into the image beside APP_BUILD (see the Dockerfile). Empty in
+    # a source checkout, which is how a developer running their own code is
+    # never told it is out of date.
+    APP_BUILT_AT = os.environ.get('APP_BUILT_AT', '').strip()
+
 
 class TestConfig(Config):
     TESTING = True
+    # No test reaches the network by accident. The ones that exercise the
+    # check turn it on themselves.
+    UPDATE_CHECK_ENABLED = False
     # Empty (CI's sqlite matrix leg passes TEST_DATABASE_URL='') falls back
     # to in-memory SQLite rather than an invalid empty URI.
     SQLALCHEMY_DATABASE_URI = _normalise_db_url(

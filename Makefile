@@ -114,6 +114,7 @@ image: ## Build the multi-arch image and push it to the registry
 	@echo "Building $(IMAGE) build.$(BUILD)"
 	docker buildx build --builder $(BUILDER) --platform $(PLATFORMS) \
 	  --build-arg APP_BUILD=$(BUILD) \
+	  --build-arg APP_BUILT_AT=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 	  -t $(IMAGE):latest --push .
 
 deploy: image ## Build + push the image, then update the server (needs PROD_SSH)
