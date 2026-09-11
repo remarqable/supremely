@@ -21,6 +21,10 @@
       {% endif %}
     }
   </style>
+  {# This layout hosts community screens (theme.json: "community_nav":
+     false), so it carries what they need: HTMX for the reaction bar and the
+     CSRF header its requests send. #}
+  <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
   <script defer src="{{ url_for('static', filename='js/alpine.min.js') }}"></script>
   {% block head %}{% endblock %}
   {% include 'partials/_analytics.html' %}
@@ -37,7 +41,8 @@
 
    The lock's wrapper is `contents`, which draws no box, so the header keeps
    whatever positioning it had -- Supremely's is sticky. #}
-<body class="supremely min-h-screen font-sans text-[#14161a]">
+<body class="supremely min-h-screen font-sans text-[#14161a]"
+      hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
 
 {% if preview %}<div inert class="contents">{% endif %}
 {% from 'partials/_community_rail.html' import community_rail with context %}
@@ -61,7 +66,7 @@
     {% block content %}{% endblock %}
   </main>
   {% if community_page %}
-  <aside class="shrink-0 lg:w-72">
+  <aside id="rail" class="shrink-0 lg:w-72">
     <div class="space-y-4 lg:sticky lg:top-24">
       {% block rail %}{{ community_rail() }}{% endblock %}
     </div>

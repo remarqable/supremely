@@ -152,7 +152,7 @@ def profile():
             except ValidationError as e:
                 db.session.rollback()
                 flash(e.message, 'error')
-                return render_device_template('members/profile.html')
+                return render_site(['profile.html'], context_name='application')
         try:
             current_user.save()
             flash(t('common.saved'), 'success')
@@ -160,7 +160,7 @@ def profile():
         except ValidationError as e:
             db.session.rollback()
             flash(e.message, 'error')
-    return render_device_template('members/profile.html')
+    return render_site(['profile.html'], context_name='application')
 
 
 AVATAR_EDGE = 400

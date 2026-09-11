@@ -59,7 +59,9 @@ def test_add_and_search_terms(app, client, acme, globex, user):
         'term': 'Tenant', 'definition': 'An organization on the installation.'})
     page = client.get('/glossary/?q=tenant', base_url=ACME)
     assert b'An organization on the installation.' in page.data
-    assert b'Supremely' not in page.data    # filtered out by search
+    # The seeded term is filtered out by the search. Checked by its
+    # definition, because the product name is on every page as attribution.
+    assert b'The platform this glossary runs on.' not in page.data
 
 
 def test_member_reads_but_cannot_write(app, client, acme, globex, user):

@@ -1,12 +1,59 @@
 # Themes — the designer's reference
 
-> **Themes are renderers, not applications.**
+A Supremely theme is HTML, CSS and one small JSON file. If you can build a
+web page, you can build a theme. Supremely fetches the content, decides who
+may see what, and hands your templates only what the visitor is allowed to
+read, so nothing you write can leak a members-only post or break a login.
+That is the promise to the organization choosing your theme, and it is why
+a theme never contains code.
 
-A Supremely theme controls how an organization's **public site** looks —
-the landing page, pages, and content archives and singles. It is HTML, CSS,
-and a small JSON manifest. If you know HTML, CSS, and a simple templating
-language (Jinja), you can build one. Start-to-finish walkthrough:
-[Building a theme](building-a-theme.md).
+New here? Build one first: [Building a theme](building-a-theme.md) walks
+through a complete theme in an afternoon. This page is the reference you
+come back to.
+
+## Anatomy of a page
+
+Every page an organization serves is made of the same parts. A theme owns
+the outer ones; the application owns the screens where members talk.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  header.html                       theme  (menu, logo,       │
+│                                           member controls)   │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  the page                                                    │
+│                                                              │
+│    a site page ............... theme     front-page.html,    │
+│                                          page.html,          │
+│                                          archive.html,       │
+│                                          single.html         │
+│                                                              │
+│    a community screen ........ app       discussions, a      │
+│      placed by your layout               thread, members,    │
+│      beside the rail                     member home         │
+│                                                              │
+├──────────────────────────────────────────────────────────────┤
+│  footer.html                       theme                     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Site pages** are yours from the first byte: the landing page, standalone
+pages, and the archive and single page of every content type. **Community
+screens** are Supremely's. Their markup is the same on every site so a
+member who joins a second community already knows how it works. Your theme
+decides how they are framed, in one of two ways:
+
+| Mode | What the member sees | Declare it |
+|---|---|---|
+| **Shell** (default) | Community screens open inside Supremely's own frame, with a navigation column on the left and your brand colours. Your header is not shown there. | nothing to declare |
+| **One frame** | Community screens open inside *your* layout. Your header is the navigation, the shell's left column is gone, and the right rail sits where your layout puts it. | `"community_nav": false` in `theme.json` |
+
+Origin, Midnight and Trailhead use the shell. Supremely's own theme uses
+one frame, and is the worked example for it. Either way the community
+behaves identically; only the frame changes. See
+[Framing the community](#framing-the-community) for what one frame asks of
+your layout.
 
 ## What a theme is
 
@@ -26,19 +73,6 @@ Any template you don't provide falls back to **Origin**, the built-in
 default theme — but through *your* `layout.html`, so even a theme with
 five files restyles the whole site.
 
-## What a theme is not
-
-Themes must not contain:
-
-- Python or any backend code, routes, or database queries
-- permission, membership, or subscription logic
-- decisions about who may see something
-
-Supremely resolves content, filtering, ordering, and **access** before your
-template runs. You render what you are given. If a design idea seems to
-require knowing Supremely's internals, stop — request a presentation object
-instead (open an issue).
-
 ## Template hierarchy
 
 For each page, Supremely tries templates in specificity order, first in the
@@ -50,8 +84,8 @@ active theme, then in Origin:
 | Standalone page | `page-{slug}.html` → `{template}.html` → `page.html` |
 | Content archive (e.g. `/blog`) | `archive-{type}.html` → `archive.html` |
 | Content single | `single-{item-slug}.html` → `single-{type}.html` → `single.html` |
-| Public discussions | `discussions.html`, `discussion-group.html`, `discussion-post.html` |
-| Newsletter | `subscribe.html`, `confirm.html`, `unsubscribe.html` |
+| Members-only gate | `gate.html` |
+| Newsletter | `subscribe.html`, `confirm.html`, `unsubscribe.html`, `unsubscribed.html` |
 | Error pages | `errors/{code}.html` → `errors/error.html` |
 
 Archives and singles are symmetric: `archive-recipe.html` and
@@ -59,6 +93,13 @@ Archives and singles are symmetric: `archive-recipe.html` and
 register. Error pages resolve the same way, so a bad URL on your site keeps
 your header and footer instead of dropping the visitor onto Supremely
 chrome; they receive `code` and, for application errors, a `message`.
+
+Community screens are not in this table on purpose. Discussions, a thread,
+the member directory, the member home, the profile and the newsletter
+archive are drawn by the application's templates for everyone, visitors
+included, and a theme cannot replace them. It frames them (above) and may
+restyle them with CSS from its `theme.css`; the class on your `<body>` is
+the natural hook.
 
 Parts resolve the same way: layouts include `{% include themed('header.html') %}`
 so a theme may override just a header or footer.
@@ -70,16 +111,85 @@ Origin's built-in `archive-{type}.html` templates for library content types
 Every theme gets a working page for every content type; ship the same
 filename only when you want a bespoke design for that type.
 
-## Site pages and community pages
+## Framing the community
 
-Not every URL reaches your templates. The member community (discussions for
-members, the member home, the directory) renders in Supremely's app-owned
-shell for everyone, visitors included. Your theme renders the **site**
-surfaces: the landing page, previews, standalone pages (organizers choose
-per page — "on the public site" is the default — under the page's
-**Appears** setting), and content types that declare site presentation
-(Team is one). You never choose this in the theme; you just provide the
-templates.
+Which pages a member sees in your theme depends on the mode you declared
+above. Standalone pages carry their own choice too: organizers pick, per
+page, whether it appears on the site or in the community (the page's
+**Appears** setting, "on the public site" by default), and content types can
+declare a side (Team presents on the site). You never choose this in a
+template; you provide the templates and the pages land where they belong.
+
+### The shell (default)
+
+Do nothing. Community screens render in Supremely's frame. Your theme may
+tint that frame through `community_tokens` in `theme.json`, a whitelist of
+brand colour keys (`brand-500`, `brand-600`, `brand-700`, as `#RRGGBB`),
+and nothing else. Your header should offer members a way in:
+
+```jinja
+{% if current_user.is_authenticated and is_org_member() %}
+<a href="{{ url_for('orgs.dashboard') }}">Community</a>
+{% endif %}
+```
+
+### One frame
+
+Declare it in `theme.json`:
+
+```json
+"community_nav": false
+```
+
+Your `layout.html` now draws every page, and is told which kind it is
+drawing through `community_page`. When that is true the page is a community
+screen, and your layout must do three things for it:
+
+1. **Give it room.** A discussion list or a thread is not prose; a reading
+   column is too narrow. Widen the main column for community pages.
+2. **Draw the rail.** The right rail carries the announcement, members,
+   upcoming event and pinned posts, and community screens add cards of
+   their own by overriding the `rail` block. Import the macro and keep
+   `community_rail()` as the block's default:
+
+   ```jinja
+   {% from 'partials/_community_rail.html' import community_rail with context %}
+   ...
+   {% if community_page %}
+   <aside id="rail">{% block rail %}{{ community_rail() }}{% endblock %}</aside>
+   {% endif %}
+   ```
+
+3. **Load HTMX with the CSRF header.** Reactions on a post are swapped in
+   place, and the request needs the token:
+
+   ```jinja
+   <script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
+   ...
+   <body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+   ```
+
+Your header becomes the community's navigation, so it must carry the
+signed-in controls: the way to the console, notifications and the account
+menu. They are one application-owned partial, and a theme never rebuilds
+them:
+
+```jinja
+{% if current_user.is_authenticated %}
+  {% include 'partials/_member_controls.html' %}
+{% else %}
+  <a href="{{ url_for('auth.login') }}">Log in</a>
+{% endif %}
+```
+
+Put the include where your design wants it; the application keeps what the
+controls do and who sees them. `app/views/themes/supremely/layout.html` and
+`header.html` show all of this in a shipped theme.
+
+This is a theme declaration rather than an organizer setting because only
+the theme knows whether its layout can hold a discussion thread and a rail.
+A theme that says nothing keeps the shell, so every theme written before the
+key existed is unaffected.
 
 ## What your templates receive
 
@@ -180,13 +290,11 @@ Page-specific context:
 |---|---|
 | `archive*.html` | `content_type`, `items`, `pagination`, `archive_title` |
 | `single*.html`, `page.html` | `content`, `content_type` (`content.title`, `.html`, `.excerpt_or_summary()`, `.author`, `.published_at`; call `render_fields(content)` for the type's own fields) |
-| `discussions.html` | `groups`, `recent_posts`, `q` |
-| `discussion-group.html` | `group`, `posts`, `q` |
-| `discussion-post.html` | `group`, `post`, `top_level`, `children`, `reactions`, `following`, `emoji_set` |
+| `gate.html` | `gate_title`, `gate_kind`, `gate_teaser`, `login_next` |
+| `layout.html` | `community_page`: true while framing a community screen (only with `"community_nav": false`) |
 
-Everything in `items`/`posts`/`groups` is **already authorized and
-filtered** for the current visitor. A members-only group simply never
-reaches a visitor's template.
+Everything in `items` is **already authorized and filtered** for the current
+visitor. A members-only item simply never reaches a visitor's template.
 
 
 ## Field partials
@@ -357,6 +465,8 @@ rather than by somebody publishing the site. And they do nothing in a
   "version": "1.0.0",
   "author": "You",
   "description": "One sentence.",
+  "community_nav": true,
+  "community_tokens": {"brand-600": "#2d6a4f"},
   "capabilities": {"footer_groups": true},
   "settings": {
     "accent": {"type": "color", "label": "Accent color", "default": "#2d6a4f"}
@@ -377,6 +487,15 @@ rather than by somebody publishing the site. And they do nothing in a
   capabilities default to `true`; declare `false` only for what you
   deliberately leave out (Trailhead's footer, for example, is a single row
   of links, so it sets `"footer_groups": false`).
+- **community_nav** says whether community screens render inside the
+  app-owned shell (`true`, the default, and what you get by leaving it out)
+  or inside your own layout (`false`; see [Framing the
+  community](#framing-the-community) for what your layout then has to do).
+- **community_tokens** tint the community shell with your brand when you
+  keep it (`community_nav` true). Three keys are accepted, `brand-500`,
+  `brand-600` and `brand-700`, each an `#RRGGBB` colour; anything else is
+  ignored. Leave it out and the shell uses the organization's own brand
+  colour.
 - **settings** appear under Manage → Settings → Theme. Color values are
   validated server-side before they reach your templates — interpolate them
   into a `<style>` block with confidence.
@@ -513,8 +632,9 @@ heard of still gets the banner from the templates it inherits.
 
 ## Attribution
 
-Every theme's footer carries a "Powered by Supremely" line, and it comes
-from an app-owned partial rather than from your markup:
+Every page carries a "Powered by Supremely" line: every theme's footer, and
+the community shell when a theme keeps it. It comes from an app-owned
+partial rather than from your markup:
 
 ```jinja
 {% include 'partials/_powered_by.html' %}
@@ -527,14 +647,24 @@ tracking parameters defined in one place instead of copied into every theme.
 Style the surrounding element however you like; the partial only renders the
 text and the link.
 
-## The parts you don't control
+## The rules
 
-- **The community application** (member home, discussions for members,
-  member directory) is standardized by Supremely and is not
-  theme-resolvable. Your theme may tint it only via `community_tokens` in
-  theme.json (whitelisted brand color keys). This is deliberate: every
-  community behaves the same inside, while its public face is yours.
-- **Administration** (`/manage`, `/admin`) is never themed.
+Everything above is what you can do. This is the short list of what a theme
+never does, kept together so it is easy to check against:
+
+- **No code.** No Python, routes, or database queries. A theme is templates,
+  styles and static files.
+- **No access decisions.** Never check a permission, membership or
+  subscription in a template. If something reached your template, the
+  server already decided the visitor may see it. If a design idea seems to
+  need Supremely's internals, stop and open an issue asking for a
+  presentation object instead.
+- **The community screens and the console are not yours to redraw.** You
+  frame the first (see above) and never touch the second: `/manage` and
+  `/admin` are never themed.
+- **Ask, don't reach.** Content comes through `latest_content`,
+  `content_count`, `site_entries()` and the other documented names. Nothing
+  outside those tables is a stable surface.
 
 ## JavaScript
 

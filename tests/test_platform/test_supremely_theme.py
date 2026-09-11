@@ -46,14 +46,45 @@ def test_the_site_name_belongs_to_the_organization(app, client, acme):
 
 
 def test_the_community_keeps_its_own_name(app, client, acme, globex, user):
-    """The site name renames the public site only. The community shell is
-    the organization itself and keeps the organization's name."""
+    """The site name renames the site. Under Supremely the community is a
+    region of the site (theme.json: "community_nav": false), so the site's
+    header frames a discussion page and carries the site name. The
+    community itself is still the organization: its screens are titled
+    with the organization's name, not the site's."""
     use_supremely(app, acme)
     acme.update_settings(site_name='Acme HQ')
     login_as(client, user)
-    shell = client.get('/discussions/', base_url=ACME).data
-    assert acme.name.encode() in shell
-    assert b'Acme HQ' not in shell
+    page = client.get('/discussions/', base_url=ACME).data
+    assert b'Acme HQ' in page
+    assert f'<title>Discussions \u2014 {acme.name}</title>'.encode() in page
+    assert '\u2014 Acme HQ</title>'.encode() not in page
+
+
+def test_the_community_is_a_region_of_the_site(app, client, acme, globex,
+                                                user):
+    """Supremely declines the app-owned shell, so its own layout frames the
+    community screens: no left nav, the header's menu is the navigation, and
+    the rail stays where those pages need it. Origin says nothing in its
+    theme.json and keeps the shell, which is what every other built-in theme
+    does too."""
+    use_supremely(app, acme)
+    login_as(client, user)
+    for path in ('/discussions/', '/dashboard', '/members', '/profile',
+                 '/newsletters'):
+        page = client.get(path, base_url=ACME)
+        assert page.status_code == 200, path
+        assert b'aria-label="Community navigation"' not in page.data, path
+        assert b'class="supremely' in page.data, path       # the theme's frame
+        assert b'id="rail"' in page.data, path
+        assert b'htmx.min.js' in page.data, path           # the reaction bar
+
+    with app.test_request_context(base_url=ACME):
+        g.org = acme
+        acme.theme = 'origin'
+        acme.save()
+    page = client.get('/discussions/', base_url=ACME).data
+    assert b'aria-label="Community navigation"' in page
+    assert b'class="supremely' not in page
 
 
 def test_front_page_without_rotation_uses_accent(app, client, acme):

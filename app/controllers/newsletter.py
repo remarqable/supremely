@@ -9,7 +9,6 @@ from flask import Blueprint, abort, flash, g, redirect, request
 from app.middleware.ratelimit import rate_limit
 from app.models.newsletter import Subscriber
 from app.platform.authz import is_member_or_platform_admin, org_required
-from app.platform.devices import render_device_template
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
@@ -35,7 +34,8 @@ def archive():
               .join(Delivery.content)
               .filter(Content.status == 'published')
               .order_by(Delivery.finished_at.desc()).limit(50).all())
-    return render_device_template('community/newsletters.html', issues=issues)
+    return render_site(['newsletters.html'], context_name='application',
+                       issues=issues)
 
 
 @bp.route('/subscribe', methods=['GET', 'POST'])

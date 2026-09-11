@@ -4,6 +4,7 @@
   "version": "1.1.0",
   "author": "Supremely",
   "description": "The Supremely marketing theme. A warm, product-forward landing page for the open-source community platform.",
+  "community_nav": false,
   "capabilities": {
     "footer_groups": true
   },

@@ -194,7 +194,6 @@ def _init_context(app):
     )
     from .platform.devices import device_type, is_mobile
     from .platform.redirects import current_target
-    from .platform.theming import shell_layout
 
     @app.context_processor
     def inject_email_providers():
@@ -381,7 +380,6 @@ def _init_context(app):
             # would have hit that silently.
             'is_mobile': is_mobile(),
             'device_type': device_type(),
-            'community_layout': shell_layout(),
         }
 
     @app.template_filter('localdate')
