@@ -31,13 +31,32 @@ def render_fields_for_email(content) -> tuple[str, str]:
     return table, render_fields_text(content)
 
 
+def render_body_for_email(content, org) -> str:
+    """One item's body as the markup a message carries.
+
+    Mail clients drop an iframe, so a video renders as a link here rather
+    than as the blank space an embed would leave (platform/content.py). A
+    message carries no origin either, so an inline picture needs the
+    organization's whole address in its src rather than /files/42/full.
+
+    Its own function because it does not vary by recipient and reading a
+    body's pictures costs a query: rendered inside the per recipient call,
+    a batch of two hundred paid for two hundred of them.
+    """
+    from app.platform.content import render_markdown
+    from app.platform.emails import absolute_url_for
+    return render_markdown(content.body, embed_videos=False,
+                           absolute_url=absolute_url_for(org))
+
+
 def compose_email(content, org, subscriber, fields=None,
-                  logo=None) -> tuple[str, str, str]:
+                  logo: str | None = None,
+                  body_html: str | None = None) -> tuple[str, str, str]:
     """(subject, text, html) for one recipient.
 
-    `fields` is the type's rendered fields, which are the same for every
-    recipient of one delivery; the caller renders them once for the batch.
-    Left out, they are rendered here, so a single send stays a single call.
+    `fields` and `body_html` are the same for every recipient of one
+    delivery; the caller renders them once for the batch. Left out, they are
+    rendered here, so a single send stays a single call.
     """
     from app.platform.tenant import org_url
     content_url = org_url(org, content.permalink)
@@ -54,11 +73,9 @@ def compose_email(content, org, subscriber, fields=None,
             f'{t("newsletter.read_online")}: {content_url}\n\n--\n'
             f'{t("newsletter.why_you_get_this", org=org.name)}\n'
             f'{t("newsletter.unsubscribe")}: {unsubscribe_url}\n')
-    # Mail clients drop an iframe, so a video renders as a link here rather
-    # than as the blank space an embed would leave (platform/content.py).
-    from app.platform.content import render_markdown
     from app.platform.emails import render_message
-    body_html = render_markdown(content.body, embed_videos=False)
+    if body_html is None:
+        body_html = render_body_for_email(content, org)
     # render_message, not render_email: it puts the attribution into both
     # halves. Building the text here and the markup there is how the text
     # part came to have none at all.
@@ -108,6 +125,9 @@ def send_delivery(payload: dict) -> None:
     # recipient expires a row and it would be fetched again anyway.
     from app.platform.emails import logo_src
     logo = logo_src(org)
+    # Same reasoning as the fields above, and the body reads the pictures
+    # in it from the database.
+    body_html = render_body_for_email(content, org)
     for recipient in unsent:
         subscriber = recipient.subscriber
         if subscriber is None or subscriber.status != 'subscribed':
@@ -117,7 +137,7 @@ def send_delivery(payload: dict) -> None:
         try:
             subject, text, html = compose_email(content, org, subscriber,
                                                 fields=rendered_fields,
-                                                logo=logo)
+                                                logo=logo, body_html=body_html)
             send_email(subscriber.email, subject, text, html=html,
                        attribution=False)
             recipient.sent_at = utcnow()

@@ -172,6 +172,24 @@
   .prose-supremely pre { @apply my-4 overflow-x-auto rounded-md bg-slate-900 p-4 text-sm text-slate-100; }
   .prose-supremely pre code { @apply bg-transparent p-0; }
   .prose-supremely img { @apply my-4 h-auto max-w-full rounded-md; }
+  /* A picture from a body's :::image directive (app/platform/content.py).
+     The figure carries the placement, so the image inside it fills whatever
+     the figure was given and drops the standalone image's own margins.
+     A float wraps text beside a picture, which needs a column wide enough
+     to read in, so it only starts at sm: below that every placement is an
+     ordinary block. Nothing here uses negative margins: the same markup
+     renders inside a theme's article column and inside the community
+     shell's narrower one, and a picture that escaped either would take the
+     page's horizontal scrollbar with it. */
+  .prose-supremely .body-image { @apply my-5; }
+  .prose-supremely .body-image img { @apply my-0 w-full; }
+  .prose-supremely .body-image--center { @apply mx-auto max-w-2xl; }
+  .prose-supremely .body-image--wide { @apply w-full; }
+  .prose-supremely .body-image--left { @apply sm:float-start sm:mb-3 sm:mt-0 sm:me-5 sm:max-w-xs; }
+  .prose-supremely .body-image--right { @apply sm:float-end sm:mb-3 sm:mt-0 sm:ms-5 sm:max-w-xs; }
+  /* A float that outlives its body would lift the next article up beside
+     it. The body ends where the body ends. */
+  .prose-supremely::after { content: ''; @apply block clear-both; }
   .prose-supremely hr { @apply my-8 border-slate-200; }
   .prose-supremely table { @apply my-4 w-full text-sm; }
   .prose-supremely th { @apply border-b border-slate-300 px-3 py-2 text-start font-medium; }

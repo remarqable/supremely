@@ -634,11 +634,14 @@ class Content(OrgScoped, AuditMixin, MarkdownBody, BaseModel):
         # Directives are dropped rather than resolved: a one-line summary
         # has no business pulling in whatever this body embeds, and
         # resolving cost a query and a template render apiece for text that
-        # is then stripped of all its markup anyway.
+        # is then stripped of all its markup anyway. Pictures go the same
+        # way and for the same reason -- one query each, for markup with no
+        # text in it, down every card of an archive.
         body = self.body or ''
         source = body[:length * 20]
-        text = nh3.clean(render_markdown(source, directives='drop'),
-                         tags=set())
+        text = nh3.clean(
+            render_markdown(source, directives='drop', images=False),
+            tags=set())
         text = ' '.join(text.split())
         if len(text) > length:
             return text[:length] + '…'

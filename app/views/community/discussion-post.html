@@ -1,6 +1,6 @@
 {% extends site_layout %}
 {% from 'community/_macros.html' import area_header, new_post_modal, search_box with context %}
-{% from 'partials/_ui.html' import avatar, member_name with context %}
+{% from 'partials/_ui.html' import avatar, body_image_button, member_name with context %}
 {% from 'partials/_community_rail.html' import community_rail with context %}
 
 {% block title %}{{ post.title }} — {{ g.org.name }}{% endblock %}
@@ -24,7 +24,10 @@
   <textarea name="body" class="textarea min-h-20" required
             placeholder="{{ _('discussions.reply_placeholder') }}"
             aria-label="{{ _('discussions.reply') }}"></textarea>
-  <button type="submit" class="btn-primary">{{ _('discussions.reply') }}</button>
+  <div class="flex items-center gap-2">
+    <button type="submit" class="btn-primary">{{ _('discussions.reply') }}</button>
+    {{ body_image_button() }}
+  </div>
 </form>
 {% endmacro %}
 
@@ -85,9 +88,10 @@
         action="/discussions/replies/{{ reply.id }}/edit" class="mt-2 space-y-2">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <textarea name="body" class="textarea min-h-20">{{ reply.body }}</textarea>
-    <div class="flex gap-2">
+    <div class="flex items-center gap-2">
       <button type="submit" class="btn-secondary">{{ _('common.save') }}</button>
       <button type="button" class="btn-ghost" @click="editing = false">{{ _('common.cancel') }}</button>
+      {{ body_image_button() }}
     </div>
   </form>
   {% endif %}
@@ -220,9 +224,10 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="text" name="title" class="input" value="{{ post.title }}">
     <textarea name="body" class="textarea min-h-24">{{ post.body }}</textarea>
-    <div class="flex gap-2">
+    <div class="flex items-center gap-2">
       <button type="submit" class="btn-primary">{{ _('common.save') }}</button>
       <button type="button" class="btn-ghost" @click="editing = false">{{ _('common.cancel') }}</button>
+      {{ body_image_button() }}
     </div>
   </form>
   {% endif %}

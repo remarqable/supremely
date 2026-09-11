@@ -19,6 +19,7 @@ from .base import AuditMixin, BaseModel, OrgScoped
 
 if TYPE_CHECKING:
     from PIL.ImageFile import ImageFile
+    from werkzeug.datastructures import FileStorage
 
 # Sniffed from magic bytes -- extensions and client headers are untrusted.
 MAGIC = (
@@ -180,8 +181,16 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
         return f'/files/{self.id}/{variant}'
 
     @classmethod
-    def from_file(cls, file, visibility: str = 'public') -> 'Upload':
-        """file: a werkzeug FileStorage from request.files."""
+    def from_file(cls, file: 'FileStorage', visibility: str = 'public', *,
+                  images_only: bool = False) -> 'Upload':
+        """file: a werkzeug FileStorage from request.files.
+
+        `images_only` for a caller that can only do something with a
+        picture -- inserting one into a body is the case. Refused here on
+        the sniffed type rather than by the caller on the saved row,
+        because a PDF stored and then deleted again is a file written to
+        disk and an id spent to say no.
+        """
         from app.platform.storage import storage
 
         head = file.stream.read(MAX_SIZE + 1)
@@ -194,6 +203,8 @@ class Upload(OrgScoped, AuditMixin, BaseModel):
         if sniffed is None:
             raise ValidationError('File type not allowed')
         content_type, ext = sniffed
+        if images_only and content_type not in RASTER_TYPES:
+            raise ValidationError('That file is not an image')
 
         # Re-encoding below covers PNG, JPEG and WebP. This also bounds a
         # GIF, which is stored as sent and so is never opened again.

@@ -188,7 +188,9 @@ class MarkdownBody:
     def html_flat(self) -> str:
         """The same body with its directives removed.
 
-        What an embedded item renders, and what a listing summarises. An
+        What an embedded item renders. A listing does not read this: a
+        summary renders for itself, because it also wants the pictures left
+        out and an embedded card wants them shown. An
         embed that resolved the embeds inside what it pulled in would follow
         a body that referenced itself forever, so one level is where it
         stops -- the same depth blocks go to, for the same reason.
@@ -202,9 +204,18 @@ class MarkdownBody:
         Rendered and then stripped rather than sliced raw, because Markdown
         sliced raw shows its own syntax: a card summarising a post that
         opens with a link used to read "Discussion of [Title](/blog/x)".
+
+        Renders rather than reading html_flat, because it needs one thing
+        html_flat does not do: leave the pictures alone. Every tag comes
+        out on the next line and a picture has no text inside it, so
+        resolving one is a query spent on nothing -- once per card, down a
+        listing of thirty.
         """
         import nh3
-        text = ' '.join(nh3.clean(self.html_flat, tags=set()).split())
+
+        from app.platform.content import render_markdown
+        html = render_markdown(self.body, directives='drop', images=False)
+        text = ' '.join(nh3.clean(html, tags=set()).split())
         return text[:length] + ('…' if len(text) > length else '')
 
 

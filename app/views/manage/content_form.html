@@ -1,5 +1,5 @@
 {% extends 'manage/_layout.html' %}
-{% from 'partials/_ui.html' import back_link, image_chooser, status_badge, visibility_select with context %}
+{% from 'partials/_ui.html' import back_link, body_image_button, image_chooser, status_badge, visibility_select with context %}
 {% from 'manage/_field_widgets.html' import widget with context %}
 
 {% block manage_content %}
@@ -174,7 +174,12 @@
     {% endfor %}
 
     <div>
-      <label for="body" class="label">{{ _('manage.body_markdown') }}</label>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <label for="body" class="label">{{ _('manage.body_markdown') }}</label>
+        {#- Recent library pictures as well as a file input here: whoever is
+            editing a page has the run of the media library anyway. -#}
+        {{ body_image_button(image_uploads, align='end') }}
+      </div>
       <textarea id="body" name="body" class="textarea mt-1 min-h-96 font-mono text-sm"
                 placeholder="{{ _('manage.body_placeholder') }}">{{ content.body if content else '' }}</textarea>
       {# The syntax itself is not translated -- it is syntax. Only the words
@@ -187,6 +192,8 @@
         <code class="syntax-hint">[{{ _('manage.body_help_link') }}](https://…)</code>
         <span class="ms-1">{{ _('manage.body_help_video') }}</span>
         <code class="syntax-hint">:::video https://www.youtube.com/watch?v=…</code>
+        <span class="ms-1">{{ _('manage.body_help_image') }}</span>
+        <code class="syntax-hint">:::image 42 left</code>
       </p>
     </div>
   </div>

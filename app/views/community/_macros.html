@@ -1,7 +1,7 @@
 {# Building blocks for the community surface (app-owned; never
    theme-resolvable). Feed cards and the composer keep every community page
    in one visual language. #}
-{% from 'partials/_ui.html' import avatar, back_arrow, member_name with context %}
+{% from 'partials/_ui.html' import avatar, back_arrow, body_image_button, member_name with context %}
 {% from 'partials/_community_nav.html' import type_icon %}
 
 {% macro new_post_modal(groups) %}
@@ -48,9 +48,15 @@
         <textarea name="body" rows="7" required
                   placeholder="{{ _('community.post_body_placeholder') }}"
                   class="textarea mt-3"></textarea>
-        <div class="mt-4 flex items-center justify-end gap-2">
-          <button type="button" @click="open = false" class="btn-ghost">{{ _('common.cancel') }}</button>
-          <button type="submit" class="btn-primary">{{ _('community.post_button') }}</button>
+        <div class="mt-4 flex items-center justify-between gap-2">
+          {#- No library grid for a member: the media library holds the
+              organization's own branding and editorial pictures, which is
+              not somebody's to shop through to illustrate a post. -#}
+          {{ body_image_button() }}
+          <div class="flex items-center gap-2">
+            <button type="button" @click="open = false" class="btn-ghost">{{ _('common.cancel') }}</button>
+            <button type="submit" class="btn-primary">{{ _('community.post_button') }}</button>
+          </div>
         </div>
       </form>
     </div>

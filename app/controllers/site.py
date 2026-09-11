@@ -25,10 +25,12 @@ from flask_login import current_user
 from werkzeug.routing import BaseConverter, ValidationError
 
 from app.extensions import db
+from app.middleware.ratelimit import rate_limit
 from app.models import Content, Upload
 from app.models.content import RESERVED_PAGE_SLUGS, Category
 from app.models.upload import VARIANTS
 from app.platform.authz import (
+    can,
     is_member_or_platform_admin,
     org_required,
     require,
@@ -38,6 +40,7 @@ from app.platform.content_types import (
     type_is_active,
     type_presentation,
 )
+from app.platform.i18n import t
 from app.platform.logger import get_logger
 from app.platform.theming import (
     AVAILABLE_THEMES,
@@ -288,6 +291,71 @@ def serve_upload(upload_id, variant):
         response.headers['Cache-Control'] = 'private, no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
+
+
+@bp.route('/files/upload', methods=['POST'])
+@org_required
+@require('discuss')
+@rate_limit(limit=12, window=60)
+def upload_body_image() -> ResponseReturnValue:
+    """One picture for the body somebody is writing, stored straight away.
+
+    Shared by the page/post editor and the discussion composer, because the
+    only thing that differs between them is who is writing. Every role that
+    can publish can also post, so `discuss` is the permission both surfaces
+    already have; the file goes through Upload.from_file like every other
+    one, so magic-byte sniffing, the pixel ceiling, EXIF stripping and the
+    WEBP variants all apply without being restated here.
+
+    Stored on arrival rather than on save, so the id the editor writes into
+    the body is real by the time the body is previewed. The cost is a file
+    left behind when somebody changes their mind, which is the same file the
+    media library would have held had they uploaded it there -- it shows up
+    under Manage -> Media like any other, which is where it is reclaimed.
+
+    This is the first route on which somebody who is not publishing the site
+    can write to the data volume, and a self-hosted installation pays for
+    that volume. There is no quota, so the rate limit is what bounds it: a
+    dozen a minute is more than anybody inserts pictures by hand and an
+    order of magnitude less than the media library's own limit, which only
+    an admin can reach. Read it per worker and per address, like every
+    other limit here (middleware/ratelimit.py).
+
+    Answers JSON because the caller is a fetch from the editor, not a form
+    post: there is no page to redirect to, and the body being written must
+    survive the round trip.
+    """
+    # Locally, because `ValidationError` at module scope is werkzeug's:
+    # the URL converter below raises that one to say a rule does not match.
+    from app.platform.errors import ValidationError as InvalidUpload
+
+    # Public where the writer publishes the public site, members-only
+    # otherwise. A member illustrating a thread is not thereby hosting a
+    # public file on the organization's domain, and an author is not
+    # writing an article whose pictures every visitor sees as locked.
+    visibility = 'public' if can('content.write') else 'members'
+    file = request.files.get('file')
+    if file is None or not file.filename:
+        return {'error': t('manage.no_file')}, 400
+    try:
+        upload = Upload.from_file(file, visibility=visibility,
+                                  images_only=True)
+    except InvalidUpload as exc:
+        return {'error': exc.message}, 400
+    # The description travels with the file rather than being set afterwards
+    # in Manage -> Media. A member writing a discussion post cannot reach
+    # Media at all -- it is content.write -- so telling them to describe it
+    # there was an instruction to nowhere, and every picture a member
+    # inserted was going out with an empty alt.
+    described = request.form.get('alt', '').strip()[:200]
+    if described:
+        upload.alt = described
+        upload.save()
+    log.info('body_image_uploaded', upload_id=upload.id, org_id=g.org.id)
+    # `url` is the thumbnail the panel shows back, never where the body
+    # points: the body names the file by id and picks its own variant.
+    return {'id': upload.id,
+            'url': upload.url('thumb' if upload.has_variants else 'original')}
 
 
 @bp.route('/themes/<theme>/static/<path:filename>')
