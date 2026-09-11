@@ -149,7 +149,7 @@ RESERVED_PAGE_SLUGS = {
     # title now, so an ordinary word like "Notifications" reaches them by
     # accident where before somebody had to type it deliberately.
     'notifications', 'newsletters', 'glossary', 'tls-check', '_v',
-    'rsvp',
+    'rsvp', 'reset',
 }
 
 

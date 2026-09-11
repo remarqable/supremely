@@ -6,7 +6,8 @@ from app.extensions import db
 from .base import BaseModel, OrgScoped, utcnow
 from .types import BigIntFK, JSONColumn, TZDateTime
 
-TYPES = ('reply.followed', 'reply.to_author', 'mention', 'moderation')
+TYPES = ('reply.followed', 'reply.to_author', 'mention', 'moderation',
+         'account.reset_issued')
 
 
 class Notification(OrgScoped, BaseModel):

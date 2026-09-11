@@ -15,12 +15,14 @@ from flask import (
     session,
     url_for,
 )
+from flask.typing import ResponseReturnValue
 from flask_login import current_user, login_required, login_user
 
 from app.extensions import db
 from app.middleware.ratelimit import rate_limit
 from app.models import Membership, Post, User
 from app.models.invitation import Invitation
+from app.models.password_reset import PasswordReset
 from app.models.upload import open_bounded, sniff
 from app.platform.authz import can, is_member_or_platform_admin, org_required
 from app.platform.devices import render_device_template
@@ -91,6 +93,80 @@ def signup_via_invite(token):
     login_user(user, remember=True)
     log.info('invitation_signup', org_id=g.org.id, user_id=user.id)
     flash(t('members.welcome', org=g.org.name), 'success')
+    return redirect('/')
+
+
+# --- Password resets --------------------------------------------------------------
+
+@bp.route('/reset/<token>')
+@org_required
+@rate_limit(limit=20, window=300, methods=('GET',))
+def reset_password(token: str) -> ResponseReturnValue:
+    """The page a reset link opens: choose a new password.
+
+    Beside the invitation routes, because it is the same kind of thing --
+    something an organizer hands over through whatever channel they
+    already use, working on an installation with no email at all.
+
+    404 for a link that is spent, expired, or was never ours, and the same
+    404 for all three. Which of them it was is information about somebody
+    else's account, and the person holding a bad link cannot act on the
+    difference anyway: the answer is always to ask for another.
+    """
+    reset = PasswordReset.find_valid(token)
+    if reset is None:
+        abort(404)
+    return render_device_template('members/reset.html', token=token,
+                                  min_length=User.MIN_PASSWORD_LENGTH)
+
+
+@bp.route('/reset/<token>', methods=['POST'])
+@org_required
+@rate_limit(limit=10, window=300)
+def submit_reset_password(token: str) -> ResponseReturnValue:
+    """Take the new password.
+
+    Looked up again rather than trusted from the form: the link may have
+    been spent, or expired, in the time the form was open.
+
+    Signs them in afterwards. Whoever holds the link can sign in with the
+    password they just chose regardless, so sending them to the login page
+    to type it again would buy nothing and lose the one moment they are
+    certain to be at a keyboard.
+    """
+    reset = PasswordReset.find_valid(token)
+    if reset is None:
+        abort(404)
+    password = request.form.get('password', '')
+    if password != request.form.get('password_confirm', ''):
+        flash(t('auth.passwords_do_not_match'), 'error')
+        return redirect(url_for('members.reset_password', token=token))
+    user = reset.user
+    try:
+        reset.redeem(password)
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+        return redirect(url_for('members.reset_password', token=token))
+
+    # Redeeming changed the digest every session id carries, so every
+    # session this account had is already void, including any this browser
+    # was holding. Clear and start a new one.
+    session.clear()
+    log.info('password_reset_redeemed', org_id=g.org.id, user_id=user.id)
+    # No remember-me. The premise of the whole feature is that somebody
+    # handed this person a link, which is as likely to happen at a borrowed
+    # keyboard as at their own, and a fortnight-long cookie is not
+    # something they asked for on the way to choosing a password.
+    if not login_user(user):
+        # A backstop, not a live path: find_valid already refuses an
+        # account that is not active, which is the only thing Flask-Login
+        # turns down here. Kept because this is an authentication boundary
+        # and announcing a sign-in that did not happen is the wrong way to
+        # be wrong.
+        flash(t('members.reset_done_not_signed_in'), 'warning')
+        return redirect(url_for('auth.login'))
+    flash(t('members.reset_done'), 'success')
     return redirect('/')
 
 

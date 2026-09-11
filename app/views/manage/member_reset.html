@@ -1,0 +1,47 @@
+{# The one showing of a one-time reset link.
+
+   A page rather than a banner on the members table, because this is a
+   value somebody has to copy and hand over, and because rendering it here
+   keeps it out of the session cookie a flash would have carried it home
+   in. Reloading this page does not show it again: only the hash is
+   stored, so there is nothing left to show. #}
+{% extends 'manage/_layout.html' %}
+{% from 'partials/_ui.html' import back_link with context %}
+
+{% block manage_content %}
+<p class="mb-2">{{ back_link(url_for('manage.members'), _('manage.members')) }}</p>
+
+<h1 class="page-title mb-5">{{ _('members.reset_link_title', name=member.name) }}</h1>
+
+<div class="card" x-data>
+  <div class="rounded-md bg-amber-50 p-4 ring-1 ring-amber-200" role="alert">
+    <p class="text-sm font-medium text-amber-800">
+      {{ _('members.reset_link_label', name=member.name) }}</p>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <label class="sr-only" for="reset-url">
+        {{ _('members.reset_link_label', name=member.name) }}</label>
+      <input type="text" id="reset-url" readonly value="{{ reset_url }}"
+             class="input min-w-64 flex-1 font-mono text-xs" @focus="$el.select()">
+      <button type="button" class="btn-secondary"
+              @click="navigator.clipboard.writeText(document.getElementById('reset-url').value)">
+        {{ _('members.copy') }}</button>
+    </div>
+    <p class="mt-2 text-xs text-amber-800">
+      {{ _('members.reset_link_once', hours=expiry_hours) }}</p>
+  </div>
+
+  {% if emailed %}
+  <p class="mt-4 text-sm text-slate-600">
+    {{ _('members.reset_sent', email=member.email) }}</p>
+  {% endif %}
+
+  <ul class="mt-4 space-y-1.5 text-sm text-slate-600">
+    <li>{{ _('members.reset_note_once') }}</li>
+    <li>{{ _('members.reset_note_channel') }}</li>
+    <li>{{ _('members.reset_note_supersede') }}</li>
+  </ul>
+
+  <a href="{{ url_for('manage.members') }}" class="btn-secondary mt-5 inline-block">
+    {{ _('members.reset_done_here') }}</a>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{# Choosing a new password, reached by a one-time link an organizer handed
+   over. Deliberately says nothing about whose account this is: the page is
+   reachable by anyone holding the link, and the link is passed through
+   chat, paper and conversation. #}
+{% extends 'layouts/minimal.html' %}
+
+{% block title %}{{ _('members.reset_page_title') }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1 class="text-xl font-semibold">{{ _('members.reset_page_title') }}</h1>
+  <p class="mt-2 text-sm text-slate-600">{{ _('members.reset_page_body') }}</p>
+
+  <form method="POST" action="{{ url_for('members.submit_reset_password', token=token) }}"
+        class="mt-6 space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="password" class="label">{{ _('members.reset_new_password') }}</label>
+      <input type="password" id="password" name="password" class="input mt-1"
+             required minlength="{{ min_length }}" autocomplete="new-password"
+             aria-describedby="password-hint">
+      {#- The number comes from User.MIN_PASSWORD_LENGTH rather than being
+          written here, so the form and the rule cannot drift apart. -#}
+      <p id="password-hint" class="mt-1 text-xs text-slate-600">
+        {{ _('members.reset_password_hint', n=min_length) }}</p>
+    </div>
+    <div>
+      <label for="password_confirm" class="label">{{ _('members.reset_confirm_password') }}</label>
+      <input type="password" id="password_confirm" name="password_confirm"
+             class="input mt-1" required minlength="{{ min_length }}"
+             autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn-primary w-full">{{ _('members.reset_submit') }}</button>
+  </form>
+</div>
+{% endblock %}

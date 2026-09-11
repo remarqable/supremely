@@ -12,6 +12,7 @@ from .newsletter import Delivery, DeliveryRecipient, Subscriber
 from .notification import Notification
 from .org_plugin import OrgPlugin
 from .organization import Organization
+from .password_reset import PasswordReset
 from .rsvp import Rsvp
 from .setting import InstallationSetting
 from .tier import Tier
@@ -38,6 +39,7 @@ __all__ = [
     'OrgPlugin',
     'OrgScoped',
     'Organization',
+    'PasswordReset',
     'Post',
     'PostFollow',
     'Reaction',

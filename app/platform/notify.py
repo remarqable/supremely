@@ -77,6 +77,26 @@ def notify_moderation(target, action: str) -> None:
                         snippet=action)
 
 
+def notify_password_reset_issued(user, org_id: int, actor_name: str) -> None:
+    """Tell somebody an organizer made a way into their account.
+
+    Without this the capability is silent: on the installations this
+    feature exists for there is no email, so an admin could mint a key to a
+    member's account and the member would have no signal at all. The row
+    already records who did it; this is the part the person it was done to
+    can see.
+
+    In-app rather than by email, because that is what works with no SMTP,
+    which is the whole premise. Where email is configured the ordinary
+    notification job mails a copy like any other.
+    """
+    from app.platform.i18n import t
+    Notification.notify(user_id=user.id, org_id=org_id,
+                        type='account.reset_issued',
+                        title=t('notifications.reset_issued_title'),
+                        url='/auth/password', actor_name=actor_name)
+
+
 @job('notifications.email')
 def deliver_notification_email(payload: dict) -> None:
     """Best-effort email copy of an in-app notification. No-op without SMTP."""

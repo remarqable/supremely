@@ -1,3 +1,8 @@
+{# 'invite' carries a one-time URL rather than a sentence, and has its own
+   panel on the Members page saying what the link is. Drawn here as well it
+   would appear a second time in a plain green success banner with none of
+   that. A password reset link is never flashed at all: it is rendered on a
+   page of its own, so it never goes near the session cookie. #}
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% for category, message in messages if category != 'invite' %}
   <div x-data="{ show: true }" x-show="show" x-transition role="alert"

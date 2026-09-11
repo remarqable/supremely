@@ -45,10 +45,11 @@ from app.platform.content_types import (
     submitted_fields,
 )
 from app.platform.devices import render_device_template
-from app.platform.emails import invitation_message
+from app.platform.emails import invitation_message, password_reset_message
 from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
+from app.platform.notify import notify_password_reset_issued
 from app.platform.theming import (
     AVAILABLE_THEMES,
     current_theme,
@@ -700,11 +701,13 @@ def members():
                    .join(Membership.user).order_by(User.name).all())
     invitations = (Invitation.query
                    .order_by(Invitation.created_at.desc()).limit(20).all())
-    from app.models import Tier
+    from app.models import PasswordReset, Tier
     from app.platform.mailer import is_email_configured
     all_tiers = Tier.in_order(include_retired=True)
     return render_device_template(
         'manage/members.html', members=member_list, invitations=invitations,
+        # So the page states the same lifetime the model enforces.
+        reset_expiry_hours=PasswordReset.EXPIRY_HOURS,
         # Two lists, deliberately. A picker offers what may be chosen
         # afresh; a member's own row has to show the rung they are actually
         # on, retired or not, or one Save on that row moves them off it
@@ -838,6 +841,79 @@ def member_remove(membership_id):
         db.session.rollback()
         flash(e.message, 'error')
     return redirect(url_for('manage.members'))
+
+
+@bp.route('/members/<int:membership_id>/reset-password', methods=['POST'])
+@org_required
+@require('members.manage')
+@rate_limit(limit=10, window=300)
+def member_reset_password(membership_id: int) -> ResponseReturnValue:
+    """Hand a member a one-time link back into their account.
+
+    The recovery path for an installation with no email, which is every
+    installation that has not configured any: without this, a member who
+    forgets their password waits for whoever can reach a shell on the
+    server.
+
+    Three questions are asked before a link exists, and they are different
+    questions. Whether the caller may manage this member at all is
+    _manageable_membership, the same guard that stops an admin suspending
+    an owner. Whether the caller may do it to themselves is below, and the
+    answer is no because Change password is the door for that and this one
+    would lock them out of the session they are standing in. Whether this
+    organization may reset this account at all belongs to the account
+    rather than to the request, so PasswordReset.issue asks it.
+    """
+    from app.models import PasswordReset
+    from app.models.password_reset import can_be_reset_by_org
+    from app.platform.mailer import is_email_configured, try_send_email
+    try:
+        membership = _manageable_membership(membership_id)
+        if membership.user_id == current_user.id:
+            raise ValidationError(t('members.reset_not_yourself'))
+        if not can_be_reset_by_org(membership.user, g.org.id):
+            # The model owns the rule; the wording is ours. One refusal for
+            # every reason it can say no to, so the message cannot be read
+            # backwards into a fact about the rest of the installation.
+            raise ValidationError(t('members.reset_refused'))
+        reset, token = PasswordReset.issue(membership.user, g.org.id)
+    except ValidationError as e:
+        db.session.rollback()
+        flash(e.message, 'error')
+        return redirect(url_for('manage.members'))
+
+    reset_url = reset.url(token)
+    # Logged like the other membership actions, and deliberately without the
+    # token: this line says a link was made, never what it was.
+    log.info('password_reset_link_issued', org_id=g.org.id,
+             user_id=membership.user_id, by_user_id=current_user.id)
+    # The person it was done to hears about it. On an installation with no
+    # email this is the only signal they get, and a capability that leaves
+    # no trace the subject can see is not one anybody can hold to account.
+    notify_password_reset_issued(membership.user, g.org.id, current_user.name)
+    sent = False
+    if is_email_configured() and membership.user.is_emailable:
+        # Where there is email, the member gets it directly and the admin
+        # need not handle it at all. The link is still shown, because the
+        # message may not arrive and the admin is standing right there.
+        #
+        # is_emailable as well as is_email_configured: an identity column
+        # does not have to hold a deliverable address, and the property
+        # exists because senders are expected to ask.
+        subject, text, html = password_reset_message(g.org, reset_url)
+        sent = try_send_email(membership.user.email, subject, text,
+                              html=html, attribution=False)
+    # Rendered, not flashed, and so not redirected to either. A flash goes
+    # home in the session cookie, which is signed but not encrypted and is
+    # sent to every organization's address on the installation, so flashing
+    # this would put a working key to somebody's account in the admin's
+    # cookie jar until whenever their browser next asked for a page that
+    # draws one. A page of its own also suits a value somebody has to copy
+    # better than a banner above a table does.
+    return render_device_template('manage/member_reset.html',
+                                  member=membership.user, reset_url=reset_url,
+                                  emailed=sent,
+                                  expiry_hours=PasswordReset.EXPIRY_HOURS)
 
 
 @bp.route('/members/<int:membership_id>/transfer', methods=['POST'])

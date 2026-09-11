@@ -11,8 +11,13 @@ processors, and those read the request -- so a newsletter, which is a job
 with no request, could not render an email at all.
 """
 
+from typing import TYPE_CHECKING
+
 from flask import current_app
 from markupsafe import Markup
+
+if TYPE_CHECKING:
+    from app.models.organization import Organization
 
 
 def render_email(template: str, *, subject: str, org=None, **fields) -> str:
@@ -90,6 +95,30 @@ def absolute_url_for(org):
         return org_url(org, path) if path and path.startswith('/') else path
 
     return absolute
+
+
+def password_reset_message(org: 'Organization',
+                           reset_url: str) -> tuple[str, str, str]:
+    """(subject, text, html) telling somebody how to get back in.
+
+    Sent only where the installation has email; the link works the same
+    whether it arrives this way or is read out over the phone, because
+    nothing about it depends on the message. Says who it is from and that
+    it can be ignored, since a reset nobody asked for is the shape an
+    attack takes and the account holder is the one who can tell.
+    """
+    from app.models.password_reset import PasswordReset
+    from app.platform.i18n import t
+    subject = t('members.reset_email_subject', org=org.site_name)
+    text, html = render_message(
+        'emails/password_reset.html', subject=subject, org=org,
+        text=t('members.reset_email_body', org=org.site_name, url=reset_url),
+        heading=t('members.reset_email_heading'),
+        intro=t('members.reset_email_intro', org=org.site_name),
+        action=t('members.reset_email_action'), action_url=reset_url,
+        outro=t('members.reset_email_outro',
+                hours=PasswordReset.EXPIRY_HOURS))
+    return subject, text, html
 
 
 def invitation_message(org, invite_url: str) -> tuple[str, str, str]:
