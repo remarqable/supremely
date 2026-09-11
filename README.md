@@ -15,9 +15,15 @@ member rail](docs/images/screenshot.png)
 One codebase serves self-hosted installations, third-party SaaS providers,
 and the official hosted service. The tenant is the **Organization**: a
 website and community with pages, posts (typed structured content),
-discussions, a newsletter audience, themes, and plugins. Email is optional
-infrastructure everywhere — installing, publishing, and onboarding members
-never require it.
+discussions, a newsletter audience, themes, and plugins.
+Email is optional infrastructure everywhere — installing, publishing,
+recovering an account, and onboarding members never require it.
+
+An installation talks to nothing on the internet except one thing: once a
+day it asks whether a newer image has been published, so the person running
+it is told when it has fallen behind. That check sends nothing about the
+installation and one environment variable switches it off — see the
+[deployment guide](docs/deployment/manual.md#environment-variables).
 
 ## Quick start
 

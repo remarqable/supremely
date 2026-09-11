@@ -411,9 +411,30 @@ An author can reference other content from inside a body. A directive is a
 paragraph of its own and nothing else:
 
 ```
-:::embed episode/why-we-build      one published item
-:::feed episode limit=3            a type's latest items
+:::video https://www.youtube.com/watch?v=...   a player
+:::image 42 left                               a picture from the library
+:::embed episode/why-we-build                  one published item
+:::feed episode limit=3                        a type's latest items
 ```
+
+The first two resolve in any body, including a discussion post, because
+each reaches no further than markup built here from a value parsed here.
+They land as markup your prose styles will meet, so they are worth knowing
+about:
+
+| Directive | What it leaves in the body |
+|---|---|
+| `:::video` | `<div class="video-embed">` around an `iframe`, sized 16:9 |
+| `:::image` | `<figure class="body-image body-image--center\|left\|right\|wide">` around an `img` |
+
+`iframe` and a `class` on a `figure` are both outside the Markdown
+allowlist on purpose: one renderer serves editorial content and member-written
+discussion posts alike, so this markup is built after sanitizing rather than
+trusted from what somebody typed. The application styles both, and a theme
+that wants its own look styles those class names rather than replacing the
+markup.
+
+The last two are the ones with a reader and an access decision behind them:
 
 Anything else on the line is not a directive, and a directive in backticks
 or in a code block is code, which is where anyone writing *about* the syntax
@@ -581,6 +602,27 @@ template further down the chain.
 To see a mobile template on a desktop browser, add `?device=mobile` to any
 URL; `?device=desktop` pins the other way and `?device=auto` goes back to
 detection.
+
+## Two includes belong in your head
+
+Both go just before `</head>`, and Origin's layout has them if you ship no
+layout of your own:
+
+```jinja
+{% include 'partials/_head_links.html' %}
+{% include 'partials/_analytics.html' %}
+```
+
+`_analytics.html` renders whichever tracker the organization configured
+under Manage → Settings → Analytics, and nothing at all when analytics is
+off. Leave it out and sites using your theme silently lose their visitor
+statistics.
+
+`_head_links.html` renders the `<link rel="alternate">` tags pointing at the
+site's RSS and Atom feeds, and at the current section's own feeds when the
+page is an archive. Leave it out and the feeds still answer at their
+addresses, but nothing on the page advertises them, so a reader's subscribe
+button finds nothing.
 
 ## Previews
 

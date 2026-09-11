@@ -67,7 +67,7 @@ MVC with fat models, thin controllers, dumb templates. Server-rendered Jinja (`a
 
 - `app/models/` — business logic, validation, queries. `base.py` has `BaseModel`, `OrgScoped`, `utcnow`.
 - `app/controllers/` — thin Flask blueprints. `manage.py` is the org-owner admin, `admin.py` the platform admin, `site.py` the public tenant site, `setup.py` the install wizard.
-- `app/platform/` — cross-cutting services: tenant resolution, content types, theming, plugins, jobs queue, storage, mailer, i18n, authz, notifications, newsletter.
+- `app/platform/` — cross-cutting services: tenant resolution, content types, theming, plugins, jobs queue, storage, mailer, i18n, authz, notifications, newsletter, update check.
 
 **Tenant resolution** (`app/platform/tenant.py`): every request resolves `g.org` from the host — subdomain of `BASE_DOMAIN`, custom domain (`OrgDomain`), or the default org on the bare domain. Runs with `PUBLIC_TENANTS=True`, so `g.org` is set for anonymous visitors too and every query stays scoped; content visibility is a model-layer concern. `g.membership` is the current user's active membership or None. Installation paths (`/setup`, `/admin`, `/auth/`, …) bypass tenancy.
 
@@ -77,7 +77,11 @@ MVC with fat models, thin controllers, dumb templates. Server-rendered Jinja (`a
 
 **Theming** (`app/platform/theming.py`, `app/views/themes/`): per-org theme selection with template overrides; themes declare editable content fields (`theme_content.py`) so the home page is edited in one place under Manage.
 
-**Jobs** (`app/platform/jobs.py`): DB-backed queue + worker process. Handlers register at import time — `app/__init__.py` imports `notify` and `newsletter` for that side effect.
+**Jobs** (`app/platform/jobs.py`): DB-backed queue + worker process. Handlers register at import time — `app/__init__.py` imports `notify` and `newsletter` for that side effect. A recurring handler books its next run through `reschedule()` before doing its work: `enqueue()` commits, so re-enqueueing directly and then failing leaves the successor **and** the retry, which doubles the job on every failure.
+
+**Syndication** (`app/controllers/feeds.py`): RSS, Atom, `sitemap.xml` and `robots.txt`. App-owned, never themed — a feed is a protocol, not a page. Feeds go through `Content.syndication_query`, the same visibility path an archive uses, so a gated item contributes a title and never a body; the sitemap uses `Content.public_query`, which answers for a crawler rather than for whoever fetched it. Themes advertise the feeds through `partials/_head_links.html`, which every layout includes beside `_analytics.html`.
+
+**Update check** (`app/platform/updates.py`): the **only outbound HTTP request this application makes**. Everything else it touches is its own database and, optionally, SMTP. It sends nothing about the installation, is switched off by `UPDATE_CHECK_ENABLED=false`, runs on the worker rather than in a request, and runs on a thread the worker abandons after a budget — a socket timeout bounds one read, not an exchange, and `HTTPResponse.read(n)` blocks until `n` bytes arrive. Before adding any second outbound call, read that module: the constraints are written down there.
 
 **Setup & config** (`app/config.py`): layering is defaults → `data/config.env` (written by the setup wizard) → real environment variables (env always wins). An uninitialized install serves only the wizard; `data/` holds the SQLite DB, uploads, and runtime config — `make reset` wipes it.
 

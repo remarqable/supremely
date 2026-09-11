@@ -3,6 +3,19 @@
 All notable changes to Supremely are documented in this file.
 Format follows [Common Changelog](https://common-changelog.org).
 
+## [Unreleased]
+
+### Added
+
+- **Pictures inside what you write** — an author puts a picture in a blog post or a page, and a member puts one in a discussion post or a reply, as many as they like and each placed where they want it: centred, floated left or right with the text wrapping around, or full width. Uploads go through the same pipeline as everything else, so a picture is checked, stripped of its location data and resized on the way in
+- **A way back in for a locked-out member** — on an installation with no email, an owner or admin hands somebody a one-time link to choose a new password, through whatever channel they already talk on. The link works once, lasts a day, and ends every session the account already had. Where email is configured it is sent to them as well
+- **Feeds and a sitemap** — every archive publishes RSS and Atom, the site publishes both for everything at once, and `sitemap.xml` and `robots.txt` tell a search engine what is there. A feed lists exactly what its archive lists, so a members-only item contributes its title and never its body, and the sitemap holds only what anybody may read
+- **A notice when the installation has fallen behind** — Supremely does not update itself, and now says so: once a day it checks whether a newer image has been published and tells whoever administers the installation, who is the only person who can do anything about it. One environment variable switches the check off, and it sends nothing about the installation
+
+### Changed
+
+- A recurring background job books its next run before doing its work and the booking is guarded, so a job that fails can no longer leave two of itself behind and double how often it runs
+
 ## [0.1.0] - 2026-09-02
 
 ### Added

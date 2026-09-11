@@ -209,8 +209,26 @@ the same per-org gating as everything else.
   invite, recover — works with no email service configured. Email enhances,
   never gates.
 - **Jobs**: a database-backed queue (`app/platform/jobs.py`) with a
-  separate worker process (`flask jobs run`). Newsletter delivery and
-  notification emails run there, idempotently.
+  separate worker process (`flask jobs run`). Newsletter delivery,
+  notification emails and the update check run there, idempotently. A
+  recurring job books its next run before doing its work, and the booking
+  is guarded so a failed run cannot leave two.
+- **Syndication** (`app/controllers/feeds.py`): RSS and Atom for every
+  archive and for the site as a whole, plus `sitemap.xml` and `robots.txt`.
+  App-owned rather than themed, because a feed is a protocol and not a
+  page; what a theme gets is the `<link rel="alternate">` tags in its head,
+  through `partials/_head_links.html`. Feeds list exactly what an archive
+  lists, by asking the same model query, so a gated item contributes its
+  title and never its body. The sitemap answers for a crawler rather than
+  for whoever fetched it: strictly public content, whoever asks.
+- **Update check** (`app/platform/updates.py`): once a day the worker asks
+  the registry when the newest image was published and compares it to the
+  build stamped into the running one; a platform administrator sees a
+  dismissable banner in the console. This is the only outbound request the
+  software makes — everything else it touches is its own database and,
+  optionally, an SMTP server — so it sends nothing about the installation,
+  one variable switches it off, and it runs on a thread the worker will
+  abandon rather than wait on.
 - **Database**: SQLite by default, PostgreSQL via one `DATABASE_URL`
   variable. Dev builds schema straight from models; production applies
   Alembic migrations at container start (single migrator; the worker waits).
