@@ -17,6 +17,7 @@ from app.platform.errors import ValidationError
 from app.platform.i18n import t
 from app.platform.logger import get_logger
 from app.platform.tenant import org_url
+from app.platform.theming import render_site
 
 bp = Blueprint('orgs', __name__)
 log = get_logger()
@@ -102,8 +103,8 @@ def _latest_published():
 @login_required
 def dashboard():
     """Community home: where members land inside the organization. The right
-    rail (announcement, members, event) rides the shell layout and feeds
-    itself through template helpers."""
+    rail (announcement, members, event) rides the layout and feeds itself
+    through template helpers."""
     if not is_member_or_platform_admin():
         abort(404)
     from app.models.discussion import DiscussionGroup
@@ -112,6 +113,6 @@ def dashboard():
               DiscussionGroup.in_order()
               if group.readable_by_current_visitor()]
 
-    return render_device_template('orgs/dashboard.html', org=g.org, groups=groups,
-                           feed=_recent_posts(groups),
-                           latest_published=_latest_published())
+    return render_site(['dashboard.html'], context_name='application',
+                       org=g.org, groups=groups, feed=_recent_posts(groups),
+                       latest_published=_latest_published())

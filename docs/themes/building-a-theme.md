@@ -124,7 +124,9 @@ using your theme silently lose their visitor stats.
 
 `header.html` renders the navigation the organizer configured — you never
 hardcode a menu — and shows how a theme adapts to the *viewer* without
-checking permissions itself (these globals are provided):
+checking permissions itself (these globals are provided). The Community
+button is the door into the community shell, which is where Trailhead's
+members talk (Part 6):
 
 ```html
 {% for item in nav_items('primary') if not item.is_group %}
@@ -224,16 +226,31 @@ events: the moment the same template serves another type, it goes blank.
 Everything in `items` is already filtered for the current visitor — a
 members-only item simply isn't in the list.
 
-## Part 6 — The public community teaser
+## Part 6 — The community, framed
 
-Visitors hitting `/discussions` get the theme's `discussions.html`
-(Origin's, unless you override it), showing only **public** groups — your
-members-only groups never reach a visitor's template. A visitor opening a
-public post can read it; the reply form is replaced by the built-in
-*log in to participate* link. Members never see any of this: for them,
-discussions are the standardized Supremely application, which themes do
-not control. That split — themed publication outside, consistent app
-inside — is the platform's design, and your theme gets it for free.
+We wrote nothing for `/discussions`, the member directory or the member
+home, and we are not going to. Those screens are Supremely's, drawn the
+same on every site, for visitors and members alike. A visitor opening
+`/discussions` sees the public Welcome group teased and the members-only
+groups locked; opening a public post shows the thread with the reply form
+replaced by the built-in *log in to participate* link. All of that is
+server behaviour.
+
+What our theme decides is the **frame** around those screens, and Trailhead
+takes the default: the community shell. Members click the Community button
+in our header and land in Supremely's own frame, with a navigation column on
+the left, in the organization's brand colour. Our header and footer are not
+shown there. (A theme may tint the shell with its own colours by declaring
+`community_tokens` in `theme.json`; Trailhead leaves that to the organizer.)
+
+The other choice is **one frame**: declare `"community_nav": false` in
+`theme.json` and our own layout draws the community too, with our header as
+the navigation. It is one line to declare and three things to provide in
+`layout.html`: a wider column for community pages, the right rail, and
+HTMX with its CSRF header. The reference spells them out under
+[Framing the community](README.md#framing-the-community), and the shipped
+Supremely theme is the working example. Trailhead keeps the shell because a
+hiking club's site and its forum feel like two places, and that is fine.
 
 ## Part 7 — Install, activate, verify
 
@@ -251,7 +268,7 @@ Then Manage → Theme editor → Home page to write the hero. Verification check
 | `/blog`, `/events` | readable, Trailhead chrome |
 | `/discussions` | public groups only, no members-only groups |
 | open a public post → reply | sent to log in |
-| As a member (`member@demo.test`) | the standardized community app, not your theme |
+| As a member (`member@demo.test`) | the community in Supremely's shell; your header is not shown there |
 
 ## Part 8 — Rules of the road
 

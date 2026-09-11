@@ -78,6 +78,13 @@
     </div>
   </div>
 
+  {# Attribution is on every page, the community included. The same
+     app-owned partial every theme footer uses, so the link is defined
+     once (app/platform/attribution.py). #}
+  <footer class="mx-auto max-w-[1600px] px-4 pb-6 text-xs text-slate-500 sm:px-8">
+    {% include 'partials/_powered_by.html' %}
+  </footer>
+
   {% block scripts %}{% endblock %}
 </body>
 </html>

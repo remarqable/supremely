@@ -83,9 +83,13 @@ def test_the_console_does_not_attribute(app, client, acme, globex, user):
     assert SITE_LINK not in client.get('/manage/branding', base_url=ACME).data
 
 
-def test_the_community_shell_does_not_attribute(app, client, acme, globex):
-    """The member area is the application, not the published site."""
-    assert SITE_LINK not in client.get('/discussions/', base_url=ACME).data
+def test_the_community_shell_attributes_too(app, client, acme, globex, user):
+    """Attribution is on every page. The shell has no theme footer, so it
+    carries the same partial itself; a theme framing the community draws
+    its own footer, which already includes it."""
+    assert SITE_LINK in client.get('/discussions/', base_url=ACME).data
+    login_as(client, user)
+    assert SITE_LINK in client.get('/dashboard', base_url=ACME).data
 
 
 # --- email --------------------------------------------------------------------

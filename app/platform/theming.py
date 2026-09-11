@@ -77,6 +77,9 @@ def validate_manifest(manifest: dict) -> None:
             raise ValidationError(
                 f'Setting {key} has unknown type {spec.get("type")!r}')
 
+    if not isinstance(manifest.get('community_nav', True), bool):
+        raise ValidationError('theme.json "community_nav" must be true or false')
+
     content = manifest.get('content') or {}
     if not isinstance(content, dict):
         raise ValidationError('theme.json "content" must be an object')
@@ -196,6 +199,10 @@ def scan_themes() -> None:
                     # Whitelisted brand tokens a theme may tint the app-owned
                     # community shell with (community_tokens()).
                     'community_tokens': manifest.get('community_tokens', {}) or {},
+                    # Whether community screens render inside the app-owned
+                    # shell (its left nav) or inside this theme's own layout.
+                    # See theme_has_community_nav().
+                    'community_nav': manifest.get('community_nav', True),
                 }
             except (json.JSONDecodeError, OSError) as e:
                 log.error('theme_manifest_invalid', path=str(manifest_path),
@@ -351,6 +358,25 @@ def community_tokens() -> dict:
             and isinstance(value, str) and HEX_COLOR_RE.fullmatch(value)}
 
 
+def theme_has_community_nav(theme: str | None = None) -> bool:
+    """Whether community screens render inside the app-owned shell under
+    the active (or given) theme.
+
+    A theme declares `"community_nav": false` in theme.json to say the
+    community is a region of its site rather than a place you travel to: its
+    own layout then draws the discussion and member screens, its header's
+    menu is the navigation, and the shell's left nav is gone. The default is
+    true, so a theme that says nothing keeps the shell.
+
+    A theme declaration rather than an organization setting on purpose.
+    Turning the left nav off is only safe when the layout can host a
+    discussion thread and show the rail (`community_page`), and only the
+    theme knows whether its layout can.
+    """
+    manifest = AVAILABLE_THEMES.get(theme or current_theme(), {})
+    return manifest.get('community_nav', True) is not False
+
+
 # --- Presentation contexts ----------------------------------------------------
 #
 # Access decides WHO may see an object; presentation decides HOW it appears
@@ -365,12 +391,18 @@ def community_tokens() -> dict:
 #                  render_site entirely (listed for vocabulary).
 #
 # SHELL_CONTEXTS is the single policy point mapping context -> whether the
-# standardized community shell renders instead of the theme. The shell now
+# application's community screens render instead of the theme's. The shell
 # serves EVERYONE — visitors included — so a visitor browses the same
-# left-nav community members use and sees gated content teased in place
+# community members use and sees gated content teased in place
 # (tease-don't-hide). Themes style the front page (force_theme) and any
 # page rendered with preview/force_theme. Change presentation policy here
 # (or per-org later) — never with ad-hoc membership tests at callsites.
+#
+# Which LAYOUT frames a community screen is the theme's declaration, not
+# policy: the app-owned shell layout with its left nav by default, or the
+# theme's own layout when its theme.json says "community_nav": false
+# (theme_has_community_nav). The screens themselves are the application's
+# either way.
 # Direction: supremely-dev/docs/"Supremely — Themes, Visibility, and
 # Presentation Architecture".
 
@@ -434,20 +466,29 @@ def render_site(candidates: list[str], context_name: str = 'publication',
     context.setdefault('theme_settings', theme_config())
     # Site templates extend {{ site_layout }} so a theme's layout override
     # applies even to pages the theme does not override itself.
-    if shell:
+    #
+    # `shell` decides whose *screens* render: the application owns the
+    # discussion and member pages, and a theme never supplies those. Which
+    # layout frames them is the theme's call. By default it is the app-owned
+    # shell with its left nav; a theme that declares "community_nav": false
+    # makes the community a region of its own site instead, so its layout
+    # draws every page and its header's menu is the navigation. The layout
+    # is told which kind of page it is drawing so a community screen gets
+    # the width and the rail it needs while a page keeps a reading column.
+    if shell and theme_has_community_nav(theme):
         context.setdefault('site_layout', shell_layout())
     else:
         context.setdefault('site_layout', themed('layout.html'))
+    context.setdefault('community_page', shell)
     return render_template(names, **context)
 
 
 def shell_layout() -> str:
     """The community shell's layout, mobile version when one exists.
 
-    Exposed to templates as `community_layout` because three shell pages
-    extend the layout by name rather than receiving it from render_site;
-    without this they would be the only shell surfaces a mobile layout did
-    not reach.
+    Reached only through render_site: every community screen receives its
+    layout from the seam as `site_layout`, so a mobile shell layout reaches
+    all of them and none extends the shell by name.
     """
     for candidate in device_candidates(['layouts/community.html']):
         if _template_exists(candidate):
